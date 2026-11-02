@@ -6,9 +6,7 @@ class App {
         this.currentProgress = 0.0;
         this.cameraMode = 'chase'; // 'chase' | 'drone' | 'free'
         this.isPlaying = false;
-        this.baseSpeed = 0.0006;
-        this.speedMultiplier = 1.0;
-        this.playSpeed = this.baseSpeed * this.speedMultiplier;
+        this.speedKmh = 20; // 時速 (km/h)
         this.isModeTransitioning = false;
         this.lastFrameTime = 0;
 
@@ -382,11 +380,10 @@ class App {
             this.updateState(0.0);
         });
 
-        // 再生速度スライダー
+        // 走行速度スライダー (1〜50 km/h)
         this.speedSlider.addEventListener('input', (e) => {
-            this.speedMultiplier = parseFloat(e.target.value);
-            this.playSpeed = this.baseSpeed * this.speedMultiplier;
-            this.speedVal.textContent = `${this.speedMultiplier.toFixed(1)}x`;
+            this.speedKmh = parseFloat(e.target.value);
+            this.speedVal.textContent = `${Math.round(this.speedKmh)} km/h`;
         });
 
         // カメラ仰角スライダー
@@ -533,10 +530,17 @@ class App {
 
         if (this.isPlaying) {
             if (!this.lastFrameTime) this.lastFrameTime = timestamp;
-            const delta = Math.min((timestamp - this.lastFrameTime) / 1000, 0.1);
+            const deltaSeconds = Math.min((timestamp - this.lastFrameTime) / 1000, 0.1);
             this.lastFrameTime = timestamp;
 
-            const nextProgress = (this.currentProgress + this.playSpeed * (delta * 60)) % 1.0;
+            // 時速(km/h)から1秒あたりの進捗率を計算:
+            // 速度(m/s) = speedKmh / 3.6
+            // 進捗増加量 = (速度[m/s] * 経過時間[s]) / 総距離[m]
+            const metersPerSecond = (this.speedKmh * 1000) / 3600;
+            const distanceMoved = metersPerSecond * deltaSeconds;
+            const progressDelta = this.course.totalDistance > 0 ? (distanceMoved / this.course.totalDistance) : 0;
+
+            const nextProgress = (this.currentProgress + progressDelta) % 1.0;
             this.updateState(nextProgress);
         } else {
             this.lastFrameTime = 0;
