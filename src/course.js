@@ -124,18 +124,27 @@ export class GeoCourseManager {
         };
     }
 
-    getStateAtProgress(progress, speedKmh = 25) {
+    getStateAtProgress(progress, speedKmh = 25, vectorMode = 'fwd') {
         const u = Math.max(0, Math.min(1, progress));
         const dist = u * this.totalDistance;
         const cur = this.sampleAtDist(dist);
 
-        // 方位角（Bearing）: 現在地から「時速の数字 m（最低12m）」先の前方地点へのベクトルから算出
-        const lookaheadDist = Math.max(12, speedKmh);
-        let p0 = cur;
-        let p1 = this.sampleAtDist(dist + lookaheadDist);
-        if (dist + lookaheadDist > this.totalDistance) {
-            p0 = this.sampleAtDist(Math.max(0, this.totalDistance - lookaheadDist));
-            p1 = this.sampleAtDist(this.totalDistance);
+        // 方位角（Bearing）: 速度 (m) に応じた前方ベクトルまたは前後ベクトル
+        const lookDist = Math.max(1, speedKmh);
+        let p0, p1;
+
+        if (vectorMode === 'bwdfwd') {
+            // 後方(0.5V) 〜 前方(V) ベクトル: 過去の軌跡（車体姿勢）を保ちつつ進行先を捉える
+            p0 = this.sampleAtDist(dist - lookDist * 0.5);
+            p1 = this.sampleAtDist(dist + lookDist);
+        } else {
+            // 前方のみ: 現在地 〜 前方(V) ベクトル
+            p0 = cur;
+            p1 = this.sampleAtDist(dist + lookDist);
+            if (dist + lookDist > this.totalDistance) {
+                p0 = this.sampleAtDist(Math.max(0, this.totalDistance - lookDist));
+                p1 = this.sampleAtDist(this.totalDistance);
+            }
         }
 
         // 斜度（Slope）は前後25mの連続標高差から算出

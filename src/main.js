@@ -20,6 +20,7 @@ class App {
         this.manualSlope = 0.0;
         this.lfoPeriodSeconds = 60;
         this.lfoStartTime = 0;
+        this.camVectorMode = 'fwd'; // 'fwd' (現在地→前方V) | 'bwdfwd' (後方0.5V→前方V)
 
         // Bluetooth Smart Trainer
         this.bleManager = new BleTrainerManager();
@@ -41,6 +42,7 @@ class App {
                 this.ui.updateMetrics(this.currentState(), this.speedKmh);
             },
             onToggleCameraFree: () => this.toggleCameraFree(),
+            onToggleVectorMode: () => this.toggleCamVectorMode(),
             onCameraParamChange: (params) => this.mapView.setCameraParams(params, this.currentState()),
             onFullscreenChange: () => setTimeout(() => this.handleResize(), 100),
             onBleConnect: () => this.connectBle(),
@@ -71,7 +73,7 @@ class App {
     }
 
     currentState() {
-        return this.course.getStateAtProgress(this.currentProgress, this.speedKmh);
+        return this.course.getStateAtProgress(this.currentProgress, this.speedKmh, this.camVectorMode);
     }
 
     handleResize() {
@@ -144,6 +146,12 @@ class App {
         const nextMode = this.mapView.cameraMode === 'free' ? 'track' : 'free';
         this.ui.updateCameraModeUI(nextMode === 'free');
         this.mapView.setCameraMode(nextMode, this.currentState());
+    }
+
+    toggleCamVectorMode() {
+        this.camVectorMode = (this.camVectorMode === 'fwd') ? 'bwdfwd' : 'fwd';
+        this.ui.updateCamVectorMode(this.camVectorMode);
+        this.updateState(this.currentProgress);
     }
 
     setLoadMode(mode) {

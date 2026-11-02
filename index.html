@@ -18,7 +18,7 @@
     <div id="top-bar">
         <div class="top-title-group">
             <h1 class="top-app-title">AeroVelo</h1>
-            <span class="version-badge" id="app-version">v1.8.3</span>
+            <span class="version-badge" id="app-version">v1.8.4</span>
         </div>
         <div class="top-course-group">
             <span id="course-name-display" class="top-course-title">読み込み中...</span>
@@ -96,6 +96,11 @@
             <button type="button" id="btn-close-cam-dialog" class="floating-cam-close" title="閉じる">✕</button>
         </div>
         <div id="camera-adjust-box" class="camera-adjust-box">
+            <div class="label-row" style="margin-bottom: 2px;">
+                <label>Vector</label>
+                <button type="button" id="btn-cam-vector-mode" class="btn toggle mini-cam-free" style="flex: none; min-height: 16px; padding: 1px 6px; font-size: 0.52rem;" title="進行方向ベクトルの算出方法（Fwd Only / Bwd+Fwd）">Fwd Only</button>
+            </div>
+
             <div class="label-row">
                 <label for="cam-orbit-slider">Angle</label>
                 <span id="cam-orbit-val" class="sub-val">0°</span>
