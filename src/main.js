@@ -358,7 +358,6 @@ class App {
         // 手動負荷設定 UI
         this.testSlopeSlider = document.getElementById('test-slope-slider');
         this.testSlopeVal = document.getElementById('test-slope-val');
-        this.btnPresetSlopes = document.querySelectorAll('.btn-preset-slope');
         this.btnLfoToggle = document.getElementById('btn-lfo-toggle');
         this.lfoPeriodSelect = document.getElementById('lfo-period-select');
 
@@ -389,7 +388,7 @@ class App {
 
     setupGPXImporter() {
         const dropZone = document.getElementById('drop-zone');
-        const gpxSection = dropZone ? dropZone.closest('.gpx-section') : null;
+        const gpxSection = dropZone ? (dropZone.closest('.gpx-section-frameless') || dropZone.closest('.gpx-section')) : null;
         const fileInput = document.getElementById('gpx-file-input');
         const btnBrowse = document.getElementById('btn-browse');
 
@@ -560,17 +559,6 @@ class App {
             this.testSlopeSlider.addEventListener('input', (e) => {
                 this.stopLFO();
                 this.applyManualSlope(parseFloat(e.target.value));
-            });
-        }
-
-        if (this.btnPresetSlopes) {
-            this.btnPresetSlopes.forEach(btn => {
-                btn.addEventListener('click', () => {
-                    this.stopLFO();
-                    const val = parseFloat(btn.dataset.val);
-                    if (this.testSlopeSlider) this.testSlopeSlider.value = val;
-                    this.applyManualSlope(val);
-                });
             });
         }
 
@@ -818,12 +806,6 @@ class App {
             const s = this.manualSlope > 0 ? '+' : '';
             this.testSlopeVal.textContent = `${s}${this.manualSlope.toFixed(1)} %`;
         }
-        if (this.btnPresetSlopes) {
-            this.btnPresetSlopes.forEach(btn => {
-                const bVal = parseFloat(btn.dataset.val);
-                btn.classList.toggle('active', Math.abs(bVal - this.manualSlope) < 0.15);
-            });
-        }
         this.sendSlopeToTrainer(this.manualSlope);
     }
 
@@ -831,7 +813,7 @@ class App {
         this.isLfoRunning = true;
         this.lfoStartTime = performance.now();
         if (this.btnLfoToggle) {
-            this.btnLfoToggle.textContent = '自動連続スキャン 停止';
+            this.btnLfoToggle.textContent = 'スキャン停止';
             this.btnLfoToggle.classList.add('running');
         }
     }
@@ -839,7 +821,7 @@ class App {
     stopLFO() {
         this.isLfoRunning = false;
         if (this.btnLfoToggle) {
-            this.btnLfoToggle.textContent = '自動連続スキャン 開始';
+            this.btnLfoToggle.textContent = '連続スキャン';
             this.btnLfoToggle.classList.remove('running');
         }
     }

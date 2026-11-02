@@ -81,26 +81,26 @@ body {
 }
 
 /* ========================================================
-   UI Panel (約60%スケール・極小コンパクト化)
+   UI Panel (横幅を半減: 230px -> 115px、幅狭超極小スリム化)
    ======================================================== */
 #ui-panel {
     position: absolute;
     top: 10px;
     left: 10px;
-    width: 230px;
+    width: 115px;
     max-height: calc(100vh - 20px);
     overflow-y: auto;
     background: var(--panel-bg);
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
     border: 1px solid var(--panel-border);
-    border-radius: 10px;
-    padding: 10px;
+    border-radius: 8px;
+    padding: 6px;
     z-index: 10;
     box-shadow: 0 6px 20px rgba(0, 0, 0, 0.6);
     display: flex;
     flex-direction: column;
-    gap: 7px;
+    gap: 5px;
 }
 
 /* Custom Slim Scrollbar */
@@ -202,12 +202,8 @@ body {
     margin-top: 1px;
 }
 
-/* GPX Importer Section */
-.gpx-section {
-    background: rgba(0, 0, 0, 0.3);
-    border: 1px dashed var(--panel-border);
-    border-radius: 5px;
-    padding: 4px 6px;
+/* GPX Importer Section (枠線なし) */
+.gpx-section-frameless {
     display: flex;
     flex-direction: column;
     gap: 4px;
@@ -655,9 +651,9 @@ input[type="range"]::-webkit-slider-thumb {
 
 .metric-num {
     display: inline-block;
-    width: 48px;
+    width: 38px;
     text-align: right;
-    font-size: 0.68rem;
+    font-size: 0.65rem;
     font-weight: 700;
     color: var(--text-primary);
     font-variant-numeric: tabular-nums;
@@ -665,9 +661,9 @@ input[type="range"]::-webkit-slider-thumb {
 
 .metric-unit {
     display: inline-block;
-    min-width: 48px;
-    margin-left: 4px;
-    font-size: 0.52rem;
+    min-width: 34px;
+    margin-left: 2px;
+    font-size: 0.48rem;
     color: var(--text-muted);
     font-family: -apple-system, BlinkMacSystemFont, sans-serif;
     text-align: left;
@@ -850,53 +846,26 @@ input[type="range"]::-webkit-slider-thumb {
     border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-.test-presets-row {
+.compact-scan-row {
     display: flex;
-    gap: 3px;
+    align-items: center;
     justify-content: space-between;
-}
-
-.btn-preset-slope {
-    flex: 1;
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid var(--panel-border);
-    color: #f1f5f9;
-    font-size: 0.58rem;
-    font-weight: 600;
-    padding: 2px 0px;
-    border-radius: 3px;
-    cursor: pointer;
-    transition: all 0.15s ease;
-}
-
-.btn-preset-slope:hover, .btn-preset-slope.active {
-    background: rgba(245, 158, 11, 0.3);
-    border-color: #f59e0b;
-    color: #fff;
-}
-
-.test-lfo-box {
+    gap: 6px;
+    margin-top: 3px;
     background: rgba(0, 0, 0, 0.3);
     border: 1px solid rgba(255, 255, 255, 0.06);
     border-radius: 4px;
-    padding: 4px;
-    margin-top: 2px;
+    padding: 3px 6px;
 }
 
-.lfo-controls-row {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    margin-top: 3px;
-}
-
-.mini-btn {
-    min-height: 20px;
+.mini-scan-btn {
+    min-height: 18px;
     padding: 2px 6px;
-    font-size: 0.6rem;
+    font-size: 0.62rem;
+    font-weight: 700;
 }
 
-.mini-btn.running {
+.mini-scan-btn.running {
     background: #ef4444 !important;
     color: #fff !important;
 }

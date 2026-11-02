@@ -20,7 +20,7 @@
             <div class="header-top">
                 <h1>AeroVelo</h1>
                 <div class="header-actions">
-                    <span class="version-badge" id="app-version">v1.4.0</span>
+                    <span class="version-badge" id="app-version">v1.4.1</span>
                     <button type="button" id="btn-modal-settings" class="icon-btn" title="設定 (GPX / トレーナー / テスト)">⚙️</button>
                     <button type="button" id="btn-fullscreen" class="icon-btn" title="全画面表示 (F11)">⛶</button>
                 </div>
@@ -159,10 +159,10 @@
                 <button type="button" class="modal-close" data-close="modal-settings">✕</button>
             </div>
             <div class="modal-body">
-                <!-- セクション 1: コース選定・GPX -->
+                <!-- セクション 1: コース選定・GPX (枠線なし) -->
                 <div class="settings-section">
                     <div class="settings-sec-title">📁 コース選定・GPX</div>
-                    <section class="control-group gpx-section">
+                    <div class="gpx-section-frameless">
                         <div class="preset-row">
                             <select id="preset-select" class="preset-select">
                                 <option value="gpx/hiyoshi_12.5km_D738.gpx" selected>🇯🇵 Hiyoshi (12.5km D+738m)</option>
@@ -184,7 +184,7 @@
                                 <span id="gsi-btn-text">5mメッシュ標高で補正</span>
                             </button>
                         </div>
-                    </section>
+                    </div>
                 </div>
 
                 <!-- セクション 2: スマートトレーナー接続 -->
@@ -201,7 +201,7 @@
                     </section>
                 </div>
 
-                <!-- セクション 3: 手動負荷設定 -->
+                <!-- セクション 3: 手動負荷設定 (負荷%ボタンなし・コンパクトスキャン) -->
                 <div class="settings-section">
                     <div class="settings-sec-title">🛠️ 手動負荷設定</div>
                     <div id="test-controls-box" class="test-controls-box">
@@ -212,33 +212,17 @@
                         </div>
                         <input type="range" id="test-slope-slider" min="0" max="7" step="0.2" value="0">
 
-                        <!-- Quick Presets -->
-                        <div class="test-presets-row">
-                            <button type="button" class="btn-preset-slope" data-val="0">0%</button>
-                            <button type="button" class="btn-preset-slope" data-val="1">1%</button>
-                            <button type="button" class="btn-preset-slope" data-val="2">2%</button>
-                            <button type="button" class="btn-preset-slope" data-val="3">3%</button>
-                            <button type="button" class="btn-preset-slope" data-val="4">4%</button>
-                            <button type="button" class="btn-preset-slope" data-val="5">5%</button>
-                            <button type="button" class="btn-preset-slope" data-val="7">7%</button>
-                        </div>
-
-                        <!-- Auto Sweep -->
-                        <div class="test-lfo-box">
-                            <div class="lfo-controls-row">
-                                <button type="button" id="btn-lfo-toggle" class="btn secondary mini-btn">自動連続スキャン 開始</button>
-                                <div class="lfo-period-wrap">
-                                    <label for="lfo-period-select">周期:</label>
-                                    <select id="lfo-period-select" class="mini-select">
-                                        <option value="10">10秒</option>
-                                        <option value="20" selected>20秒</option>
-                                        <option value="30">30秒</option>
-                                        <option value="60">60秒</option>
-                                    </select>
-                                </div>
-                                <div class="lfo-range-wrap">
-                                    <span class="lfo-range-text">0% ↔ 7%</span>
-                                </div>
+                        <!-- Auto Sweep (コンパクト表示: 連続スキャン + 周期) -->
+                        <div class="compact-scan-row">
+                            <button type="button" id="btn-lfo-toggle" class="btn secondary mini-scan-btn">連続スキャン</button>
+                            <div class="lfo-period-wrap">
+                                <label for="lfo-period-select">周期:</label>
+                                <select id="lfo-period-select" class="mini-select">
+                                    <option value="10">10秒</option>
+                                    <option value="20" selected>20秒</option>
+                                    <option value="30">30秒</option>
+                                    <option value="60">60秒</option>
+                                </select>
                             </div>
                         </div>
                     </div>
