@@ -91,7 +91,7 @@
                 <div class="metric-row ble-metric-row" id="card-power">
                     <span class="metric-label">Power</span>
                     <span class="metric-value-wrap">
-                        <span class="metric-num" id="val-power">--</span>
+                        <span class="metric-num" id="val-power">--.--</span>
                         <span class="metric-unit">W</span>
                     </span>
                 </div>
@@ -100,24 +100,23 @@
                 <div class="metric-row ble-metric-row" id="card-cadence">
                     <span class="metric-label">Cadence</span>
                     <span class="metric-value-wrap">
-                        <span class="metric-num" id="val-cadence">--</span>
+                        <span class="metric-num" id="val-cadence">--.--</span>
                         <span class="metric-unit">rpm</span>
                     </span>
                 </div>
             </div>
         </section>
 
-        <!-- Camera Controls (メインダイアログに常駐) -->
+        <!-- Camera Controls (メインダイアログに常駐: FREEボタンのみ) -->
         <section class="control-group camera-group">
             <div class="camera-header-row">
-                <span class="ctrl-title">CAMERA</span>
+                <span class="ctrl-title camera-title">CAMERA</span>
                 <div class="btn-group inline-cam-btns">
-                    <button id="cam-chase" class="btn toggle active">CHASE</button>
-                    <button id="cam-free" class="btn toggle">FREE</button>
+                    <button type="button" id="cam-free" class="btn toggle">FREE</button>
                 </div>
             </div>
 
-            <!-- Camera Adjustment Sliders -->
+            <!-- Camera Adjustment Sliders (FREE時はグレーアウト＆無効化) -->
             <div id="camera-adjust-box" class="camera-adjust-box">
                 <div class="label-row">
                     <label for="cam-orbit-slider">Angle</label>

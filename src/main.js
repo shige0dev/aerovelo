@@ -347,7 +347,6 @@ class App {
         this.btnPlay = document.getElementById('btn-play');
         this.btnReset = document.getElementById('btn-reset');
         
-        this.camChaseBtn = document.getElementById('cam-chase');
         this.camFreeBtn = document.getElementById('cam-free');
 
         this.elDistance = document.getElementById('val-distance');
@@ -640,22 +639,22 @@ class App {
             if (this.btnBleDisconnect) {
                 this.btnBleDisconnect.style.display = 'none';
             }
-            if (this.valPower) this.valPower.textContent = '--';
-            if (this.valCadence) this.valCadence.textContent = '--';
+            if (this.valPower) this.valPower.textContent = '--.--';
+            if (this.valCadence) this.valCadence.textContent = '--.--';
             this.hasBleDistance = false;
         });
 
         this.bleManager.on('data', (data) => {
             if (data.power !== null && this.valPower) {
-                this.valPower.textContent = data.power;
+                this.valPower.textContent = Number(data.power).toFixed(2);
             }
             if (data.cadence !== null && this.valCadence) {
-                this.valCadence.textContent = data.cadence;
+                this.valCadence.textContent = Number(data.cadence).toFixed(2);
             }
-            // スマートトレーナーから実測速度が送られてきた場合、表示を同期
+            // スマートトレーナーから実測速度が送られてきた場合、表示を同期（下2桁）
             if (data.speed !== null) {
                 this.speedKmh = data.speed;
-                if (this.speedVal) this.speedVal.textContent = Math.round(data.speed);
+                if (this.speedVal) this.speedVal.textContent = this.speedKmh.toFixed(2);
             }
 
             // 【方法1】FTMSの Total Distance（累積走行距離）が取得できた場合、ダイレクトに進捗計算
@@ -888,14 +887,20 @@ class App {
 
         const setCamMode = (mode) => {
             this.cameraMode = mode;
-            this.camChaseBtn.classList.toggle('active', mode === 'track');
-            this.camFreeBtn.classList.toggle('active', mode === 'free');
-
-            if (this.camAdjustBox) {
-                this.camAdjustBox.style.opacity = (mode === 'free') ? '0.35' : '1';
+            const isFree = (mode === 'free');
+            if (this.camFreeBtn) {
+                this.camFreeBtn.classList.toggle('active', isFree);
             }
 
-            if (mode !== 'free') {
+            if (this.camAdjustBox) {
+                this.camAdjustBox.classList.toggle('disabled', isFree);
+                const inputs = this.camAdjustBox.querySelectorAll('input');
+                inputs.forEach(input => {
+                    input.disabled = isFree;
+                });
+            }
+
+            if (!isFree) {
                 this.isModeTransitioning = true;
                 this.applyCameraTarget(2000);
                 setTimeout(() => {
@@ -904,8 +909,12 @@ class App {
             }
         };
 
-        this.camChaseBtn.addEventListener('click', () => setCamMode('track'));
-        this.camFreeBtn.addEventListener('click', () => setCamMode('free'));
+        if (this.camFreeBtn) {
+            this.camFreeBtn.addEventListener('click', () => {
+                const nextMode = (this.cameraMode === 'free') ? 'track' : 'free';
+                setCamMode(nextMode);
+            });
+        }
 
         // 標高プロファイルCanvas上の縦線スライド/ドラッグ操作
         if (this.chartCanvas) {
