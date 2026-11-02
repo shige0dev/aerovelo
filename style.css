@@ -1,6 +1,6 @@
 :root {
     --bg-color: #0b0f19;
-    --panel-bg: rgba(15, 23, 42, 0.88);
+    --panel-bg: rgba(15, 23, 42, 0.90);
     --panel-border: rgba(255, 255, 255, 0.12);
     --text-primary: #f8fafc;
     --text-muted: #94a3b8;
@@ -10,6 +10,7 @@
     --climb-color: #ef4444;
     --flat-color: #10b981;
     --descent-color: #3b82f6;
+    --font-mono: "SF Mono", Monaco, Consolas, "Courier New", monospace;
 }
 
 * {
@@ -31,14 +32,13 @@ body {
 /* 3D Map Viewport */
 #map {
     position: absolute;
-    top: 0;
-    left: 0;
+    inset: 0;
     width: 100%;
     height: 100%;
     z-index: 1;
 }
 
-/* Custom Rider Marker: 完全同心円ドット（●） */
+/* Custom Rider Marker */
 .rider-marker {
     position: relative;
     width: 20px;
@@ -70,219 +70,16 @@ body {
 }
 
 @keyframes beacon-pulse {
-    0% {
-        transform: scale(0.6);
-        opacity: 1;
-    }
-    100% {
-        transform: scale(2.0);
-        opacity: 0;
-    }
+    0% { transform: scale(0.6); opacity: 1; }
+    100% { transform: scale(2.0); opacity: 0; }
 }
 
 /* ========================================================
-   UI Panel (メイン操作パネル: 140px固定・横スクロール完全防止)
+   共通UI部品: ボタン / スライダー / フォント
    ======================================================== */
-#ui-panel {
-    position: absolute;
-    top: 10px;
-    left: 10px;
-    width: 140px;
-    max-height: calc(100vh - 100px);
-    overflow-y: auto;
-    overflow-x: hidden;
-    background: var(--panel-bg);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    border: 1px solid var(--panel-border);
-    border-radius: 8px;
-    padding: 6px;
-    z-index: 10;
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.6);
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-}
-
-#ui-panel::-webkit-scrollbar {
-    width: 4px;
-}
-#ui-panel::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.25);
-    border-radius: 2px;
-}
-
-.icon-btn {
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid var(--panel-border);
-    color: var(--text-muted);
-    font-size: 0.72rem;
-    width: 20px;
-    height: 18px;
-    border-radius: 3px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.2s ease;
-    line-height: 1;
-}
-
-.icon-btn:hover,
-.icon-btn.active {
-    background: rgba(0, 240, 255, 0.2);
-    border-color: var(--accent);
-    color: #fff;
-    box-shadow: 0 0 6px var(--accent-glow);
-}
-
-/* GPX Importer Section (枠線なし) */
-.gpx-section-frameless {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-}
-
-.preset-row {
-    display: flex;
-    align-items: center;
-}
-
-.preset-select {
-    width: 100%;
-    background: rgba(0, 0, 0, 0.5);
-    border: 1px solid var(--panel-border);
-    border-radius: 4px;
-    color: #f1f5f9;
-    font-size: 0.66rem;
-    padding: 2px 4px;
-    outline: none;
-    cursor: pointer;
-}
-
-.preset-select option {
-    background: #0f172a;
-    color: #f1f5f9;
-}
-
-/* GPX Actions Row: Drop, Explorer, Editor */
-.gpx-actions-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 4px;
-}
-
-.action-item {
-    flex: 1;
-    text-align: center;
-    font-size: 0.63rem;
-    font-weight: 600;
-    padding: 3px 2px;
-    border-radius: 4px;
-    transition: all 0.2s ease;
-    text-decoration: none;
-    box-sizing: border-box;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.action-item.drop-zone {
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px dashed var(--panel-border);
-    color: var(--text-muted);
-    cursor: copy;
-}
-
-.action-item.drop-zone:hover,
-.gpx-section-frameless.dragover .action-item.drop-zone {
-    border-color: var(--accent);
-    color: var(--accent);
-    background: rgba(0, 240, 255, 0.1);
-}
-
-.action-item.action-btn {
-    background: rgba(0, 240, 255, 0.1);
-    border: 1px solid rgba(0, 240, 255, 0.3);
-    color: var(--accent);
-    cursor: pointer;
-}
-
-.action-item.action-btn:hover {
-    background: rgba(0, 240, 255, 0.22);
-    border-color: var(--accent);
-}
-
-.action-item.action-link {
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid var(--panel-border);
-    color: #cbd5e1;
-}
-
-.action-item.action-link:hover {
-    background: rgba(255, 255, 255, 0.12);
-    color: #ffffff;
-}
-
-/* GSI 5m DEM Button */
-.gsi-row {
-    margin-top: 2px;
-}
-
-.gsi-btn {
-    width: 100%;
-    background: rgba(16, 185, 129, 0.12);
-    border: 1px solid rgba(16, 185, 129, 0.35);
-    color: #6ee7b7;
-    font-size: 0.63rem;
-    font-weight: 600;
-    padding: 3px 4px;
-    border-radius: 4px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 5px;
-    transition: all 0.2s ease;
-}
-
-.gsi-btn:hover {
-    background: rgba(16, 185, 129, 0.22);
-    border-color: #34d399;
-    color: #a7f3d0;
-}
-
-.gsi-btn.loading {
-    opacity: 0.75;
-    cursor: wait;
-}
-
-.gsi-btn.active {
-    background: rgba(16, 185, 129, 0.28);
-    border-color: #10b981;
-    color: #fff;
-}
-
-.gsi-indicator {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: #6ee7b7;
-    display: inline-block;
-    box-shadow: 0 0 6px rgba(110, 231, 183, 0.6);
-}
-
-.gsi-btn.active .gsi-indicator {
-    background: #10b981;
-    box-shadow: 0 0 8px #10b981;
-}
-
-/* Common Controls */
-.control-group {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
+.font-mono {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
 }
 
 .label-row {
@@ -297,9 +94,66 @@ body {
     font-size: 0.68rem;
     font-weight: 700;
     color: var(--accent);
-    font-family: monospace;
+    font-family: var(--font-mono);
 }
 
+/* 汎用ボタン基本スタイル */
+.btn, .icon-btn, .metric-inline-btn, .action-item, .ble-btn, .gsi-btn, .mini-scan-btn, .bottom-play-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    cursor: pointer;
+    line-height: 1;
+    white-space: nowrap;
+    text-decoration: none;
+    transition: all 0.15s ease;
+    border: 1px solid transparent;
+}
+
+.btn {
+    flex: 1;
+    padding: 3px 6px;
+    min-height: 22px;
+    font-size: 0.66rem;
+    font-weight: 600;
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text-primary);
+    border-color: var(--panel-border);
+}
+
+.btn.toggle {
+    background: rgba(0, 0, 0, 0.4);
+    color: var(--text-muted);
+    font-size: 0.62rem;
+    padding: 3px 4px;
+}
+
+.btn.toggle.active, .metric-inline-btn.active {
+    background: var(--accent);
+    color: #0b0f19;
+    border-color: var(--accent);
+    box-shadow: 0 0 6px var(--accent-glow);
+}
+
+.icon-btn {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: var(--panel-border);
+    color: var(--text-muted);
+    font-size: 0.72rem;
+    width: 20px;
+    height: 18px;
+    border-radius: 3px;
+}
+
+.icon-btn:hover, .icon-btn.active {
+    background: rgba(0, 240, 255, 0.2);
+    border-color: var(--accent);
+    color: #fff;
+    box-shadow: 0 0 6px var(--accent-glow);
+}
+
+/* レンジスライダー (横型共通) */
 input[type="range"] {
     -webkit-appearance: none;
     appearance: none;
@@ -322,7 +176,137 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 /* ========================================================
-   Bottom Bar (画面最下段 全幅: 2行ヘッダー ＆ 標高プロファイル)
+   HUD メイン操作パネル (左上 140px 固定)
+   ======================================================== */
+#ui-panel {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    width: 140px;
+    max-height: calc(100vh - 100px);
+    overflow-y: auto;
+    overflow-x: hidden;
+    background: var(--panel-bg);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    padding: 6px;
+    z-index: 10;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.6);
+}
+
+#ui-panel::-webkit-scrollbar {
+    width: 4px;
+}
+#ui-panel::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.25);
+    border-radius: 2px;
+}
+
+.metrics-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2.5px;
+}
+
+.metric-row {
+    background: #000000;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 4px;
+    padding: 2px 4px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    white-space: nowrap;
+}
+
+.metric-head {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    flex-shrink: 0;
+}
+
+.metric-row .metric-label {
+    font-size: 0.58rem;
+    color: var(--text-muted);
+    font-weight: 600;
+}
+
+.metric-inline-btn {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #cbd5e1;
+    font-size: 0.52rem;
+    font-weight: 700;
+    padding: 1px 4px;
+    border-radius: 3px;
+}
+
+.speed-row.editable, .ble-trainer-row.editable {
+    border-color: rgba(0, 240, 255, 0.6);
+    cursor: ns-resize;
+    touch-action: none;
+}
+
+.speed-hint {
+    font-size: 0.52rem;
+    color: var(--accent);
+    margin-left: 2px;
+    font-weight: 800;
+}
+
+.metric-value-wrap {
+    display: flex;
+    align-items: baseline;
+    justify-content: flex-end;
+    font-family: var(--font-mono);
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.metric-num {
+    display: inline-block;
+    width: 48px;
+    text-align: right;
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    font-variant-numeric: tabular-nums;
+}
+
+.metric-unit {
+    display: inline-block;
+    width: 32px;
+    margin-left: 2px;
+    font-size: 0.48rem;
+    color: var(--text-muted);
+    text-align: left;
+    overflow: hidden;
+}
+
+.ble-metric-row {
+    border-color: rgba(0, 240, 255, 0.2);
+}
+.ble-metric-row .metric-num {
+    color: var(--accent);
+}
+
+.ble-trainer-row {
+    border-color: rgba(56, 189, 248, 0.25);
+}
+.ble-trainer-row .metric-num,
+.ble-trainer-row .metric-unit {
+    color: #38bdf8;
+}
+.ble-trainer-row .metric-num.alert {
+    color: #ef4444;
+}
+
+/* ========================================================
+   Bottom Bar (画面最下段 全幅 3行レイアウト)
    ======================================================== */
 #bottom-bar {
     position: absolute;
@@ -339,7 +323,6 @@ input[type="range"]::-webkit-slider-thumb {
     display: flex;
     flex-direction: column;
     gap: 2px;
-    box-sizing: border-box;
 }
 
 /* 1行目: AeroVelo + バージョン, コース名, アクション */
@@ -363,16 +346,13 @@ input[type="range"]::-webkit-slider-thumb {
     font-weight: 800;
     letter-spacing: 0.04em;
     color: #f8fafc;
-    margin: 0;
     line-height: 1;
 }
 
 .version-badge {
-    font-size: 0.44rem; /* 70% に縮小 */
+    font-size: 0.44rem;
     color: rgba(255, 255, 255, 0.75);
-    font-family: monospace;
-    letter-spacing: 0.02em;
-    padding: 0 1px;
+    font-family: var(--font-mono);
     line-height: 1;
     align-self: flex-end;
 }
@@ -380,8 +360,6 @@ input[type="range"]::-webkit-slider-thumb {
 .bottom-course-group {
     flex: 1;
     overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
     text-align: center;
 }
 
@@ -395,7 +373,6 @@ input[type="range"]::-webkit-slider-thumb {
     border: 1px solid rgba(56, 189, 248, 0.25);
     border-radius: 3px;
     padding: 1px 6px;
-    line-height: 1.2;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -414,15 +391,34 @@ input[type="range"]::-webkit-slider-thumb {
     justify-content: space-between;
     align-items: center;
     width: 100%;
-    gap: 4px;
 }
 
 .bottom-stats-row {
     display: flex;
     align-items: center;
     gap: 6px;
-    flex-wrap: nowrap;
     overflow-x: auto;
+}
+
+.bottom-play-btn {
+    background: var(--accent);
+    color: #0b0f19;
+    border-radius: 3px;
+    width: 22px;
+    height: 24px;
+    font-size: 0.70rem;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+.bottom-play-btn:hover {
+    background: #38bdf8;
+    box-shadow: 0 0 6px rgba(0, 240, 255, 0.4);
+}
+
+.bottom-play-btn.running {
+    background: #ef4444;
+    color: #ffffff;
 }
 
 .stacked-stat-item {
@@ -438,7 +434,7 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 .stacked-stat-item .stat-label {
-    font-size: 0.36rem; /* タイトル50%縮小 */
+    font-size: 0.36rem;
     color: var(--text-muted);
     font-weight: 700;
     line-height: 1;
@@ -447,43 +443,14 @@ input[type="range"]::-webkit-slider-thumb {
 
 .stacked-stat-item .stat-value {
     font-size: 0.62rem;
-    font-family: "SF Mono", Monaco, Consolas, "Courier New", monospace;
+    font-family: var(--font-mono);
     font-weight: 700;
     color: #cbd5e1;
     line-height: 1;
     white-space: nowrap;
 }
 
-/* 2行目左端の再生ボタン */
-.bottom-play-btn {
-    background: var(--accent);
-    color: #0b0f19;
-    border: none;
-    border-radius: 3px;
-    width: 22px;
-    height: 24px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    font-size: 0.70rem;
-    font-weight: 700;
-    line-height: 1;
-    transition: all 0.2s ease;
-    flex-shrink: 0;
-}
-
-.bottom-play-btn:hover {
-    background: #38bdf8;
-    box-shadow: 0 0 6px rgba(0, 240, 255, 0.4);
-}
-
-.bottom-play-btn.running {
-    background: #ef4444;
-    color: #ffffff;
-}
-
-/* 3行目: 標高プロファイル ＆ 右側縦スライダーのレイアウト */
+/* 3行目: 標高プロファイルCanvas ＆ 右側縦型負荷スライダー */
 .bottom-main-row {
     display: flex;
     align-items: stretch;
@@ -503,13 +470,12 @@ input[type="range"]::-webkit-slider-thumb {
     flex-direction: column;
 }
 
-/* 標高表示の右上に配置する全長バッジ */
 .canvas-total-dist-tag {
     position: absolute;
     top: 4px;
     right: 8px;
     font-size: 0.56rem;
-    font-family: "SF Mono", Monaco, Consolas, "Courier New", monospace;
+    font-family: var(--font-mono);
     font-weight: 700;
     color: rgba(255, 255, 255, 0.85);
     background: rgba(0, 0, 0, 0.6);
@@ -527,10 +493,8 @@ input[type="range"]::-webkit-slider-thumb {
     display: block;
     cursor: ew-resize;
     touch-action: none;
-    user-select: none;
 }
 
-/* 右側エリアの縦スライダー（負荷） */
 .bottom-slope-vertical-wrapper {
     width: 32px;
     flex-shrink: 0;
@@ -542,7 +506,6 @@ input[type="range"]::-webkit-slider-thumb {
     align-items: center;
     justify-content: space-between;
     padding: 2px 0 1px;
-    box-sizing: border-box;
 }
 
 .v-slope-title {
@@ -573,19 +536,21 @@ input[type="range"]::-webkit-slider-thumb {
 
 .v-slope-value {
     font-size: 0.50rem;
-    font-family: "SF Mono", Monaco, Consolas, "Courier New", monospace;
+    font-family: var(--font-mono);
     font-weight: 700;
     color: #38bdf8;
     line-height: 1;
 }
 
-/* モードレス・フローティングカメラダイアログ */
+/* ========================================================
+   カメラ調整フローティングダイアログ
+   ======================================================== */
 .floating-cam-dialog {
     position: absolute;
     bottom: 125px;
     right: 15px;
     width: 170px;
-    background: rgba(15, 23, 42, 0.95);
+    background: var(--panel-bg);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     border: 1px solid var(--panel-border);
@@ -639,44 +604,6 @@ input[type="range"]::-webkit-slider-thumb {
     color: #ef4444;
 }
 
-/* Buttons */
-.btn {
-    flex: 1;
-    padding: 3px 6px;
-    min-height: 22px;
-    border-radius: 4px;
-    font-size: 0.66rem;
-    font-weight: 600;
-    cursor: pointer;
-    border: 1px solid transparent;
-    transition: all 0.2s ease;
-    white-space: nowrap;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.btn.secondary {
-    background: rgba(255, 255, 255, 0.08);
-    color: var(--text-primary);
-    border-color: var(--panel-border);
-}
-
-.btn.toggle {
-    background: rgba(0, 0, 0, 0.4);
-    color: var(--text-muted);
-    border: 1px solid var(--panel-border);
-    font-size: 0.62rem;
-    padding: 3px 4px;
-}
-
-.btn.toggle.active {
-    background: rgba(0, 240, 255, 0.15);
-    color: var(--accent);
-    border-color: var(--accent);
-}
-
-/* Camera Adjust Box */
 .camera-adjust-box {
     margin-top: 2px;
     background: rgba(0, 0, 0, 0.3);
@@ -686,326 +613,20 @@ input[type="range"]::-webkit-slider-thumb {
     display: flex;
     flex-direction: column;
     gap: 3px;
-    transition: opacity 0.2s ease, filter 0.2s ease;
+    transition: opacity 0.2s ease;
 }
 
 .camera-adjust-box.disabled {
     opacity: 0.28;
-    filter: grayscale(1);
     pointer-events: none;
 }
 
-/* HUD Metrics (4行リスト表示: 負荷・Speed・Power・Cadence) */
-.hud-group {
-    padding: 0;
-}
-
-.metrics-list {
-    display: flex;
-    flex-direction: column;
-    gap: 2.5px;
-}
-
-.metric-row {
-    background: #000000;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 4px;
-    padding: 2px 4px;
-    height: 22px;
-    box-sizing: border-box;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    white-space: nowrap;
-}
-
-.metric-head {
-    display: flex;
-    align-items: center;
-    gap: 3px;
-    flex-shrink: 0;
-}
-
-.metric-row .metric-label {
-    font-size: 0.58rem;
-    color: var(--text-muted);
-    font-weight: 600;
-    line-height: 1;
-}
-
-/* インライン操作ボタン (手動) */
-.metric-inline-btn {
-    background: rgba(255, 255, 255, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    color: #cbd5e1;
-    font-size: 0.52rem;
-    font-weight: 700;
-    padding: 1px 4px;
-    border-radius: 3px;
-    cursor: pointer;
-    line-height: 1;
-    transition: all 0.15s ease;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.metric-inline-btn:hover {
-    background: rgba(0, 240, 255, 0.2);
-    border-color: var(--accent);
-    color: #ffffff;
-}
-
-.metric-inline-btn.active {
-    background: #00f0ff;
-    color: #0b0f19;
-    border-color: #00f0ff;
-    box-shadow: 0 0 5px rgba(0, 240, 255, 0.5);
-}
-
-/* 速度行 & 負荷行 (スライド/スワイプ編集可能モード) */
-.speed-row, .ble-trainer-row {
-    transition: all 0.2s ease;
-}
-
-.speed-row.editable, .ble-trainer-row.editable {
-    background: #000000;
-    border-color: rgba(0, 240, 255, 0.6);
-    cursor: ns-resize;
-    user-select: none;
-    touch-action: none;
-}
-
-.speed-row.editable:hover, .ble-trainer-row.editable:hover {
-    box-shadow: 0 0 6px rgba(0, 240, 255, 0.4);
-}
-
-.speed-hint {
-    font-size: 0.52rem;
-    color: var(--accent);
-    margin-left: 2px;
-    font-weight: 800;
-}
-
-/* 小数点位置が揃うメトリクス数値ラッパー (下2桁 .toFixed(2) に最適化) */
-.metric-value-wrap {
-    display: flex;
-    align-items: baseline;
-    justify-content: flex-end;
-    font-family: "SF Mono", Monaco, Consolas, "Courier New", monospace;
-    line-height: 1;
-    white-space: nowrap;
-    flex-shrink: 0;
-}
-
-.metric-num {
-    display: inline-block;
-    width: 48px;
-    text-align: right;
-    font-size: 0.65rem;
-    font-weight: 700;
-    color: var(--text-primary);
-    font-variant-numeric: tabular-nums;
-    font-family: "SF Mono", Monaco, Consolas, "Courier New", monospace;
-}
-
-.metric-unit {
-    display: inline-block;
-    width: 32px;
-    margin-left: 2px;
-    font-size: 0.48rem;
-    color: var(--text-muted);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    text-align: left;
-    white-space: nowrap;
-    overflow: hidden;
-}
-
-.ble-metric-row {
-    border-color: rgba(0, 240, 255, 0.2);
-    background: #000000;
-}
-
-.ble-metric-row .metric-num {
-    color: var(--accent);
-}
-
-.ble-trainer-row {
-    border-color: rgba(56, 189, 248, 0.25);
-    background: #000000;
-}
-
-.ble-trainer-row .metric-num,
-.ble-trainer-row .metric-unit {
-    color: #38bdf8;
-}
-
-.ble-trainer-row .metric-num.alert {
-    color: #ef4444;
-}
-
-/* BLE Smart Trainer Widgets */
-.ble-section {
-    padding: 3px 0px;
-}
-
-.ble-bar {
-    display: flex;
-    gap: 4px;
-    align-items: center;
-}
-
-.ble-btn {
-    flex: 1;
-    background: rgba(0, 240, 255, 0.12);
-    border: 1px solid rgba(0, 240, 255, 0.35);
-    color: #38bdf8;
-    font-size: 0.63rem;
-    font-weight: 700;
-    padding: 4px 6px;
-    border-radius: 4px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    transition: all 0.2s ease;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.ble-btn:hover {
-    background: rgba(0, 240, 255, 0.24);
-    border-color: var(--accent);
-    color: #fff;
-    box-shadow: 0 0 10px rgba(0, 240, 255, 0.3);
-}
-
-.ble-btn.connected {
-    background: rgba(16, 185, 129, 0.18);
-    border-color: #10b981;
-    color: #a7f3d0;
-}
-
-.ble-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--text-muted);
-    display: inline-block;
-    transition: all 0.2s ease;
-}
-
-.ble-btn.connected .ble-dot {
-    background: #10b981;
-    box-shadow: 0 0 8px #10b981;
-    animation: ble-pulse 1.8s infinite;
-}
-
-@keyframes ble-pulse {
-    0% { transform: scale(1); opacity: 1; }
-    50% { transform: scale(1.3); opacity: 0.6; }
-    100% { transform: scale(1); opacity: 1; }
-}
-
-.ble-disconnect-btn {
-    background: rgba(239, 68, 68, 0.15);
-    border: 1px solid rgba(239, 68, 68, 0.4);
-    color: #ef4444;
-    font-size: 0.65rem;
-    font-weight: 700;
-    width: 22px;
-    height: 22px;
-    border-radius: 4px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.2s ease;
-}
-
-.ble-disconnect-btn:hover {
-    background: #ef4444;
-    color: #fff;
-}
-
-/* Manual Load / LFO Calibration Styles */
-.test-controls-box {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    padding-top: 2px;
-    border-top: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.compact-scan-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 6px;
-    margin-top: 3px;
-    background: rgba(0, 0, 0, 0.3);
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    border-radius: 4px;
-    padding: 3px 6px;
-}
-
-.mini-scan-btn {
-    min-height: 18px;
-    padding: 2px 6px;
-    font-size: 0.62rem;
-    font-weight: 700;
-}
-
-.mini-scan-btn.running {
-    background: #ef4444 !important;
-    color: #fff !important;
-}
-
-.lfo-period-wrap {
-    display: flex;
-    align-items: center;
-    gap: 2px;
-    font-size: 0.58rem;
-    color: var(--text-muted);
-}
-
-.mini-select {
-    background: rgba(0, 0, 0, 0.5);
-    border: 1px solid var(--panel-border);
-    border-radius: 3px;
-    color: #fff;
-    font-size: 0.58rem;
-    padding: 1px 2px;
-}
-
-/* Settings Modal (Flat layout) */
-.settings-section {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    padding-bottom: 6px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.settings-section:last-child {
-    border-bottom: none;
-    padding-bottom: 0;
-}
-
-.settings-sec-title {
-    font-size: 0.65rem;
-    font-weight: 700;
-    color: var(--accent);
-    margin-bottom: 2px;
-}
-
-/* Modal Windows */
+/* ========================================================
+   設定モーダル (⚙️ GPX / BLE / 負荷設定)
+   ======================================================== */
 .modal-backdrop {
     position: fixed;
-    top: 0;
-    left: 0;
+    inset: 0;
     width: 100vw;
     height: 100vh;
     background: rgba(0, 0, 0, 0.65);
@@ -1049,7 +670,6 @@ input[type="range"]::-webkit-slider-thumb {
     font-size: 0.74rem;
     font-weight: 700;
     color: #fff;
-    margin: 0;
 }
 
 .modal-close {
@@ -1061,10 +681,7 @@ input[type="range"]::-webkit-slider-thumb {
     line-height: 1;
     padding: 2px 4px;
 }
-
-.modal-close:hover {
-    color: #fff;
-}
+.modal-close:hover { color: #fff; }
 
 .modal-body {
     display: flex;
@@ -1072,4 +689,238 @@ input[type="range"]::-webkit-slider-thumb {
     gap: 8px;
     overflow-y: auto;
     padding-right: 2px;
+}
+
+.settings-section {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.settings-section:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.settings-sec-title {
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: var(--accent);
+    margin-bottom: 2px;
+}
+
+/* GPX Importer Section */
+.gpx-section-frameless {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.preset-select {
+    width: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    border: 1px solid var(--panel-border);
+    border-radius: 4px;
+    color: #f1f5f9;
+    font-size: 0.66rem;
+    padding: 2px 4px;
+    outline: none;
+    cursor: pointer;
+}
+.preset-select option { background: #0f172a; color: #f1f5f9; }
+
+.gpx-actions-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 4px;
+}
+
+.action-item {
+    flex: 1;
+    font-size: 0.63rem;
+    font-weight: 600;
+    padding: 3px 2px;
+}
+
+.action-item.drop-zone {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px dashed var(--panel-border);
+    color: var(--text-muted);
+    cursor: copy;
+}
+.action-item.drop-zone:hover,
+.gpx-section-frameless.dragover .action-item.drop-zone {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(0, 240, 255, 0.1);
+}
+
+.action-item.action-btn {
+    background: rgba(0, 240, 255, 0.1);
+    border: 1px solid rgba(0, 240, 255, 0.3);
+    color: var(--accent);
+}
+.action-item.action-btn:hover {
+    background: rgba(0, 240, 255, 0.22);
+    border-color: var(--accent);
+}
+
+.action-item.action-link {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--panel-border);
+    color: #cbd5e1;
+}
+.action-item.action-link:hover {
+    background: rgba(255, 255, 255, 0.12);
+    color: #ffffff;
+}
+
+.gsi-row { margin-top: 2px; }
+
+.gsi-btn {
+    width: 100%;
+    background: rgba(16, 185, 129, 0.12);
+    border: 1px solid rgba(16, 185, 129, 0.35);
+    color: #6ee7b7;
+    font-size: 0.63rem;
+    font-weight: 600;
+    padding: 3px 4px;
+    gap: 5px;
+}
+.gsi-btn:hover {
+    background: rgba(16, 185, 129, 0.22);
+    border-color: #34d399;
+    color: #a7f3d0;
+}
+.gsi-btn.loading { opacity: 0.75; cursor: wait; }
+.gsi-btn.active {
+    background: rgba(16, 185, 129, 0.28);
+    border-color: #10b981;
+    color: #fff;
+}
+
+.gsi-indicator {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #6ee7b7;
+    box-shadow: 0 0 6px rgba(110, 231, 183, 0.6);
+}
+.gsi-btn.active .gsi-indicator {
+    background: #10b981;
+    box-shadow: 0 0 8px #10b981;
+}
+
+/* BLE Section in Modal */
+.ble-section { padding: 3px 0; }
+.ble-bar { display: flex; gap: 4px; align-items: center; }
+
+.ble-btn {
+    flex: 1;
+    background: rgba(0, 240, 255, 0.12);
+    border: 1px solid rgba(0, 240, 255, 0.35);
+    color: #38bdf8;
+    font-size: 0.63rem;
+    font-weight: 700;
+    padding: 4px 6px;
+    gap: 6px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.ble-btn:hover {
+    background: rgba(0, 240, 255, 0.24);
+    border-color: var(--accent);
+    color: #fff;
+}
+.ble-btn.connected {
+    background: rgba(16, 185, 129, 0.18);
+    border-color: #10b981;
+    color: #a7f3d0;
+}
+
+.ble-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--text-muted);
+}
+.ble-btn.connected .ble-dot {
+    background: #10b981;
+    box-shadow: 0 0 8px #10b981;
+    animation: ble-pulse 1.8s infinite;
+}
+@keyframes ble-pulse {
+    0% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.3); opacity: 0.6; }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+.ble-disconnect-btn {
+    background: rgba(239, 68, 68, 0.15);
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    color: #ef4444;
+    font-size: 0.65rem;
+    font-weight: 700;
+    width: 22px;
+    height: 22px;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.ble-disconnect-btn:hover { background: #ef4444; color: #fff; }
+
+/* 負荷設定 (Manual Load & LFO) in Modal */
+.test-controls-box {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding-top: 2px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.compact-scan-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    margin-top: 3px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 4px;
+    padding: 3px 6px;
+}
+
+.mini-scan-btn {
+    min-height: 18px;
+    padding: 2px 6px;
+    font-size: 0.62rem;
+    font-weight: 700;
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text-primary);
+    border-color: var(--panel-border);
+}
+.mini-scan-btn.running {
+    background: #ef4444 !important;
+    color: #fff !important;
+}
+
+.lfo-period-wrap {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    font-size: 0.58rem;
+    color: var(--text-muted);
+}
+
+.mini-select {
+    background: rgba(0, 0, 0, 0.5);
+    border: 1px solid var(--panel-border);
+    border-radius: 3px;
+    color: #fff;
+    font-size: 0.58rem;
+    padding: 1px 2px;
 }
