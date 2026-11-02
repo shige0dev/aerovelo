@@ -20,7 +20,7 @@
             <div class="header-top">
                 <h1>AeroVelo <span>3D</span></h1>
                 <div class="header-actions">
-                    <span class="version-badge" id="app-version">v1.3.1</span>
+                    <span class="version-badge" id="app-version">v1.3.3</span>
                     <button type="button" id="btn-modal-settings" class="icon-btn" title="設定 (GPX / トレーナー / テスト)">⚙️</button>
                     <button type="button" id="btn-fullscreen" class="icon-btn" title="全画面表示 (F11)">⛶</button>
                 </div>
@@ -180,18 +180,10 @@
                     </section>
                 </div>
 
-                <!-- セクション 3: TEST / 負荷キャリブレーション -->
+                <!-- セクション 3: TEST / 手動負荷キャリブレーション -->
                 <div class="settings-section">
-                    <div class="settings-sec-title">🛠️ TEST / 負荷キャリブレーション</div>
-                    <div class="test-header" style="margin-bottom: 6px;">
-                        <span style="font-size: 0.65rem; color: var(--text-muted);">動作モード:</span>
-                        <div class="btn-group mini-toggle">
-                            <button type="button" id="test-mode-course" class="btn toggle active">コース連動</button>
-                            <button type="button" id="test-mode-manual" class="btn toggle">TEST手動</button>
-                        </div>
-                    </div>
-
-                    <div id="test-controls-box" class="test-controls-box" style="display: none;">
+                    <div class="settings-sec-title">🛠️ TEST / 手動負荷キャリブレーション</div>
+                    <div id="test-controls-box" class="test-controls-box">
                         <!-- Manual Slope Slider -->
                         <div class="label-row">
                             <label for="test-slope-slider">手動指示負荷 (Slope)</label>

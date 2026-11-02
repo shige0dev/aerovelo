@@ -16,8 +16,7 @@ class App {
         this.hasBleDistance = false;
         this.baseProgressAtBleStart = 0; // BLE接続時・リセット時の基準進捗率
 
-        // TEST / 負荷キャリブレーション機能ステート
-        this.testMode = 'course'; // 'course' | 'manual'
+        // TEST / 手動負荷キャリブレーション機能ステート
         this.manualSlope = 0.0; // 手動指定斜度 (-3% 〜 +7%)
         this.isLfoRunning = false;
         this.lfoPeriodSeconds = 20; // LFO 周期（秒）
@@ -354,10 +353,7 @@ class App {
         this.btnModalSettings = document.getElementById('btn-modal-settings');
         this.modalSettings = document.getElementById('modal-settings');
 
-        // TEST / キャリブレーション UI
-        this.testModeCourseBtn = document.getElementById('test-mode-course');
-        this.testModeManualBtn = document.getElementById('test-mode-manual');
-        this.testControlsBox = document.getElementById('test-controls-box');
+        // TEST / 手動キャリブレーション UI
         this.testSlopeSlider = document.getElementById('test-slope-slider');
         this.testSlopeVal = document.getElementById('test-slope-val');
         this.btnPresetSlopes = document.querySelectorAll('.btn-preset-slope');
@@ -558,26 +554,7 @@ class App {
             });
         }
 
-        // TEST / 負荷キャリブレーション イベント
-        const setTestMode = (mode) => {
-            this.testMode = mode;
-            this.testModeCourseBtn.classList.toggle('active', mode === 'course');
-            this.testModeManualBtn.classList.toggle('active', mode === 'manual');
-            this.testControlsBox.style.display = (mode === 'manual') ? 'flex' : 'none';
-
-            if (mode === 'course') {
-                this.stopLFO();
-            } else {
-                this.applyManualSlope(this.manualSlope);
-            }
-            this.updateState(this.currentProgress);
-        };
-
-        if (this.testModeCourseBtn && this.testModeManualBtn) {
-            this.testModeCourseBtn.addEventListener('click', () => setTestMode('course'));
-            this.testModeManualBtn.addEventListener('click', () => setTestMode('manual'));
-        }
-
+        // TEST / 手動負荷キャリブレーション イベント
         if (this.testSlopeSlider) {
             this.testSlopeSlider.addEventListener('input', (e) => {
                 this.stopLFO();
@@ -819,7 +796,7 @@ class App {
         // HUDの Trainer 指示負荷表示を常に更新
         if (this.elTrainerSlope) {
             const trSign = clampedSlope >= 0 ? '+' : '';
-            const modeTag = this.testMode === 'manual' ? (this.isLfoRunning ? '[LFO]' : '[TEST]') : '';
+            const modeTag = this.isLfoRunning ? '[LFO]' : '[TEST]';
             this.elTrainerSlope.textContent = `Trainer: ${trSign}${clampedSlope.toFixed(1)}% ${modeTag}`;
             this.elTrainerSlope.classList.toggle('alert', clampedSlope >= 7.0);
         }
@@ -871,10 +848,8 @@ class App {
             this.elSlopeWrap.style.color = 'var(--flat-color)';
         }
 
-        // コース連動モードのときのみ、コース計算された勾配をトレーナーへ送信
-        if (this.testMode === 'course') {
-            this.sendSlopeToTrainer(cappedTrainerSlope);
-        }
+        // 手動指示負荷（またはLFO）をトレーナーへ送信
+        this.sendSlopeToTrainer(this.manualSlope);
 
         this.elCoords.textContent = `${state.lon.toFixed(4)}, ${state.lat.toFixed(4)}`;
 
@@ -944,7 +919,7 @@ class App {
         requestAnimationFrame(this.animate);
 
         // LFO 自動スキャンの実行（三角波: 0% → 7% → 0% を lfoPeriodSeconds で往復）
-        if (this.testMode === 'manual' && this.isLfoRunning) {
+        if (this.isLfoRunning) {
             const elapsed = (timestamp - this.lfoStartTime) / 1000;
             const period = Math.max(2, this.lfoPeriodSeconds);
             const phase = (elapsed % period) / period; // 0.0 〜 1.0
