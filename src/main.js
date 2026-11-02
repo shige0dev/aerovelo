@@ -156,15 +156,25 @@ class App {
         this.currentProgress = 0.0;
         this.currentCamBearing = null;
 
-        if (this.map && this.map.isStyleLoaded()) {
+        const updateLayersAndCamera = () => {
             this.updateMapCourseLayers();
             this.drawElevationChart();
             this.updateState(0.0);
             this.applyCameraTarget(1500);
+        };
+
+        if (this.map) {
+            if (this.map.isStyleLoaded()) {
+                updateLayersAndCamera();
+            } else {
+                this.map.once('load', () => updateLayersAndCamera());
+            }
         }
     }
 
     updateMapCourseLayers() {
+        if (!this.map || !this.map.isStyleLoaded()) return;
+
         const coordinates = this.course.toGeoJSONCoordinates();
         const geojsonData = {
             type: 'Feature',
