@@ -9,6 +9,7 @@ export class MapViewController {
         this.cameraMode = 'track'; // 'track' | 'free'
         this.isModeTransitioning = false;
         this.currentCamBearing = null;
+        this.camBearingVelocity = 0;
         this.orbitAngleOffset = 0;
         this.cameraParams = { pitch: 68, zoom: 16.5 };
         this.riderMarker = null;
@@ -76,6 +77,7 @@ export class MapViewController {
 
     setCourse(course, initialState) {
         this.currentCamBearing = null;
+        this.camBearingVelocity = 0;
         this.lastCamTime = 0;
         if (!this.map) return;
 
@@ -125,6 +127,7 @@ export class MapViewController {
     setCameraMode(mode, currentState) {
         this.cameraMode = mode;
         this.lastCamTime = 0;
+        this.camBearingVelocity = 0;
         if (mode !== 'free' && currentState) {
             this.currentCamBearing = null;
             this.isModeTransitioning = true;
@@ -146,11 +149,24 @@ export class MapViewController {
         if (this.cameraMode !== 'free' && currentState) this.applyCameraTarget(currentState, 0);
     }
 
-    static lerpAngle(fromAngle, toAngle, t) {
-        let diff = (toAngle - fromAngle) % 360;
-        if (diff < -180) diff += 360;
-        if (diff > 180) diff -= 360;
-        return (fromAngle + diff * t + 360) % 360;
+    /**
+     * 臨界減衰バネモデル（SmoothDampAngle）による慣性付き角度スムージング
+     * 初動のガクつきを抑え、smoothTime（約1.6秒）かけて滑らかに加減速旋回する
+     */
+    smoothDampAngle(current, target, dt, smoothTime = 1.6, maxSpeed = 55) {
+        let diff = ((target - current + 540) % 360) - 180;
+        const omega = 2.0 / smoothTime;
+        const x = omega * dt;
+        const exp = 1.0 / (1.0 + x + 0.48 * x * x + 0.235 * x * x * x);
+
+        let change = -diff;
+        const maxChange = maxSpeed * smoothTime;
+        change = Math.max(-maxChange, Math.min(maxChange, change));
+
+        const temp = (this.camBearingVelocity + omega * change) * dt;
+        this.camBearingVelocity = (this.camBearingVelocity - omega * temp) * exp;
+        const output = (current - change) + (change + temp) * exp;
+        return (output + 360) % 360;
     }
 
     applyCameraTarget(state, duration = 0) {
@@ -165,10 +181,9 @@ export class MapViewController {
 
         if (this.currentCamBearing === null || duration > 0) {
             this.currentCamBearing = targetBearing;
+            this.camBearingVelocity = 0;
         } else {
-            // 約1秒かけて方向変化に追従するスムージング（decay = 2.8）
-            const t = 1 - Math.exp(-2.8 * dt);
-            this.currentCamBearing = MapViewController.lerpAngle(this.currentCamBearing, targetBearing, t);
+            this.currentCamBearing = this.smoothDampAngle(this.currentCamBearing, targetBearing, dt);
         }
 
         if (this.map.queryTerrainElevation) {

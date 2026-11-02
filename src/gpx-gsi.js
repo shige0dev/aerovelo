@@ -91,3 +91,4 @@ export async function fetchGsi5mWaypoints(rawWaypoints, totalDistance, onProgres
         return { lon: pt.lon, lat: pt.lat, alt: Math.round(alt * 10) / 10 };
     });
 }
+

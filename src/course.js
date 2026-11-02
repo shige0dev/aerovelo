@@ -108,30 +108,44 @@ export class GeoCourseManager {
         });
     }
 
+    sampleAtDist(targetDist) {
+        const pts = this.interpolatedPoints;
+        const sampleCount = pts.length - 1;
+        const clampedDist = Math.max(0, Math.min(this.totalDistance, targetDist));
+        const exactIdx = (clampedDist / (this.totalDistance || 1)) * sampleCount;
+        const idx = Math.min(sampleCount - 1, Math.max(0, Math.floor(exactIdx)));
+        const r = exactIdx - idx;
+        const pA = pts[idx], pB = pts[idx + 1];
+        return {
+            dist: clampedDist,
+            lon: lerp(pA.lon, pB.lon, r),
+            lat: lerp(pA.lat, pB.lat, r),
+            alt: lerp(pA.alt, pB.alt, r)
+        };
+    }
+
     getStateAtProgress(progress) {
         const u = Math.max(0, Math.min(1, progress));
         const dist = u * this.totalDistance;
-        const pts = this.interpolatedPoints;
-        const sampleCount = pts.length - 1;
-        const idx = Math.min(sampleCount - 1, Math.max(0, Math.floor(u * sampleCount)));
-        const pA = pts[idx], pB = pts[idx + 1];
-        const r = pB.dist > pA.dist ? (dist - pA.dist) / (pB.dist - pA.dist) : 0;
+        const cur = this.sampleAtDist(dist);
 
-        const winDist = Math.min(30, Math.max(15, this.totalDistance * 0.003));
-        const fwdIdx = Math.min(sampleCount, Math.round((Math.min(this.totalDistance, dist + winDist) / (this.totalDistance || 1)) * sampleCount));
-        const bwdIdx = Math.max(0, Math.round((Math.max(0, dist - winDist) / (this.totalDistance || 1)) * sampleCount));
-        const fwdPt = pts[fwdIdx], bwdPt = pts[bwdIdx];
+        // 方位角（Bearing）は後方25m〜前方55mの連続補間座標から算出し、折れ点での急変を防ぐ
+        const bwdLook = this.sampleAtDist(dist - 25);
+        const fwdLook = this.sampleAtDist(dist + 55);
 
-        const roadDist = fwdPt.dist - bwdPt.dist;
-        const slope = roadDist > 5 ? Math.round(((fwdPt.alt - bwdPt.alt) / roadDist) * 1000) / 10 : 0;
+        // 斜度（Slope）は前後25mの連続標高差から算出
+        const bwdSlope = this.sampleAtDist(dist - 25);
+        const fwdSlope = this.sampleAtDist(dist + 25);
+        const roadDist = fwdSlope.dist - bwdSlope.dist;
+        const slope = roadDist > 5 ? Math.round(((fwdSlope.alt - bwdSlope.alt) / roadDist) * 1000) / 10 : 0;
 
         return {
             u,
             distance: dist,
-            lon: lerp(pA.lon, pB.lon, r),
-            lat: lerp(pA.lat, pB.lat, r),
-            alt: lerp(pA.alt, pB.alt, r),
-            bearing: GeoCourseManager.calcBearing(bwdPt.lon, bwdPt.lat, fwdPt.lon, fwdPt.lat),
+            lon: cur.lon,
+            lat: cur.lat,
+            alt: cur.alt,
+            bearing: GeoCourseManager.calcBearing(bwdLook.lon, bwdLook.lat, fwdLook.lon, fwdLook.lat),
             slope
         };
     }
