@@ -32,6 +32,8 @@ export class UIController {
 
         this.vSlopeSlider = document.getElementById('v-slope-slider');
         this.vSlopeVal = document.getElementById('v-slope-val');
+        this.rowSlopeCtrl = document.getElementById('row-slope-ctrl');
+        this.slopeEditHint = document.getElementById('slope-edit-hint');
 
         // Camera Dialog
         this.cameraDialog = document.getElementById('camera-dialog');
@@ -183,6 +185,23 @@ export class UIController {
                 if (this.cb.onSpeedChange) this.cb.onSpeedChange(nextSpeed);
             }
         });
+
+        // Vertical Drag & Wheel on Slope (負荷) item (いつでもスライドで変更可能)
+        if (this.rowSlopeCtrl) {
+            this.setupVerticalDrag(this.rowSlopeCtrl, {
+                isEnabled: () => true,
+                getInitialValue: () => this.cb.getManualSlope ? this.cb.getManualSlope() : 0.0,
+                onDragChange: (startSlope, deltaY) => {
+                    const nextSlope = Math.max(0.0, Math.min(7.0, Math.round((startSlope + (deltaY / 25)) * 10) / 10));
+                    if (this.cb.onManualSlopeInput) this.cb.onManualSlopeInput(nextSlope, true);
+                },
+                onWheelDelta: (dir) => {
+                    const cur = this.cb.getManualSlope ? this.cb.getManualSlope() : 0.0;
+                    const nextSlope = Math.max(0.0, Math.min(7.0, Math.round((cur + dir * 0.1) * 10) / 10));
+                    if (this.cb.onManualSlopeInput) this.cb.onManualSlopeInput(nextSlope, true);
+                }
+            });
+        }
 
         // Camera Dialog & Sliders
         if (this.btnToggleCamDialog && this.cameraDialog) {
@@ -397,10 +416,10 @@ export class UIController {
         if (this.testSlopeSlider) this.testSlopeSlider.value = slope;
         if (this.testSlopeVal) {
             const s = slope > 0 ? '+' : '';
-            this.testSlopeVal.textContent = `${s}${slope.toFixed(1)} %`;
+            this.testSlopeVal.textContent = `${s}${slope.toFixed(2)} %`;
         }
         if (this.vSlopeSlider) this.vSlopeSlider.value = slope;
-        if (this.vSlopeVal) this.vSlopeVal.textContent = `${slope.toFixed(1)}%`;
+        if (this.vSlopeVal) this.vSlopeVal.textContent = slope.toFixed(2);
     }
 
     updateLfoState(isRunning) {
@@ -412,21 +431,21 @@ export class UIController {
 
     updateTrainerSlopeDisplay(clampedSlope) {
         if (this.vSlopeSlider) this.vSlopeSlider.value = clampedSlope;
-        if (this.vSlopeVal) this.vSlopeVal.textContent = `${clampedSlope.toFixed(1)}%`;
+        if (this.vSlopeVal) this.vSlopeVal.textContent = clampedSlope.toFixed(2);
         if (this.testSlopeSlider) this.testSlopeSlider.value = clampedSlope;
         if (this.testSlopeVal) {
             const s = clampedSlope > 0 ? '+' : '';
-            this.testSlopeVal.textContent = `${s}${clampedSlope.toFixed(1)} %`;
+            this.testSlopeVal.textContent = `${s}${clampedSlope.toFixed(2)} %`;
         }
     }
 
     updateMetrics(state, speedKmh) {
         const distKm = (state.distance / 1000).toFixed(2);
         const sign = state.slope >= 0 ? '+' : '';
-        const slopeFormatted = `${sign}${state.slope.toFixed(1)}`;
+        const slopeFormatted = `${sign}${state.slope.toFixed(2)}`;
 
         if (this.bottomAltDisplay) {
-            this.bottomAltDisplay.textContent = `${state.alt.toFixed(1)}`;
+            this.bottomAltDisplay.textContent = `${state.alt.toFixed(2)}`;
         }
         if (this.bottomSlopeDisplay) {
             this.bottomSlopeDisplay.textContent = slopeFormatted;
@@ -442,19 +461,19 @@ export class UIController {
             this.bottomDistDisplay.textContent = distKm;
         }
         if (this.speedVal) {
-            this.speedVal.textContent = `${speedKmh.toFixed(1)}`;
+            this.speedVal.textContent = `${speedKmh.toFixed(2)}`;
         }
     }
 
     updateBleMetrics({ power, cadence, speed }) {
         if (power !== null && power !== undefined && this.valPower) {
-            this.valPower.textContent = `${Math.round(power)}`;
+            this.valPower.textContent = `${Number(power).toFixed(2)}`;
         }
         if (cadence !== null && cadence !== undefined && this.valCadence) {
-            this.valCadence.textContent = `${Math.round(cadence)}`;
+            this.valCadence.textContent = `${Number(cadence).toFixed(2)}`;
         }
         if (speed !== null && speed !== undefined && this.speedVal) {
-            this.speedVal.textContent = `${Number(speed).toFixed(1)}`;
+            this.speedVal.textContent = `${Number(speed).toFixed(2)}`;
         }
     }
 
@@ -470,8 +489,8 @@ export class UIController {
             this.btnBleConnect.classList.remove('connected');
             this.bleStatusText.textContent = '⚡ スマートトレーナー接続';
             if (this.btnBleDisconnect) this.btnBleDisconnect.style.display = 'none';
-            if (this.valPower) this.valPower.textContent = '---';
-            if (this.valCadence) this.valCadence.textContent = '---';
+            if (this.valPower) this.valPower.textContent = '--.--';
+            if (this.valCadence) this.valCadence.textContent = '--.--';
         }
     }
 
