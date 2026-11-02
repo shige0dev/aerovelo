@@ -50,7 +50,7 @@
         <div class="bottom-row-1">
             <div class="bottom-title-group">
                 <h1 class="bottom-app-title">AeroVelo</h1>
-                <span class="version-badge" id="app-version">v1.6.1</span>
+                <span class="version-badge" id="app-version">v1.6.2</span>
             </div>
             <div class="bottom-course-group">
                 <span id="course-name-display" class="bottom-course-badge">読み込み中...</span>
@@ -62,33 +62,33 @@
             </div>
         </div>
 
-        <!-- 2行目: 再生ボタン ＆ Speed ＆ 標高, 斜度, 距離 ＆ Power, Cadence（2行スタック表示） -->
+        <!-- 2行目: 再生ボタン ＆ Speed ＆ 標高, 斜度, 距離 ＆ Cadence, Power（2行スタック表示） -->
         <div class="bottom-row-2">
             <div class="bottom-stats-row">
                 <button type="button" id="btn-play" class="bottom-play-btn" title="自動再生 (Auto Fly)">▶</button>
                 <div class="stacked-stat-item speed-stack-item" id="row-speed" title="AUTOPLAY時のみ上下スワイプ・ホイールで速度変更可能">
-                    <span class="stat-label">Speed<span id="speed-edit-hint" class="speed-hint" style="display: none;">⇅</span></span>
-                    <span id="speed-val" class="stat-value">25.00km/h</span>
+                    <span class="stat-label">Speed <span class="stat-unit">km/h</span><span id="speed-edit-hint" class="speed-hint" style="display: none;">⇅</span></span>
+                    <span id="speed-val" class="stat-value">25.0</span>
                 </div>
-                <div class="stacked-stat-item">
-                    <span class="stat-label">標高</span>
-                    <span id="bottom-alt-display" class="stat-value">0.00m</span>
+                <div class="stacked-stat-item alt-stack-item">
+                    <span class="stat-label">標高 <span class="stat-unit">m</span></span>
+                    <span id="bottom-alt-display" class="stat-value">0.0</span>
                 </div>
-                <div class="stacked-stat-item">
-                    <span class="stat-label">斜度</span>
-                    <span id="bottom-slope-display" class="stat-value">+0.00%</span>
+                <div class="stacked-stat-item slope-stack-item">
+                    <span class="stat-label">斜度 <span class="stat-unit">%</span></span>
+                    <span id="bottom-slope-display" class="stat-value">+0.0</span>
                 </div>
-                <div class="stacked-stat-item">
-                    <span class="stat-label">距離</span>
-                    <span id="bottom-dist-display" class="stat-value">0.00km</span>
-                </div>
-                <div class="stacked-stat-item ble-stat-item" title="トレーナー/パワーメーター計測値">
-                    <span class="stat-label">Power</span>
-                    <span id="val-power" class="stat-value">--W</span>
+                <div class="stacked-stat-item dist-stack-item">
+                    <span class="stat-label">距離 <span class="stat-unit">km</span></span>
+                    <span id="bottom-dist-display" class="stat-value">0.00</span>
                 </div>
                 <div class="stacked-stat-item ble-stat-item" title="ケイデンスセンサー計測値">
-                    <span class="stat-label">Cadence</span>
-                    <span id="val-cadence" class="stat-value">--rpm</span>
+                    <span class="stat-label">Cadence <span class="stat-unit">rpm</span></span>
+                    <span id="val-cadence" class="stat-value">---</span>
+                </div>
+                <div class="stacked-stat-item ble-stat-item" title="トレーナー/パワーメーター計測値">
+                    <span class="stat-label">Power <span class="stat-unit">W</span></span>
+                    <span id="val-power" class="stat-value">---</span>
                 </div>
             </div>
         </div>

@@ -86,7 +86,7 @@ input[type="range"]::-webkit-slider-thumb {
 }
 .bottom-actions-group { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
 
-/* 2行目: 再生ボタン ＆ Speed ＆ 標高, 斜度, 距離 ＆ Power, Cadence */
+/* 2行目: 再生ボタン ＆ Speed ＆ 標高, 斜度, 距離 ＆ Cadence, Power */
 .bottom-row-2 { justify-content: space-between; }
 .bottom-stats-row { display: flex; align-items: center; gap: 4px; overflow-x: auto; }
 .bottom-play-btn { background: var(--accent); color: #0b0f19; border-radius: 3px; width: 22px; height: 24px; font-size: 0.70rem; font-weight: 700; flex-shrink: 0; }
@@ -96,15 +96,25 @@ input[type="range"]::-webkit-slider-thumb {
 .stacked-stat-item {
     display: flex; flex-direction: column; align-items: flex-start; justify-content: center;
     background: rgba(0, 0, 0, 0.45); border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 3px; padding: 1px 4px; min-width: 40px; flex-shrink: 0;
+    border-radius: 3px; padding: 1px 5px; min-width: 44px; flex-shrink: 0; height: 24px; box-sizing: border-box;
 }
-.stacked-stat-item .stat-label { font-size: 0.36rem; color: var(--muted); font-weight: 700; line-height: 1; margin-bottom: 1px; }
-.stacked-stat-item .stat-value { font-size: 0.62rem; font-family: var(--font-mono); font-weight: 700; color: #cbd5e1; line-height: 1; white-space: nowrap; }
+.stacked-stat-item .stat-label {
+    font-size: 0.38rem; color: var(--muted); font-weight: 700; line-height: 1; margin-bottom: 2px;
+    display: flex; align-items: baseline; gap: 2px; white-space: nowrap;
+}
+.stat-unit { font-size: 0.32rem; color: rgba(255, 255, 255, 0.45); font-weight: 500; }
+.stacked-stat-item .stat-value {
+    font-size: 0.74rem; font-family: var(--font-mono); font-weight: 700; color: #cbd5e1;
+    line-height: 1; white-space: nowrap; letter-spacing: -0.02em;
+}
 
+.speed-stack-item { min-width: 48px; }
 .speed-stack-item.editable { border-color: rgba(0, 240, 255, 0.6); cursor: ns-resize; touch-action: none; background: rgba(0, 240, 255, 0.08); }
 .speed-hint { font-size: 0.48rem; color: var(--accent); margin-left: 2px; font-weight: 800; }
-.accent-cyan { color: var(--accent) !important; }
-.ble-stat-item { border-color: rgba(0, 240, 255, 0.2); }
+.alt-stack-item { min-width: 46px; }
+.slope-stack-item { min-width: 46px; } /* 斜度2桁 (+15.5) に余裕 */
+.dist-stack-item { min-width: 50px; }  /* 距離3桁 (125.50) に余裕 */
+.ble-stat-item { min-width: 42px; border-color: rgba(0, 240, 255, 0.2); } /* Cadence/Power 3桁 (---, 999) */
 
 /* 3行目: 標高プロファイルCanvas ＆ 縦型負荷スライダー */
 .bottom-main-row { align-items: stretch; gap: 6px; }

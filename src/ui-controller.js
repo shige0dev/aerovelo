@@ -422,13 +422,13 @@ export class UIController {
     updateMetrics(state, speedKmh) {
         const distKm = (state.distance / 1000).toFixed(2);
         const sign = state.slope >= 0 ? '+' : '';
-        const slopeFormatted = `${sign}${state.slope.toFixed(2)}`;
+        const slopeFormatted = `${sign}${state.slope.toFixed(1)}`;
 
         if (this.bottomAltDisplay) {
-            this.bottomAltDisplay.textContent = `${state.alt.toFixed(2)}m`;
+            this.bottomAltDisplay.textContent = `${state.alt.toFixed(1)}`;
         }
         if (this.bottomSlopeDisplay) {
-            this.bottomSlopeDisplay.textContent = `${slopeFormatted}%`;
+            this.bottomSlopeDisplay.textContent = slopeFormatted;
             if (state.slope > 7) {
                 this.bottomSlopeDisplay.style.color = 'var(--climb-color)';
             } else if (state.slope < 0) {
@@ -438,22 +438,22 @@ export class UIController {
             }
         }
         if (this.bottomDistDisplay) {
-            this.bottomDistDisplay.textContent = `${distKm}km`;
+            this.bottomDistDisplay.textContent = distKm;
         }
         if (this.speedVal) {
-            this.speedVal.textContent = `${speedKmh.toFixed(2)}km/h`;
+            this.speedVal.textContent = `${speedKmh.toFixed(1)}`;
         }
     }
 
     updateBleMetrics({ power, cadence, speed }) {
         if (power !== null && power !== undefined && this.valPower) {
-            this.valPower.textContent = `${Math.round(power)}W`;
+            this.valPower.textContent = `${Math.round(power)}`;
         }
         if (cadence !== null && cadence !== undefined && this.valCadence) {
-            this.valCadence.textContent = `${Math.round(cadence)}rpm`;
+            this.valCadence.textContent = `${Math.round(cadence)}`;
         }
         if (speed !== null && speed !== undefined && this.speedVal) {
-            this.speedVal.textContent = `${Number(speed).toFixed(2)}km/h`;
+            this.speedVal.textContent = `${Number(speed).toFixed(1)}`;
         }
     }
 
@@ -469,8 +469,8 @@ export class UIController {
             this.btnBleConnect.classList.remove('connected');
             this.bleStatusText.textContent = '⚡ スマートトレーナー接続';
             if (this.btnBleDisconnect) this.btnBleDisconnect.style.display = 'none';
-            if (this.valPower) this.valPower.textContent = '--W';
-            if (this.valCadence) this.valCadence.textContent = '--rpm';
+            if (this.valPower) this.valPower.textContent = '---';
+            if (this.valCadence) this.valCadence.textContent = '---';
         }
     }
 
