@@ -38,11 +38,11 @@ body {
     z-index: 1;
 }
 
-/* Custom Rider Marker */
+/* Custom Rider Marker: 完全同心円ドット（●） */
 .rider-marker {
     position: relative;
-    width: 24px;
-    height: 24px;
+    width: 20px;
+    height: 20px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -54,17 +54,19 @@ body {
     width: 18px;
     height: 18px;
     border-radius: 50%;
-    background: rgba(0, 240, 255, 0.4);
-    box-shadow: 0 0 12px #00f0ff;
+    background: rgba(0, 240, 255, 0.35);
+    box-shadow: 0 0 10px #00f0ff;
     animation: beacon-pulse 1.5s infinite ease-out;
 }
 
-.rider-arrow {
+.rider-dot {
     position: relative;
-    font-size: 13px;
-    color: #ffffff;
-    text-shadow: 0 0 6px #00f0ff, 0 0 10px #000;
-    transition: transform 0.1s linear;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #ffffff;
+    border: 2px solid #00f0ff;
+    box-shadow: 0 0 8px #00f0ff, 0 0 4px #000000;
 }
 
 @keyframes beacon-pulse {
@@ -73,7 +75,7 @@ body {
         opacity: 1;
     }
     100% {
-        transform: scale(2.2);
+        transform: scale(2.0);
         opacity: 0;
     }
 }

@@ -105,7 +105,7 @@ class App {
             el.className = 'rider-marker';
             el.innerHTML = `
                 <div class="rider-beacon"></div>
-                <div class="rider-arrow">▲</div>
+                <div class="rider-dot"></div>
             `;
             this.riderMarker = new maplibregl.Marker({ element: el })
                 .setLngLat([startState.lon, startState.lat])
@@ -483,10 +483,6 @@ class App {
 
         if (this.riderMarker) {
             this.riderMarker.setLngLat([state.lon, state.lat]);
-            const arrow = this.riderMarker.getElement().querySelector('.rider-arrow');
-            if (arrow) {
-                arrow.style.transform = `rotate(${state.bearing}deg)`;
-            }
         }
 
         const pct100 = (this.currentProgress * 100).toFixed(1);
