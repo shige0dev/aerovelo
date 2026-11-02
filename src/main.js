@@ -339,18 +339,6 @@ class App {
         ctx.closePath();
         ctx.fillStyle = '#00f0ff';
         ctx.fill();
-
-        // グラフ内の進捗表示% (枠なし・シアン文字・影付き)
-        const pctText = `${(this.currentProgress * 100).toFixed(2)}%`;
-        ctx.save();
-        ctx.font = 'bold 13px monospace';
-        ctx.textAlign = 'right';
-        ctx.textBaseline = 'top';
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
-        ctx.shadowBlur = 4;
-        ctx.fillStyle = '#00f0ff';
-        ctx.fillText(pctText, w - 10, 6);
-        ctx.restore();
     }
 
     initUI() {
@@ -386,10 +374,10 @@ class App {
         this.isManualSlopeMode = false;
 
         // ボトムバー表示要素
-        this.bottomProgressVal = document.getElementById('bottom-progress-val');
         this.bottomAltDisplay = document.getElementById('bottom-alt-display');
         this.bottomSlopeDisplay = document.getElementById('bottom-slope-display');
         this.bottomDistDisplay = document.getElementById('bottom-dist-display');
+        this.bottomTotalDistTag = document.getElementById('bottom-total-dist-tag');
 
         // カメラダイアログ関連
         this.cameraDialog = document.getElementById('camera-dialog');
@@ -438,9 +426,12 @@ class App {
         if (this.elTotalDist) {
             this.elTotalDist.textContent = `/ ${totalKm} km`;
         }
+        if (this.bottomTotalDistTag) {
+            this.bottomTotalDistTag.textContent = `全長 ${totalKm}km`;
+        }
         if (this.bottomDistDisplay) {
             const curDistKm = ((this.currentProgress * this.course.totalDistance) / 1000).toFixed(2);
-            this.bottomDistDisplay.textContent = `距離: ${curDistKm} / ${totalKm} km`;
+            this.bottomDistDisplay.textContent = `${curDistKm}km`;
         }
         if (this.elCourseNameDisplay) {
             const statusTag = this.course.isGsiCorrected ? ' [DEM5A]' : '';
@@ -1136,19 +1127,15 @@ class App {
         const slopeFormatted = `${sign}${state.slope.toFixed(2)}`;
         if (this.elSlope) this.elSlope.textContent = slopeFormatted;
 
-        // ボトムバーの統計表示も更新（進捗%, 標高, 斜度, 距離）
-        if (this.bottomProgressVal) {
-            this.bottomProgressVal.textContent = (this.currentProgress * 100).toFixed(2);
-        }
+        // ボトムバーの統計表示も更新（2行スタック表示用: 標高, 斜度, 距離）
         if (this.bottomAltDisplay) {
-            this.bottomAltDisplay.textContent = `標高: ${state.alt.toFixed(2)}m`;
+            this.bottomAltDisplay.textContent = `${state.alt.toFixed(2)}m`;
         }
         if (this.bottomSlopeDisplay) {
-            this.bottomSlopeDisplay.textContent = `斜度: ${slopeFormatted}%`;
+            this.bottomSlopeDisplay.textContent = `${slopeFormatted}%`;
         }
         if (this.bottomDistDisplay) {
-            const totalKm = (this.course.totalDistance / 1000).toFixed(2);
-            this.bottomDistDisplay.textContent = `距離: ${distKm} / ${totalKm} km`;
+            this.bottomDistDisplay.textContent = `${distKm}km`;
         }
 
         // 速度表示（未設定時も下2桁）

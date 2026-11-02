@@ -513,9 +513,39 @@ input[type="range"]::-webkit-slider-thumb {
 .bottom-stats-row {
     display: flex;
     align-items: center;
-    gap: 4px; /* 余白を詰める */
+    gap: 6px;
     flex-wrap: nowrap;
     overflow-x: auto;
+}
+
+/* 2行表示のスタック型メトリクス（タイトル50%、数値下段で幅圧縮） */
+.stacked-stat-item {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.45);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+    padding: 1px 4px;
+    min-width: 42px;
+}
+
+.stacked-stat-item .stat-label {
+    font-size: 0.36rem; /* 標高などのタイトルは50%に縮小 */
+    color: var(--text-muted);
+    font-weight: 700;
+    line-height: 1;
+    margin-bottom: 1px;
+}
+
+.stacked-stat-item .stat-value {
+    font-size: 0.62rem;
+    font-family: monospace;
+    font-weight: 700;
+    color: #cbd5e1;
+    line-height: 1;
+    white-space: nowrap;
 }
 
 /* 2行目左端の再生ボタン */
@@ -525,12 +555,12 @@ input[type="range"]::-webkit-slider-thumb {
     border: none;
     border-radius: 3px;
     width: 22px;
-    height: 18px;
+    height: 24px;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    font-size: 0.65rem;
+    font-size: 0.70rem;
     font-weight: 700;
     line-height: 1;
     transition: all 0.2s ease;
@@ -565,6 +595,24 @@ input[type="range"]::-webkit-slider-thumb {
     overflow: hidden;
     display: flex;
     flex-direction: column;
+}
+
+/* 標高表示の右上に配置する全長バッジ */
+.canvas-total-dist-tag {
+    position: absolute;
+    top: 4px;
+    right: 8px;
+    font-size: 0.56rem;
+    font-family: monospace;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.85);
+    background: rgba(0, 0, 0, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 3px;
+    padding: 1px 4px;
+    pointer-events: none;
+    line-height: 1.1;
+    z-index: 5;
 }
 
 #elevation-canvas {

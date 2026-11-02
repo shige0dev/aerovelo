@@ -113,13 +113,22 @@
             </div>
         </div>
 
-        <!-- 2行目: 再生ボタン (左端) ＆ 標高, 斜度, 距離 -->
+        <!-- 2行目: 再生ボタン (左端) ＆ 標高, 斜度, 距離（2行スタック表示・タイトル50%縮小） -->
         <div class="bottom-row-2">
             <div class="bottom-stats-row">
                 <button type="button" id="btn-play" class="bottom-play-btn" title="自動再生 (Auto Fly)">▶</button>
-                <span id="bottom-alt-display" class="bottom-stat-tag">標高: 0.00m</span>
-                <span id="bottom-slope-display" class="bottom-stat-tag">斜度: +0.00%</span>
-                <span id="bottom-dist-display" class="bottom-stat-tag">距離: 0.00 / 0.00 km</span>
+                <div class="stacked-stat-item">
+                    <span class="stat-label">標高</span>
+                    <span id="bottom-alt-display" class="stat-value">0.00m</span>
+                </div>
+                <div class="stacked-stat-item">
+                    <span class="stat-label">斜度</span>
+                    <span id="bottom-slope-display" class="stat-value">+0.00%</span>
+                </div>
+                <div class="stacked-stat-item">
+                    <span class="stat-label">距離</span>
+                    <span id="bottom-dist-display" class="stat-value">0.00km</span>
+                </div>
             </div>
         </div>
 
@@ -127,6 +136,8 @@
         <div class="bottom-main-row">
             <div class="bottom-canvas-slider-container">
                 <canvas id="elevation-canvas"></canvas>
+                <!-- 全長表示（標高表示の右上） -->
+                <span id="bottom-total-dist-tag" class="canvas-total-dist-tag">全長 0.00km</span>
             </div>
             <div class="bottom-slope-vertical-wrapper">
                 <span class="v-slope-title">負荷</span>
