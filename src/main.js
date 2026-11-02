@@ -13,7 +13,10 @@ class App {
 
         // Bluetooth Smart Trainer Manager
         this.bleManager = new BleTrainerManager();
-        this.bleData = { power: null, cadence: null, speed: null };
+        this.bleData = { power: null, cadence: null, speed: null, totalDistanceMeters: null };
+        this.hasBleDistance = false;
+        this.lastBleSessionDistance = 0;
+        this.baseProgressAtBleStart = 0; // BLE接続時・リセット時の基準進捗率
 
         // 滑らかな角度補間（Lerp）用の現在カメラBearing
         this.currentCamBearing = null;
@@ -474,6 +477,12 @@ class App {
             });
         }
 
+        this.bleManager.on('connected', () => {
+            this.baseProgressAtBleStart = this.currentProgress;
+            this.lastBleSessionDistance = 0;
+            this.hasBleDistance = false;
+        });
+
         this.bleManager.on('disconnected', () => {
             if (this.btnBleConnect) {
                 this.btnBleConnect.classList.remove('connected');
@@ -484,6 +493,7 @@ class App {
             }
             if (this.valPower) this.valPower.textContent = '--';
             if (this.valCadence) this.valCadence.textContent = '--';
+            this.hasBleDistance = false;
         });
 
         this.bleManager.on('data', (data) => {
@@ -493,11 +503,19 @@ class App {
             if (data.cadence !== null && this.valCadence) {
                 this.valCadence.textContent = data.cadence;
             }
-            // スマートトレーナーから実測速度が送られてきた場合、自動連動
-            if (data.speed !== null && data.speed > 0) {
+            // スマートトレーナーから実測速度が送られてきた場合、スライダーと表示を同期
+            if (data.speed !== null) {
                 this.speedKmh = data.speed;
                 if (this.speedSlider) this.speedSlider.value = Math.min(50, Math.round(data.speed));
                 if (this.speedVal) this.speedVal.textContent = `${Math.round(data.speed)} km/h`;
+            }
+
+            // 【方法1】FTMSの Total Distance（累積走行距離）が取得できた場合、ダイレクトに進捗計算
+            if (data.sessionDistanceMeters !== null && this.course.totalDistance > 0) {
+                this.hasBleDistance = true;
+                const progressDelta = data.sessionDistanceMeters / this.course.totalDistance;
+                const directProgress = (this.baseProgressAtBleStart + progressDelta) % 1.0;
+                this.updateState(directProgress);
             }
         });
 
@@ -523,6 +541,11 @@ class App {
             this.isPlaying = false;
             this.btnPlay.textContent = '再生 (Auto Fly)';
             this.btnPlay.classList.remove('running');
+            if (this.bleManager) {
+                this.bleManager.resetDistance();
+            }
+            this.baseProgressAtBleStart = 0.0;
+            this.lastBleSessionDistance = 0;
             this.updateState(0.0);
         });
 
@@ -716,17 +739,24 @@ class App {
     animate(timestamp) {
         requestAnimationFrame(this.animate);
 
-        if (this.isPlaying) {
+        // BLE接続中でトレーナーが回転している（速度 > 0）場合、または「再生」ボタンが押されている場合に進捗更新
+        const isBleRiding = this.bleManager.isConnected && this.speedKmh > 0;
+
+        if (this.isPlaying || isBleRiding) {
             if (!this.lastFrameTime) this.lastFrameTime = timestamp;
             const deltaSeconds = Math.min((timestamp - this.lastFrameTime) / 1000, 0.1);
             this.lastFrameTime = timestamp;
 
-            const metersPerSecond = (this.speedKmh * 1000) / 3600;
-            const distanceMoved = metersPerSecond * deltaSeconds;
-            const progressDelta = this.course.totalDistance > 0 ? (distanceMoved / this.course.totalDistance) : 0;
+            // 【方法1】の Total Distance を受信できている場合は on('data') 側で正確に更新するためここでは二重積算しない
+            // Total Distance が未サポートのトレーナーの場合のみ、速度×時間（Δt）でフォールバック積算
+            if (!this.hasBleDistance) {
+                const metersPerSecond = (this.speedKmh * 1000) / 3600;
+                const distanceMoved = metersPerSecond * deltaSeconds;
+                const progressDelta = this.course.totalDistance > 0 ? (distanceMoved / this.course.totalDistance) : 0;
 
-            const nextProgress = (this.currentProgress + progressDelta) % 1.0;
-            this.updateState(nextProgress);
+                const nextProgress = (this.currentProgress + progressDelta) % 1.0;
+                this.updateState(nextProgress);
+            }
         } else {
             this.lastFrameTime = 0;
         }

@@ -42,6 +42,10 @@ export class BleTrainerManager {
         // 最後に送信した斜度（過剰送信防止キャッシュ）
         this.lastSentSlope = null;
         this.lastSendTime = 0;
+
+        // 累積距離（Total Distance）の初期オフセット管理
+        this.initialDistanceMeters = null;
+        this.lastTotalDistanceMeters = null;
     }
 
     on(event, callback) {
@@ -254,8 +258,23 @@ export class BleTrainerManager {
         // Flag bit 3: Average Cadence
         if (flags & (1 << 3)) offset += 2;
 
-        // Flag bit 4: Total Distance (3 bytes)
-        if (flags & (1 << 4)) offset += 3;
+        // Flag bit 4: Total Distance (uint24, 3 bytes, resolution: 1 meter)
+        let totalDistanceMeters = null;
+        if (flags & (1 << 4)) {
+            if (value.byteLength >= offset + 3) {
+                const b0 = value.getUint8(offset);
+                const b1 = value.getUint8(offset + 1);
+                const b2 = value.getUint8(offset + 2);
+                totalDistanceMeters = b0 | (b1 << 8) | (b2 << 16);
+                offset += 3;
+
+                // セッション開始時の初期オフセットを記録し、今回のライドでの増分（delta）を計算
+                if (this.initialDistanceMeters === null) {
+                    this.initialDistanceMeters = totalDistanceMeters;
+                }
+                this.lastTotalDistanceMeters = totalDistanceMeters;
+            }
+        }
 
         // Flag bit 5: Resistance Level
         if (flags & (1 << 5)) offset += 2;
@@ -268,10 +287,17 @@ export class BleTrainerManager {
             }
         }
 
+        // 今回のセッションでの累積走行距離（増分）
+        const sessionDistanceMeters = (totalDistanceMeters !== null && this.initialDistanceMeters !== null)
+            ? Math.max(0, totalDistanceMeters - this.initialDistanceMeters)
+            : null;
+
         this.emit('data', {
             power: powerWatts !== null ? Math.max(0, powerWatts) : null,
             cadence: cadenceRpm !== null ? Math.round(cadenceRpm) : null,
-            speed: speedKmh !== null ? Math.round(speedKmh * 10) / 10 : null
+            speed: speedKmh !== null ? Math.round(speedKmh * 10) / 10 : null,
+            totalDistanceMeters: totalDistanceMeters,
+            sessionDistanceMeters: sessionDistanceMeters
         });
     }
 
@@ -317,7 +343,21 @@ export class BleTrainerManager {
         this.hasControl = false;
         this.controlPointChar = null;
         this.lastSentSlope = null;
+        this.initialDistanceMeters = null;
+        this.lastTotalDistanceMeters = null;
         this.emit('disconnected');
         console.log('BLE: Disconnected');
     }
+
+    /**
+     * セッションの累積距離カウンターを0リセット
+     */
+    resetDistance() {
+        if (this.lastTotalDistanceMeters !== null) {
+            this.initialDistanceMeters = this.lastTotalDistanceMeters;
+        } else {
+            this.initialDistanceMeters = null;
+        }
+    }
 }
+
