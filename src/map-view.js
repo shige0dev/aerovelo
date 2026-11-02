@@ -8,14 +8,9 @@ export class MapViewController {
         this.containerId = containerId;
         this.cameraMode = 'track'; // 'track' | 'free'
         this.isModeTransitioning = false;
-
         this.currentCamBearing = null;
-        this.orbitAngleOffset = 0; // -180° ~ +180°
-        this.cameraParams = {
-            pitch: 68,
-            zoom: 16.5
-        };
-
+        this.orbitAngleOffset = 0;
+        this.cameraParams = { pitch: 68, zoom: 16.5 };
         this.riderMarker = null;
         this.lastCamTime = 0;
         this.initMap(initialState);
@@ -30,31 +25,19 @@ export class MapViewController {
                 sources: {
                     'satellite': {
                         type: 'raster',
-                        tiles: [
-                            'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
-                        ],
+                        tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
                         tileSize: 256,
                         attribution: 'Tiles &copy; Esri, Maxar, Earthstar Geographics'
                     },
                     'terrain-dem': {
                         type: 'raster-dem',
-                        tiles: [
-                            'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'
-                        ],
+                        tiles: ['https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'],
                         encoding: 'terrarium',
                         tileSize: 256,
                         maxzoom: 14
                     }
                 },
-                layers: [
-                    {
-                        id: 'satellite-layer',
-                        type: 'raster',
-                        source: 'satellite',
-                        minzoom: 0,
-                        maxzoom: 22
-                    }
-                ],
+                layers: [{ id: 'satellite-layer', type: 'raster', source: 'satellite', minzoom: 0, maxzoom: 22 }],
                 sky: {
                     'sky-color': '#1e293b',
                     'sky-horizon-blend': 0.6,
@@ -72,17 +55,10 @@ export class MapViewController {
         });
 
         this.map.on('load', () => {
-            this.map.setTerrain({
-                source: 'terrain-dem',
-                exaggeration: 1.15
-            });
-
+            this.map.setTerrain({ source: 'terrain-dem', exaggeration: 1.15 });
             const el = document.createElement('div');
             el.className = 'rider-marker';
-            el.innerHTML = `
-                <div class="rider-beacon"></div>
-                <div class="rider-dot"></div>
-            `;
+            el.innerHTML = '<div class="rider-beacon"></div><div class="rider-dot"></div>';
             this.riderMarker = new maplibregl.Marker({ element: el })
                 .setLngLat([startState.lon, startState.lat])
                 .addTo(this.map);
@@ -94,19 +70,8 @@ export class MapViewController {
         });
     }
 
-    /**
-     * MapLibre の padding を用いて注視点の位置を決定
-     * - top: 画面高さの約35%の余白を設けることで、ライダーが画面下部に配置される
-     * - 左側メインパネルが完全撤去されたため、左右センタリングで全画面3D走行を楽しめる
-     */
     getCameraPadding() {
-        const screenHeight = window.innerHeight;
-        return {
-            left: 0,
-            top: Math.round(screenHeight * 0.35),
-            right: 0,
-            bottom: 0
-        };
+        return { left: 0, top: Math.round(window.innerHeight * 0.35), right: 0, bottom: 0 };
     }
 
     setCourse(course, initialState) {
@@ -120,58 +85,38 @@ export class MapViewController {
             return;
         }
 
-        const coordinates = course.toGeoJSONCoordinates();
         const geojsonData = {
             type: 'Feature',
             properties: {},
-            geometry: {
-                type: 'LineString',
-                coordinates: coordinates
-            }
+            geometry: { type: 'LineString', coordinates: course.toGeoJSONCoordinates() }
         };
 
         if (this.map.getSource('route')) {
             this.map.getSource('route').setData(geojsonData);
         } else {
-            this.map.addSource('route', {
-                type: 'geojson',
-                data: geojsonData
-            });
-
+            this.map.addSource('route', { type: 'geojson', data: geojsonData });
+            const layout = { 'line-join': 'round', 'line-cap': 'round' };
             this.map.addLayer({
                 id: 'route-glow',
                 type: 'line',
                 source: 'route',
-                layout: { 'line-join': 'round', 'line-cap': 'round' },
-                paint: {
-                    'line-color': '#00f0ff',
-                    'line-width': 8,
-                    'line-opacity': 0.6,
-                    'line-blur': 3
-                }
+                layout,
+                paint: { 'line-color': '#00f0ff', 'line-width': 8, 'line-opacity': 0.6, 'line-blur': 3 }
             });
-
             this.map.addLayer({
                 id: 'route-line',
                 type: 'line',
                 source: 'route',
-                layout: { 'line-join': 'round', 'line-cap': 'round' },
-                paint: {
-                    'line-color': '#ffffff',
-                    'line-width': 4
-                }
+                layout,
+                paint: { 'line-color': '#ffffff', 'line-width': 4 }
             });
         }
 
-        if (initialState) {
-            this.updateRiderAndCamera(initialState, 1500);
-        }
+        if (initialState) this.updateRiderAndCamera(initialState, 1500);
     }
 
     updateRiderAndCamera(state, duration = 0) {
-        if (this.riderMarker) {
-            this.riderMarker.setLngLat([state.lon, state.lat]);
-        }
+        this.riderMarker?.setLngLat([state.lon, state.lat]);
         if (!this.isModeTransitioning && this.cameraMode !== 'free') {
             this.applyCameraTarget(state, duration);
         }
@@ -184,9 +129,7 @@ export class MapViewController {
             this.currentCamBearing = null;
             this.isModeTransitioning = true;
             this.applyCameraTarget(currentState, 2000);
-            setTimeout(() => {
-                this.isModeTransitioning = false;
-            }, 2000);
+            setTimeout(() => { this.isModeTransitioning = false; }, 2000);
         }
     }
 
@@ -194,18 +137,13 @@ export class MapViewController {
         if (typeof pitch === 'number') this.cameraParams.pitch = pitch;
         if (typeof zoom === 'number') this.cameraParams.zoom = zoom;
         if (typeof orbitAngleOffset === 'number') this.orbitAngleOffset = orbitAngleOffset;
-
-        if (this.cameraMode !== 'free' && currentState) {
-            this.applyCameraTarget(currentState, 0);
-        }
+        if (this.cameraMode !== 'free' && currentState) this.applyCameraTarget(currentState, 0);
     }
 
     resize(currentState) {
         if (!this.map) return;
         this.map.resize();
-        if (this.cameraMode !== 'free' && currentState) {
-            this.applyCameraTarget(currentState, 0);
-        }
+        if (this.cameraMode !== 'free' && currentState) this.applyCameraTarget(currentState, 0);
     }
 
     static lerpAngle(fromAngle, toAngle, t) {
@@ -218,10 +156,7 @@ export class MapViewController {
     applyCameraTarget(state, duration = 0) {
         if (!this.map || this.cameraMode === 'free' || !state) return;
 
-        const padding = this.getCameraPadding();
         let targetPitch = this.cameraParams.pitch;
-        const targetZoom = this.cameraParams.zoom;
-
         const targetBearing = (state.bearing - this.orbitAngleOffset + 360) % 360;
 
         const now = performance.now();
@@ -231,21 +166,17 @@ export class MapViewController {
         if (this.currentCamBearing === null || duration > 0) {
             this.currentCamBearing = targetBearing;
         } else {
-            // 約1秒かけて方向変化に滑らかに追従するスムージング（時定数 τ ≈ 0.35秒、1秒で約95%追従）
-            const decay = 2.8;
-            const t = 1 - Math.exp(-decay * dt);
+            // 約1秒かけて方向変化に追従するスムージング（decay = 2.8）
+            const t = 1 - Math.exp(-2.8 * dt);
             this.currentCamBearing = MapViewController.lerpAngle(this.currentCamBearing, targetBearing, t);
         }
 
         if (this.map.queryTerrainElevation) {
-            const riderAlt = state.alt;
             const rad = (this.currentCamBearing + 180) * (Math.PI / 180);
-            const distMeters = 50;
-            const camLon = state.lon + (distMeters * Math.sin(rad)) / (111320 * Math.cos(state.lat * Math.PI / 180));
-            const camLat = state.lat + (distMeters * Math.cos(rad)) / 110574;
+            const camLon = state.lon + (50 * Math.sin(rad)) / (111320 * Math.cos(state.lat * Math.PI / 180));
+            const camLat = state.lat + (50 * Math.cos(rad)) / 110574;
             const terrainAlt = this.map.queryTerrainElevation([camLon, camLat]);
-
-            if (terrainAlt !== null && terrainAlt > riderAlt + 12) {
+            if (terrainAlt !== null && terrainAlt > state.alt + 12) {
                 targetPitch = Math.min(targetPitch, 45);
             }
         }
@@ -254,16 +185,13 @@ export class MapViewController {
             center: [state.lon, state.lat],
             pitch: targetPitch,
             bearing: this.currentCamBearing,
-            zoom: targetZoom,
-            padding: padding,
-            duration: duration,
+            zoom: this.cameraParams.zoom,
+            padding: this.getCameraPadding(),
+            duration,
             essential: true
         };
 
-        if (duration > 0) {
-            this.map.easeTo(cameraOptions);
-        } else {
-            this.map.jumpTo(cameraOptions);
-        }
+        if (duration > 0) this.map.easeTo(cameraOptions);
+        else this.map.jumpTo(cameraOptions);
     }
 }

@@ -1,8 +1,11 @@
-import { GeoCourseManager, GPXParser, DEFAULT_LAKE_ROUTE } from './course.js';
+import { GeoCourseManager, DEFAULT_LAKE_ROUTE } from './course.js';
+import { GPXParser } from './gpx-gsi.js';
 import { BleTrainerManager } from './ble.js';
 import { ElevationChart } from './elevation-chart.js';
 import { MapViewController } from './map-view.js';
 import { UIController } from './ui-controller.js';
+
+const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
 
 class App {
     constructor() {
@@ -12,7 +15,7 @@ class App {
         this.speedKmh = 25;
         this.lastFrameTime = 0;
 
-        // 負荷制御ステート ('auto': コース連動, 'manual': 手動指定, 'lfo': 連続スキャン)
+        // 負荷制御ステート ('auto': コース連動, 'manual': 手動固定, 'lfo': 連続スキャン)
         this.loadMode = 'auto';
         this.manualSlope = 0.0;
         this.lfoPeriodSeconds = 60;
@@ -23,34 +26,23 @@ class App {
         this.hasBleDistance = false;
         this.baseProgressAtBleStart = 0;
 
-        // 1. UI Controller 初期化
+        // 1. UI Controller
         this.ui = new UIController({
             onTogglePlay: () => this.setPlayState(!this.isPlaying),
-            onToggleManualMode: () => this.toggleManualMode(),
+            onToggleManualMode: () => this.setLoadMode(this.loadMode === 'auto' ? 'manual' : 'auto'),
             onManualSlopeInput: (val, forceManual) => this.setManualSlope(val, forceManual),
-            onToggleLfo: () => this.toggleLfo(),
+            onToggleLfo: () => this.setLoadMode(this.loadMode === 'lfo' ? 'manual' : 'lfo'),
             onLfoPeriodChange: (sec) => { this.lfoPeriodSeconds = sec; },
-            isManualMode: () => this.loadMode !== 'auto',
             getManualSlope: () => this.manualSlope,
             isPlaying: () => this.isPlaying,
             getSpeed: () => this.speedKmh,
             onSpeedChange: (spd) => {
                 this.speedKmh = spd;
-                this.ui.updateMetrics(this.course.getStateAtProgress(this.currentProgress), this.speedKmh);
+                this.ui.updateMetrics(this.currentState(), this.speedKmh);
             },
             onToggleCameraFree: () => this.toggleCameraFree(),
-            onCameraParamChange: (params) => {
-                const state = this.course.getStateAtProgress(this.currentProgress);
-                this.mapView.setCameraParams(params, state);
-            },
-            onFullscreenChange: () => {
-                setTimeout(() => {
-                    const state = this.course.getStateAtProgress(this.currentProgress);
-                    this.mapView.resize(state);
-                    this.chart.resize();
-                    this.chart.draw();
-                }, 100);
-            },
+            onCameraParamChange: (params) => this.mapView.setCameraParams(params, this.currentState()),
+            onFullscreenChange: () => setTimeout(() => this.handleResize(), 100),
             onBleConnect: () => this.connectBle(),
             onBleDisconnect: () => this.bleManager.disconnect(),
             onSelectPreset: (url) => this.loadDefaultGPX(url),
@@ -58,47 +50,56 @@ class App {
             onRequestGsiDem: () => this.applyGsiDem()
         });
 
-        // 2. 標高プロファイル Canvas 初期化
-        this.chart = new ElevationChart('elevation-canvas', (progress) => {
-            this.setManualProgress(progress);
-        });
+        // 2. 標高プロファイル Canvas & 3D マップ
+        this.chart = new ElevationChart('elevation-canvas', (p) => this.setManualProgress(p));
         this.chart.setCourse(this.course);
 
-        // 3. 3D マップ＆カメラ 初期化
-        const startState = this.course.getStateAtProgress(0.0);
+        const startState = this.currentState();
         this.mapView = new MapViewController('map', startState);
         this.mapView.setCourse(this.course, startState);
 
-        // 4. イベント配線 (BLE & Window Resize)
+        // 3. イベント配線 & メインループ開始
         this.setupBleEvents();
-        window.addEventListener('resize', () => {
-            const state = this.course.getStateAtProgress(this.currentProgress);
-            this.mapView.resize(state);
-            this.chart.resize();
-            this.chart.draw();
-        });
+        window.addEventListener('resize', () => this.handleResize());
 
-        // 5. 初回UI同期とアニメーションループ起動
         this.ui.updateCourseMeta(this.course, this.currentProgress);
         this.updateState(0.0);
 
         this.animate = this.animate.bind(this);
         requestAnimationFrame(this.animate);
-
-        // デフォルトコース（Hiyoshi）自動ロード
         this.loadDefaultGPX('gpx/hiyoshi_12.5km_D738.gpx');
     }
 
+    currentState() {
+        return this.course.getStateAtProgress(this.currentProgress);
+    }
+
+    handleResize() {
+        this.mapView.resize(this.currentState());
+        this.chart.resize();
+        this.chart.draw();
+    }
+
     // --- Course & GPX Management ---
+
+    parseAndApplyGPX(gpxText, fallbackName) {
+        const { courseName, waypoints } = GPXParser.parse(gpxText);
+        const finalName = courseName !== 'カスタムコース' ? courseName : fallbackName.replace(/\.gpx$/i, '');
+        this.course = new GeoCourseManager(waypoints, finalName);
+        this.setPlayState(false);
+        this.currentProgress = 0.0;
+
+        this.ui.updateCourseMeta(this.course, 0.0);
+        this.chart.setCourse(this.course);
+        this.mapView.setCourse(this.course, this.currentState());
+        this.updateState(0.0);
+    }
 
     async loadDefaultGPX(url) {
         try {
             const res = await fetch(url);
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            const gpxText = await res.text();
-            const { courseName, waypoints } = GPXParser.parse(gpxText);
-            const finalName = courseName !== 'カスタムコース' ? courseName : url.split('/').pop().replace(/\.gpx$/i, '');
-            this.applyNewCourse(waypoints, finalName);
+            this.parseAndApplyGPX(await res.text(), url.split('/').pop());
         } catch (err) {
             console.warn(`デフォルトGPX取得エラー (${url}):`, err);
         }
@@ -108,9 +109,7 @@ class App {
         const reader = new FileReader();
         reader.onload = (e) => {
             try {
-                const { courseName, waypoints } = GPXParser.parse(e.target.result);
-                const finalName = courseName !== 'カスタムコース' ? courseName : file.name.replace(/\.gpx$/i, '');
-                this.applyNewCourse(waypoints, finalName);
+                this.parseAndApplyGPX(e.target.result, file.name);
             } catch (err) {
                 console.error(err);
                 alert(`GPX読み込みエラー: ${err.message}`);
@@ -119,26 +118,11 @@ class App {
         reader.readAsText(file);
     }
 
-    applyNewCourse(waypoints, name) {
-        this.course = new GeoCourseManager(waypoints, name);
-        this.setPlayState(false);
-        this.currentProgress = 0.0;
-
-        this.ui.updateCourseMeta(this.course, 0.0);
-        this.chart.setCourse(this.course);
-
-        const startState = this.course.getStateAtProgress(0.0);
-        this.mapView.setCourse(this.course, startState);
-        this.updateState(0.0);
-    }
-
     async applyGsiDem() {
         if (this.course.isGsiCorrected) return;
         try {
             this.ui.setGsiLoading(true, 0);
-            await this.course.recalculateWithGSI5m((pct) => {
-                this.ui.setGsiLoading(true, pct);
-            });
+            await this.course.recalculateWithGSI5m((pct) => this.ui.setGsiLoading(true, pct));
             this.ui.updateCourseMeta(this.course, this.currentProgress);
             this.chart.setCourse(this.course);
             this.updateState(this.currentProgress);
@@ -149,65 +133,40 @@ class App {
         }
     }
 
-    // --- State & Load Control (Unified State Machine) ---
+    // --- State & Load Control ---
 
     setPlayState(playing) {
         this.isPlaying = playing;
-        this.ui.updatePlayState(this.isPlaying);
+        this.ui.updatePlayState(playing);
     }
 
     toggleCameraFree() {
-        const nextMode = (this.mapView.cameraMode === 'free') ? 'track' : 'free';
+        const nextMode = this.mapView.cameraMode === 'free' ? 'track' : 'free';
         this.ui.updateCameraModeUI(nextMode === 'free');
-        const state = this.course.getStateAtProgress(this.currentProgress);
-        this.mapView.setCameraMode(nextMode, state);
+        this.mapView.setCameraMode(nextMode, this.currentState());
     }
 
-    toggleManualMode() {
-        if (this.loadMode === 'auto') {
-            this.loadMode = 'manual';
-            this.ui.updateManualModeState(true);
-            this.sendSlopeToTrainer(this.manualSlope);
-        } else {
-            this.loadMode = 'auto';
-            this.ui.updateLfoState(false);
-            this.ui.updateManualModeState(false);
-            const state = this.course.getStateAtProgress(this.currentProgress);
-            this.sendSlopeToTrainer(state.slope);
-        }
+    setLoadMode(mode) {
+        this.loadMode = mode;
+        if (mode === 'lfo') this.lfoStartTime = performance.now();
+        this.ui.updateLfoState(mode === 'lfo');
+        this.ui.updateManualModeState(mode !== 'auto');
+        this.sendSlopeToTrainer(mode === 'auto' ? this.currentState().slope : this.manualSlope);
     }
 
     setManualSlope(slope, switchToManual = true) {
-        if (this.loadMode === 'lfo' && switchToManual) {
-            this.loadMode = 'manual';
-            this.ui.updateLfoState(false);
-        } else if (switchToManual && this.loadMode === 'auto') {
-            this.loadMode = 'manual';
-        }
-        this.ui.updateManualModeState(this.loadMode !== 'auto');
-
-        this.manualSlope = Math.max(0.0, Math.min(7.0, slope));
-        this.sendSlopeToTrainer(this.manualSlope);
-    }
-
-    toggleLfo() {
-        if (this.loadMode === 'lfo') {
-            this.loadMode = 'manual';
-            this.ui.updateLfoState(false);
+        this.manualSlope = clamp(slope, 0.0, 7.0);
+        if (switchToManual && this.loadMode !== 'manual') {
+            this.setLoadMode('manual');
         } else {
-            this.loadMode = 'lfo';
-            this.lfoStartTime = performance.now();
-            this.ui.updateManualModeState(true);
-            this.ui.updateLfoState(true);
+            this.sendSlopeToTrainer(this.manualSlope);
         }
     }
 
     sendSlopeToTrainer(targetSlope) {
-        const clampedSlope = Math.max(0.0, Math.min(7.0, targetSlope));
+        const clampedSlope = clamp(targetSlope, 0.0, 7.0);
         this.ui.updateTrainerSlopeDisplay(clampedSlope);
-        if (this.bleManager.isConnected) {
-            this.bleManager.sendSlope(clampedSlope);
-        }
+        if (this.bleManager.isConnected) this.bleManager.sendSlope(clampedSlope);
     }
 
     // --- BLE Smart Trainer Integration ---
@@ -221,9 +180,7 @@ class App {
         } catch (err) {
             console.warn('BLE connect cancelled or failed:', err);
             this.ui.updateBleConnectionState('disconnected');
-            if (err.name !== 'NotFoundError') {
-                alert(`Bluetooth接続エラー: ${err.message}`);
-            }
+            if (err.name !== 'NotFoundError') alert(`Bluetooth接続エラー: ${err.message}`);
         }
     }
 
@@ -239,16 +196,13 @@ class App {
         });
 
         this.bleManager.on('data', (data) => {
-            if (data.speed !== null) {
-                this.speedKmh = data.speed;
-            }
+            if (data.speed !== null) this.speedKmh = data.speed;
             this.ui.updateBleMetrics(data);
 
             if (data.sessionDistanceMeters !== null && this.course.totalDistance > 0) {
                 this.hasBleDistance = true;
                 const progressDelta = data.sessionDistanceMeters / this.course.totalDistance;
-                const directProgress = Math.min(1.0, this.baseProgressAtBleStart + progressDelta);
-                this.updateState(directProgress);
+                this.updateState(Math.min(1.0, this.baseProgressAtBleStart + progressDelta));
             }
         });
     }
@@ -256,35 +210,18 @@ class App {
     // --- Progress & Main Loop ---
 
     setManualProgress(progress) {
-        if (this.bleManager.isConnected) {
-            this.bleManager.resetDistance();
-        }
+        if (this.bleManager.isConnected) this.bleManager.resetDistance();
         this.baseProgressAtBleStart = progress;
         this.updateState(progress);
     }
 
     updateState(progress) {
-        if (progress >= 1.0) {
-            this.currentProgress = 1.0;
-        } else if (progress <= 0.0 || isNaN(progress)) {
-            this.currentProgress = 0.0;
-        } else {
-            this.currentProgress = progress;
-        }
+        this.currentProgress = isNaN(progress) ? 0.0 : clamp(progress, 0.0, 1.0);
+        const state = this.currentState();
 
-        const state = this.course.getStateAtProgress(this.currentProgress);
-
-        // 1. UI 表示更新
         this.ui.updateMetrics(state, this.speedKmh);
-
-        // 2. トレーナー負荷反映 (Auto時はコース斜度、Manual/LFO時は manualSlope)
-        const targetTrainerSlope = (this.loadMode === 'auto') ? state.slope : this.manualSlope;
-        this.sendSlopeToTrainer(targetTrainerSlope);
-
-        // 3. 標高プロファイル進捗線更新
+        this.sendSlopeToTrainer(this.loadMode === 'auto' ? state.slope : this.manualSlope);
         this.chart.setProgress(this.currentProgress);
-
-        // 4. 3Dマップ・マーカー＆カメラ更新
         this.mapView.updateRiderAndCamera(state, 0);
     }
 
@@ -293,27 +230,21 @@ class App {
 
         // LFO スキャン実行（三角波: 0% ⇄ 7%）
         if (this.loadMode === 'lfo') {
-            const elapsed = (timestamp - this.lfoStartTime) / 1000;
             const period = Math.max(2, this.lfoPeriodSeconds);
-            const phase = (elapsed % period) / period;
-            const tri = phase < 0.5 ? (phase * 2) : ((1.0 - phase) * 2);
-            const lfoSlope = Math.round((tri * 7.0) * 10) / 10;
-            this.setManualSlope(lfoSlope, false);
+            const phase = (((timestamp - this.lfoStartTime) / 1000) % period) / period;
+            const tri = phase < 0.5 ? phase * 2 : (1.0 - phase) * 2;
+            this.setManualSlope(Math.round(tri * 70) / 10, false);
         }
 
-        // 自動再生またはBLE実走中の進捗更新
         const isBleRiding = this.bleManager.isConnected && this.speedKmh > 0;
         if (this.isPlaying || isBleRiding) {
             if (!this.lastFrameTime) this.lastFrameTime = timestamp;
-            const deltaSeconds = Math.min((timestamp - this.lastFrameTime) / 1000, 0.1);
+            const dt = Math.min((timestamp - this.lastFrameTime) / 1000, 0.1);
             this.lastFrameTime = timestamp;
 
-            if (!this.hasBleDistance) {
-                const metersPerSecond = (this.speedKmh * 1000) / 3600;
-                const distanceMoved = metersPerSecond * deltaSeconds;
-                const progressDelta = this.course.totalDistance > 0 ? (distanceMoved / this.course.totalDistance) : 0;
-
-                const nextProgress = this.currentProgress + progressDelta;
+            if (!this.hasBleDistance && this.course.totalDistance > 0) {
+                const distMoved = ((this.speedKmh * 1000) / 3600) * dt;
+                const nextProgress = this.currentProgress + distMoved / this.course.totalDistance;
                 if (nextProgress >= 1.0) {
                     this.updateState(1.0);
                     if (this.isPlaying) this.setPlayState(false);
@@ -327,6 +258,4 @@ class App {
     }
 }
 
-window.addEventListener('DOMContentLoaded', () => {
-    new App();
-});
+window.addEventListener('DOMContentLoaded', () => new App());
