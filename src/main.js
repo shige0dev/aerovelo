@@ -39,6 +39,10 @@ class App {
         this.setupEvents();
         this.setupGPXImporter();
 
+        // アニメーションループをマップの読み込み完了を待たずに即座に起動
+        this.animate = this.animate.bind(this);
+        requestAnimationFrame(this.animate);
+
         // デフォルトで更新された Hiyoshi GPX を最優先自動ロード
         this.loadDefaultGPX('gpx/hiyoshi_12.5km_D738.gpx');
     }
@@ -134,9 +138,7 @@ class App {
                 .setLngLat([startState.lon, startState.lat])
                 .addTo(this.map);
 
-            this.updateState(0.0);
-            this.animate = this.animate.bind(this);
-            requestAnimationFrame(this.animate);
+            this.updateState(this.currentProgress);
         });
     }
 
@@ -157,17 +159,17 @@ class App {
         this.course = new GeoCourseManager(waypoints, name);
         this.updateTotalDistanceUI();
 
-        this.isPlaying = false;
-        this.btnPlay.textContent = '▶';
-        this.btnPlay.title = '自動再生 (Auto Fly)';
-        this.btnPlay.classList.remove('running');
+        this.setPlayState(false);
         this.currentProgress = 0.0;
         this.currentCamBearing = null;
 
+        // マップスタイル読み込み状態に関わらず、標高グラフとUIステートを即座に更新
+        this.resizeChartCanvas();
+        this.updateState(0.0);
+
         const updateLayersAndCamera = () => {
             this.updateMapCourseLayers();
-            this.drawElevationChart();
-            this.updateState(0.0);
+            this.updateState(this.currentProgress);
             this.applyCameraTarget(1500);
         };
 
@@ -1118,7 +1120,13 @@ class App {
     }
 
     updateState(progress) {
-        this.currentProgress = ((progress % 1.0) + 1.0) % 1.0;
+        if (progress >= 1.0) {
+            this.currentProgress = 1.0;
+        } else if (progress <= 0.0 || isNaN(progress)) {
+            this.currentProgress = 0.0;
+        } else {
+            this.currentProgress = progress;
+        }
         const state = this.course.getStateAtProgress(this.currentProgress);
 
         if (this.riderMarker) {
@@ -1148,6 +1156,13 @@ class App {
         }
         if (this.bottomSlopeDisplay) {
             this.bottomSlopeDisplay.textContent = `${slopeFormatted}%`;
+            if (state.slope > 7) {
+                this.bottomSlopeDisplay.style.color = 'var(--climb-color)';
+            } else if (state.slope < 0) {
+                this.bottomSlopeDisplay.style.color = 'var(--descent-color)';
+            } else {
+                this.bottomSlopeDisplay.style.color = '#cbd5e1';
+            }
         }
         if (this.bottomDistDisplay) {
             this.bottomDistDisplay.textContent = `${distKm}km`;
@@ -1167,12 +1182,14 @@ class App {
             this.elSlopeCard.classList.toggle('capped', isCapped);
         }
 
-        if (state.slope > 7) {
-            this.elSlopeWrap.style.color = 'var(--climb-color)';
-        } else if (state.slope < 0) {
-            this.elSlopeWrap.style.color = 'var(--descent-color)';
-        } else {
-            this.elSlopeWrap.style.color = 'var(--flat-color)';
+        if (this.elSlopeWrap) {
+            if (state.slope > 7) {
+                this.elSlopeWrap.style.color = 'var(--climb-color)';
+            } else if (state.slope < 0) {
+                this.elSlopeWrap.style.color = 'var(--descent-color)';
+            } else {
+                this.elSlopeWrap.style.color = 'var(--flat-color)';
+            }
         }
 
         // 手動負荷モード時は manualSlope、自動時はコース斜度 state.slope をトレーナーに反映
