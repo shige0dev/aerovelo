@@ -350,15 +350,11 @@ class App {
         // Fullscreen Button
         this.btnFullscreen = document.getElementById('btn-fullscreen');
 
-        // Modal Triggers
-        this.btnModalGpx = document.getElementById('btn-modal-gpx');
-        this.btnModalBle = document.getElementById('btn-modal-ble');
-        this.btnModalCam = document.getElementById('btn-modal-cam');
-        this.btnModalTest = document.getElementById('btn-modal-test');
-        this.modalGpx = document.getElementById('modal-gpx');
-        this.modalBle = document.getElementById('modal-ble');
-        this.modalCam = document.getElementById('modal-cam');
-        this.modalTest = document.getElementById('modal-test');
+        // Modal Triggers & Elements (統合設定モーダル ⚙️)
+        this.btnModalSettings = document.getElementById('btn-modal-settings');
+        this.modalSettings = document.getElementById('modal-settings');
+        this.settingsTabBtns = document.querySelectorAll('.settings-nav-tabs .tab-btn');
+        this.settingsTabPanes = document.querySelectorAll('.modal-dialog .tab-pane');
 
         // TEST / キャリブレーション UI
         this.testModeCourseBtn = document.getElementById('test-mode-course');
@@ -517,27 +513,27 @@ class App {
             });
         }
 
-        // Modal Windows Setup
-        if (this.btnModalGpx && this.modalGpx) {
-            this.btnModalGpx.addEventListener('click', () => {
-                this.modalGpx.style.display = 'flex';
+        // Modal Windows Setup (統合設定モーダル ⚙️)
+        if (this.btnModalSettings && this.modalSettings) {
+            this.btnModalSettings.addEventListener('click', () => {
+                this.modalSettings.style.display = 'flex';
             });
         }
-        if (this.btnModalBle && this.modalBle) {
-            this.btnModalBle.addEventListener('click', () => {
-                this.modalBle.style.display = 'flex';
+
+        // Settings Tabs Switching
+        if (this.settingsTabBtns && this.settingsTabBtns.length > 0) {
+            this.settingsTabBtns.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const targetId = btn.dataset.tab;
+                    this.settingsTabBtns.forEach(b => b.classList.remove('active'));
+                    this.settingsTabPanes.forEach(pane => pane.classList.remove('active'));
+                    btn.classList.add('active');
+                    const targetPane = document.getElementById(targetId);
+                    if (targetPane) targetPane.classList.add('active');
+                });
             });
         }
-        if (this.btnModalCam && this.modalCam) {
-            this.btnModalCam.addEventListener('click', () => {
-                this.modalCam.style.display = 'flex';
-            });
-        }
-        if (this.btnModalTest && this.modalTest) {
-            this.btnModalTest.addEventListener('click', () => {
-                this.modalTest.style.display = 'flex';
-            });
-        }
+
         document.querySelectorAll('.modal-close').forEach(btn => {
             btn.addEventListener('click', () => {
                 const targetId = btn.dataset.close;

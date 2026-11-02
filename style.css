@@ -843,7 +843,47 @@ input[type="range"]::-webkit-slider-thumb {
     font-family: monospace;
 }
 
-/* Modal Windows for GPX, BLE, CAM and TEST */
+/* Settings Navigation Tabs in Modal Header */
+.settings-nav-tabs {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+}
+
+.tab-btn {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: var(--text-muted);
+    font-size: 0.65rem;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.tab-btn:hover {
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+}
+
+.tab-btn.active {
+    background: rgba(0, 240, 255, 0.15);
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.tab-pane {
+    display: none;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.tab-pane.active {
+    display: flex;
+}
+
+/* Modal Windows */
 .modal-backdrop {
     position: fixed;
     top: 0;

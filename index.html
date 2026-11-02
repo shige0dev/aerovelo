@@ -20,11 +20,8 @@
             <div class="header-top">
                 <h1>AeroVelo <span>3D</span></h1>
                 <div class="header-actions">
-                    <span class="version-badge" id="app-version">v1.2.2</span>
-                    <button type="button" id="btn-modal-gpx" class="icon-btn" title="コース選定・GPX設定">📁</button>
-                    <button type="button" id="btn-modal-ble" class="icon-btn" title="スマートトレーナー設定">⚡</button>
-                    <button type="button" id="btn-modal-cam" class="icon-btn" title="カメラ・視点設定">📷</button>
-                    <button type="button" id="btn-modal-test" class="icon-btn" title="TEST / 負荷キャリブレーション">🛠️</button>
+                    <span class="version-badge" id="app-version">v1.3.0</span>
+                    <button type="button" id="btn-modal-settings" class="icon-btn" title="設定 (GPX / トレーナー / テスト)">⚙️</button>
                     <button type="button" id="btn-fullscreen" class="icon-btn" title="全画面表示 (F11)">⛶</button>
                 </div>
             </div>
@@ -96,191 +93,145 @@
                 </div>
             </div>
         </section>
+
+        <!-- Camera Controls (メインダイアログに常駐) -->
+        <section class="control-group camera-group">
+            <div class="btn-group">
+                <button id="cam-chase" class="btn toggle active">ライダー追従 (Track)</button>
+                <button id="cam-free" class="btn toggle">自由操作 (Free)</button>
+            </div>
+
+            <!-- Camera Adjustment Sliders -->
+            <div id="camera-adjust-box" class="camera-adjust-box">
+                <div class="label-row">
+                    <label for="cam-orbit-slider">アングル</label>
+                    <span id="cam-orbit-val" class="sub-val">0° (真後ろ)</span>
+                </div>
+                <input type="range" id="cam-orbit-slider" min="-180" max="180" step="5" value="0">
+
+                <div class="label-row" style="margin-top: 4px;">
+                    <label for="cam-pitch-slider">Pitch (仰角)</label>
+                    <span id="cam-pitch-val" class="sub-val">68°</span>
+                </div>
+                <input type="range" id="cam-pitch-slider" min="20" max="75" step="1" value="68">
+
+                <div class="label-row" style="margin-top: 4px;">
+                    <label for="cam-zoom-slider">Zoom (距離)</label>
+                    <span id="cam-zoom-val" class="sub-val">16.5</span>
+                </div>
+                <input type="range" id="cam-zoom-slider" min="13.0" max="18.5" step="0.1" value="16.5">
+            </div>
+        </section>
     </div>
 
-    <!-- Modal 1: コース選定・GPX設定ダイアログ -->
-    <div id="modal-gpx" class="modal-backdrop" style="display: none;">
+    <!-- 統合設定モーダル (⚙️) -->
+    <div id="modal-settings" class="modal-backdrop" style="display: none;">
         <div class="modal-dialog">
             <div class="modal-header">
-                <h3>📁 コース選定・GPXインポート</h3>
-                <button type="button" class="modal-close" data-close="modal-gpx">✕</button>
+                <div class="settings-nav-tabs">
+                    <button type="button" class="tab-btn active" data-tab="tab-gpx">📁 コース</button>
+                    <button type="button" class="tab-btn" data-tab="tab-ble">⚡ トレーナー</button>
+                    <button type="button" class="tab-btn" data-tab="tab-test">🛠️ TEST</button>
+                </div>
+                <button type="button" class="modal-close" data-close="modal-settings">✕</button>
             </div>
             <div class="modal-body">
-                <section class="control-group gpx-section">
-                    <div class="preset-row">
-                        <select id="preset-select" class="preset-select">
-                            <option value="gpx/hiyoshi_12.5km_D738.gpx" selected>🇯🇵 Hiyoshi (12.5km D+738m)</option>
-                            <option value="gpx/shimanami_77.2km_D1903.gpx">🇯🇵 Shimanami (77.2km D+1903m)</option>
-                            <option value="gpx/kashida_27.9km_D1095.gpx">🇯🇵 Kashida (27.9km D+1095m)</option>
-                        </select>
-                    </div>
-                    <div class="gpx-actions-row">
-                        <input type="file" id="gpx-file-input" accept=".gpx" style="display: none;">
-                        <div id="drop-zone" class="action-item drop-zone">
-                            <span class="action-label">Drop</span>
+                <!-- Tab 1: GPX コース選定 -->
+                <div id="tab-gpx" class="tab-pane active">
+                    <section class="control-group gpx-section">
+                        <div class="preset-row">
+                            <select id="preset-select" class="preset-select">
+                                <option value="gpx/hiyoshi_12.5km_D738.gpx" selected>🇯🇵 Hiyoshi (12.5km D+738m)</option>
+                                <option value="gpx/shimanami_77.2km_D1903.gpx">🇯🇵 Shimanami (77.2km D+1903m)</option>
+                                <option value="gpx/kashida_27.9km_D1095.gpx">🇯🇵 Kashida (27.9km D+1095m)</option>
+                            </select>
                         </div>
-                        <button type="button" id="btn-browse" class="action-item action-btn">Explorer</button>
-                        <a href="https://gpx-edit-pro.ovh/editeur-gpx/?lang=ja" target="_blank" rel="noopener noreferrer" class="action-item action-link">Editor ↗</a>
-                    </div>
-                    <div class="gsi-row">
-                        <button type="button" id="btn-gsi-dem" class="gsi-btn" title="国土地理院 5mメッシュ(DEM5A)レーザー測量データで標高と斜度を精密再計算">
-                            <span class="gsi-indicator"></span>
-                            <span id="gsi-btn-text">5mメッシュ標高で補正</span>
-                        </button>
-                    </div>
-                </section>
-            </div>
-        </div>
-    </div>
-
-    <!-- Modal 2: スマートトレーナー接続ダイアログ -->
-    <div id="modal-ble" class="modal-backdrop" style="display: none;">
-        <div class="modal-dialog">
-            <div class="modal-header">
-                <h3>⚡ スマートトレーナー接続</h3>
-                <button type="button" class="modal-close" data-close="modal-ble">✕</button>
-            </div>
-            <div class="modal-body">
-                <section class="control-group ble-section">
-                    <div class="ble-bar">
-                        <button type="button" id="btn-ble-connect" class="ble-btn">
-                            <span class="ble-dot" id="ble-indicator"></span>
-                            <span id="ble-status-text">⚡ スマートトレーナー接続</span>
-                        </button>
-                        <button type="button" id="btn-ble-disconnect" class="ble-disconnect-btn" style="display: none;" title="切断">✕</button>
-                    </div>
-                </section>
-                <p style="font-size: 0.62rem; color: var(--text-muted); margin-top: 4px; line-height: 1.4;">
-                    Bluetooth (FTMS規格) で Elite NERO や KICKR、Tacx 等とペアリングし、パワー・ケイデンス・速度の受信および勾配負荷の自動制御を行います。
-                </p>
-            </div>
-        </div>
-    </div>
-            <div class="modal-body">
-                <section class="control-group gpx-section">
-                    <div class="preset-row">
-                        <select id="preset-select" class="preset-select">
-                            <option value="gpx/hiyoshi_12.5km_D738.gpx" selected>🇯🇵 Hiyoshi (12.5km D+738m)</option>
-                            <option value="gpx/shimanami_77.2km_D1903.gpx">🇯🇵 Shimanami (77.2km D+1903m)</option>
-                            <option value="gpx/kashida_27.9km_D1095.gpx">🇯🇵 Kashida (27.9km D+1095m)</option>
-                        </select>
-                    </div>
-                    <div class="gpx-actions-row">
-                        <input type="file" id="gpx-file-input" accept=".gpx" style="display: none;">
-                        <div id="drop-zone" class="action-item drop-zone">
-                            <span class="action-label">Drop</span>
+                        <div class="gpx-actions-row">
+                            <input type="file" id="gpx-file-input" accept=".gpx" style="display: none;">
+                            <div id="drop-zone" class="action-item drop-zone">
+                                <span class="action-label">Drop</span>
+                            </div>
+                            <button type="button" id="btn-browse" class="action-item action-btn">Explorer</button>
+                            <a href="https://gpx-edit-pro.ovh/editeur-gpx/?lang=ja" target="_blank" rel="noopener noreferrer" class="action-item action-link">Editor ↗</a>
                         </div>
-                        <button type="button" id="btn-browse" class="action-item action-btn">Explorer</button>
-                        <a href="https://gpx-edit-pro.ovh/editeur-gpx/?lang=ja" target="_blank" rel="noopener noreferrer" class="action-item action-link">Editor ↗</a>
-                    </div>
-                    <div class="gsi-row">
-                        <button type="button" id="btn-gsi-dem" class="gsi-btn" title="国土地理院 5mメッシュ(DEM5A)レーザー測量データで標高と斜度を精密再計算">
-                            <span class="gsi-indicator"></span>
-                            <span id="gsi-btn-text">5mメッシュ標高で補正</span>
-                        </button>
-                    </div>
-                </section>
-            </div>
-        </div>
-    </div>
-
-    <!-- Modal 3: TEST / 負荷キャリブレーションダイアログ -->
-    <div id="modal-test" class="modal-backdrop" style="display: none;">
-        <div class="modal-dialog">
-            <div class="modal-header">
-                <h3>🛠️ TEST / 負荷キャリブレーション</h3>
-                <button type="button" class="modal-close" data-close="modal-test">✕</button>
-            </div>
-            <div class="modal-body">
-                <div class="test-header" style="margin-bottom: 6px;">
-                    <span style="font-size: 0.65rem; color: var(--text-muted);">モード切替:</span>
-                    <div class="btn-group mini-toggle">
-                        <button type="button" id="test-mode-course" class="btn toggle active">コース連動</button>
-                        <button type="button" id="test-mode-manual" class="btn toggle">TEST手動</button>
-                    </div>
+                        <div class="gsi-row">
+                            <button type="button" id="btn-gsi-dem" class="gsi-btn" title="国土地理院 5mメッシュ(DEM5A)レーザー測量データで標高と斜度を精密再計算">
+                                <span class="gsi-indicator"></span>
+                                <span id="gsi-btn-text">5mメッシュ標高で補正</span>
+                            </button>
+                        </div>
+                    </section>
                 </div>
 
-                <div id="test-controls-box" class="test-controls-box" style="display: none;">
-                    <!-- Manual Slope Slider -->
-                    <div class="label-row">
-                        <label for="test-slope-slider">手動指示負荷 (Slope)</label>
-                        <span id="test-slope-val" class="sub-val">+0.0 %</span>
-                    </div>
-                    <input type="range" id="test-slope-slider" min="-3" max="7" step="0.2" value="0">
-
-                    <!-- Quick Presets -->
-                    <div class="test-presets-row">
-                        <button type="button" class="btn-preset-slope" data-val="0">0%</button>
-                        <button type="button" class="btn-preset-slope" data-val="1">1%</button>
-                        <button type="button" class="btn-preset-slope" data-val="2">2%</button>
-                        <button type="button" class="btn-preset-slope" data-val="3">3%</button>
-                        <button type="button" class="btn-preset-slope" data-val="4">4%</button>
-                        <button type="button" class="btn-preset-slope" data-val="5">5%</button>
-                        <button type="button" class="btn-preset-slope" data-val="7">7%</button>
-                    </div>
-
-                    <!-- LFO Auto Sweep -->
-                    <div class="test-lfo-box">
-                        <div class="label-row" style="margin-top: 3px;">
-                            <label>LFO 自動連続スキャン</label>
-                            <span id="test-lfo-status" class="sub-val">OFF</span>
+                <!-- Tab 2: スマートトレーナー接続 -->
+                <div id="tab-ble" class="tab-pane">
+                    <section class="control-group ble-section">
+                        <div class="ble-bar">
+                            <button type="button" id="btn-ble-connect" class="ble-btn">
+                                <span class="ble-dot" id="ble-indicator"></span>
+                                <span id="ble-status-text">⚡ スマートトレーナー接続</span>
+                            </button>
+                            <button type="button" id="btn-ble-disconnect" class="ble-disconnect-btn" style="display: none;" title="切断">✕</button>
                         </div>
-                        <div class="lfo-controls-row">
-                            <button type="button" id="btn-lfo-toggle" class="btn secondary mini-btn">LFO 開始</button>
-                            <div class="lfo-period-wrap">
-                                <label for="lfo-period-select">周期:</label>
-                                <select id="lfo-period-select" class="mini-select">
-                                    <option value="10">10秒</option>
-                                    <option value="20" selected>20秒</option>
-                                    <option value="30">30秒</option>
-                                    <option value="60">60秒</option>
-                                </select>
-                            </div>
-                            <div class="lfo-range-wrap">
-                                <span class="lfo-range-text">0% ↔ 7% (三角波)</span>
-                            </div>
-                        </div>
-                    </div>
+                    </section>
+                    <p style="font-size: 0.62rem; color: var(--text-muted); margin-top: 6px; line-height: 1.4;">
+                        Bluetooth (FTMS規格) で Elite NERO や KICKR、Tacx 等とペアリングし、パワー・ケイデンス・速度の受信および勾配負荷の自動制御を行います。
+                    </p>
                 </div>
-            </div>
-        </div>
-    </div>
 
-    <!-- Modal 4: カメラ・視点設定ダイアログ -->
-    <div id="modal-cam" class="modal-backdrop" style="display: none;">
-        <div class="modal-dialog">
-            <div class="modal-header">
-                <h3>📷 カメラ・視点設定</h3>
-                <button type="button" class="modal-close" data-close="modal-cam">✕</button>
-            </div>
-            <div class="modal-body">
-                <section class="control-group camera-group">
-                    <div class="btn-group">
-                        <button id="cam-chase" class="btn toggle active">ライダー追従 (Track)</button>
-                        <button id="cam-free" class="btn toggle">自由操作 (Free)</button>
+                <!-- Tab 3: TEST / 負荷キャリブレーション -->
+                <div id="tab-test" class="tab-pane">
+                    <div class="test-header" style="margin-bottom: 6px;">
+                        <span style="font-size: 0.65rem; color: var(--text-muted);">モード切替:</span>
+                        <div class="btn-group mini-toggle">
+                            <button type="button" id="test-mode-course" class="btn toggle active">コース連動</button>
+                            <button type="button" id="test-mode-manual" class="btn toggle">TEST手動</button>
+                        </div>
                     </div>
 
-                    <!-- Camera Adjustment Sliders -->
-                    <div id="camera-adjust-box" class="camera-adjust-box">
+                    <div id="test-controls-box" class="test-controls-box" style="display: none;">
+                        <!-- Manual Slope Slider -->
                         <div class="label-row">
-                            <label for="cam-orbit-slider">アングル</label>
-                            <span id="cam-orbit-val" class="sub-val">0° (真後ろ)</span>
+                            <label for="test-slope-slider">手動指示負荷 (Slope)</label>
+                            <span id="test-slope-val" class="sub-val">+0.0 %</span>
                         </div>
-                        <input type="range" id="cam-orbit-slider" min="-180" max="180" step="5" value="0">
+                        <input type="range" id="test-slope-slider" min="-3" max="7" step="0.2" value="0">
 
-                        <div class="label-row" style="margin-top: 4px;">
-                            <label for="cam-pitch-slider">Pitch (仰角)</label>
-                            <span id="cam-pitch-val" class="sub-val">68°</span>
+                        <!-- Quick Presets -->
+                        <div class="test-presets-row">
+                            <button type="button" class="btn-preset-slope" data-val="0">0%</button>
+                            <button type="button" class="btn-preset-slope" data-val="1">1%</button>
+                            <button type="button" class="btn-preset-slope" data-val="2">2%</button>
+                            <button type="button" class="btn-preset-slope" data-val="3">3%</button>
+                            <button type="button" class="btn-preset-slope" data-val="4">4%</button>
+                            <button type="button" class="btn-preset-slope" data-val="5">5%</button>
+                            <button type="button" class="btn-preset-slope" data-val="7">7%</button>
                         </div>
-                        <input type="range" id="cam-pitch-slider" min="20" max="75" step="1" value="68">
 
-                        <div class="label-row" style="margin-top: 4px;">
-                            <label for="cam-zoom-slider">Zoom (距離)</label>
-                            <span id="cam-zoom-val" class="sub-val">16.5</span>
+                        <!-- LFO Auto Sweep -->
+                        <div class="test-lfo-box">
+                            <div class="label-row" style="margin-top: 3px;">
+                                <label>LFO 自動連続スキャン</label>
+                                <span id="test-lfo-status" class="sub-val">OFF</span>
+                            </div>
+                            <div class="lfo-controls-row">
+                                <button type="button" id="btn-lfo-toggle" class="btn secondary mini-btn">LFO 開始</button>
+                                <div class="lfo-period-wrap">
+                                    <label for="lfo-period-select">周期:</label>
+                                    <select id="lfo-period-select" class="mini-select">
+                                        <option value="10">10秒</option>
+                                        <option value="20" selected>20秒</option>
+                                        <option value="30">30秒</option>
+                                        <option value="60">60秒</option>
+                                    </select>
+                                </div>
+                                <div class="lfo-range-wrap">
+                                    <span class="lfo-range-text">0% ↔ 7% (三角波)</span>
+                                </div>
+                            </div>
                         </div>
-                        <input type="range" id="cam-zoom-slider" min="13.0" max="18.5" step="0.1" value="16.5">
                     </div>
-                </section>
+                </div>
             </div>
         </div>
     </div>
