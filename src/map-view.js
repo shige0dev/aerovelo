@@ -12,6 +12,8 @@ export class MapViewController {
         this.orbitAngleOffset = 0;
         this.cameraParams = { pitch: 68, zoom: 16.5 };
         this.riderMarker = null;
+        this.fwdMarker = null;
+        this.bwdMarker = null;
         this.initMap(initialState);
     }
 
@@ -59,6 +61,22 @@ export class MapViewController {
             el.className = 'rider-marker';
             el.innerHTML = '<div class="rider-beacon"></div><div class="rider-dot"></div>';
             this.riderMarker = new maplibregl.Marker({ element: el })
+                .setLngLat([startState.lon, startState.lat])
+                .addTo(this.map);
+
+            // 前方注視点マーカー (赤ドット)
+            const fwdEl = document.createElement('div');
+            fwdEl.className = 'target-marker fwd-marker';
+            fwdEl.innerHTML = '<div class="target-dot" title="前方注視点"></div>';
+            this.fwdMarker = new maplibregl.Marker({ element: fwdEl })
+                .setLngLat([startState.lon, startState.lat])
+                .addTo(this.map);
+
+            // 後方注視点マーカー (紫ドット)
+            const bwdEl = document.createElement('div');
+            bwdEl.className = 'target-marker bwd-marker';
+            bwdEl.innerHTML = '<div class="target-dot" title="後方注視点"></div>';
+            this.bwdMarker = new maplibregl.Marker({ element: bwdEl })
                 .setLngLat([startState.lon, startState.lat])
                 .addTo(this.map);
 
@@ -115,6 +133,22 @@ export class MapViewController {
 
     updateRiderAndCamera(state, duration = 0) {
         this.riderMarker?.setLngLat([state.lon, state.lat]);
+
+        // 注視点マーカー更新 (前方: 赤, 後方: 紫)
+        if (state.fwdPoint && this.fwdMarker) {
+            this.fwdMarker.setLngLat([state.fwdPoint.lon, state.fwdPoint.lat]);
+            this.fwdMarker.getElement().style.display = 'flex';
+        } else if (this.fwdMarker) {
+            this.fwdMarker.getElement().style.display = 'none';
+        }
+
+        if (state.bwdPoint && this.bwdMarker) {
+            this.bwdMarker.setLngLat([state.bwdPoint.lon, state.bwdPoint.lat]);
+            this.bwdMarker.getElement().style.display = 'flex';
+        } else if (this.bwdMarker) {
+            this.bwdMarker.getElement().style.display = 'none';
+        }
+
         if (!this.isModeTransitioning && this.cameraMode !== 'free') {
             this.applyCameraTarget(state, duration);
         }

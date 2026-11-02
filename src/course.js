@@ -160,7 +160,9 @@ export class GeoCourseManager {
             lat: cur.lat,
             alt: cur.alt,
             bearing: GeoCourseManager.calcBearing(p0.lon, p0.lat, p1.lon, p1.lat),
-            slope
+            slope,
+            fwdPoint: { lon: p1.lon, lat: p1.lat },
+            bwdPoint: (vectorMode === 'bwdfwd') ? { lon: p0.lon, lat: p0.lat } : null
         };
     }
 

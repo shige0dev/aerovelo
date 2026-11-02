@@ -28,6 +28,17 @@ body {
 .rider-dot { position: relative; width: 10px; height: 10px; border-radius: 50%; background: #fff; border: 2px solid #00f0ff; box-shadow: 0 0 8px #00f0ff, 0 0 4px #000; }
 @keyframes pulse { 0% { transform: scale(0.6); opacity: 1; } 100% { transform: scale(2.0); opacity: 0; } }
 
+/* 注視点（前方・後方）確認用マーカー */
+.target-marker { position: relative; width: 14px; height: 14px; display: flex; align-items: center; justify-content: center; pointer-events: none; }
+.fwd-marker .target-dot {
+    width: 8px; height: 8px; border-radius: 50%; background: #ff3b30; border: 1.5px solid #ffffff;
+    box-shadow: 0 0 8px #ff3b30, 0 0 4px rgba(0, 0, 0, 0.8);
+}
+.bwd-marker .target-dot {
+    width: 8px; height: 8px; border-radius: 50%; background: #a855f7; border: 1.5px solid #ffffff;
+    box-shadow: 0 0 8px #a855f7, 0 0 4px rgba(0, 0, 0, 0.8);
+}
+
 /* ========================================================
    共通UIコンポーネント (ボタン / スライダー / ラベル)
    ======================================================== */
