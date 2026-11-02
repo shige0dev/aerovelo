@@ -95,14 +95,13 @@ export class MapViewController {
 
     /**
      * MapLibre の padding を用いて注視点の位置を決定
-     * - left: PC画面では左側UIパネルを避ける
      * - top: 画面高さの約35%の余白を設けることで、ライダーが画面下部に配置される
+     * - 左側メインパネルが完全撤去されたため、左右センタリングで全画面3D走行を楽しめる
      */
     getCameraPadding() {
-        const screenWidth = window.innerWidth;
         const screenHeight = window.innerHeight;
         return {
-            left: (screenWidth > 600) ? 240 : 0,
+            left: 0,
             top: Math.round(screenHeight * 0.35),
             right: 0,
             bottom: 0

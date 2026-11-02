@@ -64,39 +64,6 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 /* ========================================================
-   HUD メイン操作パネル (左上 140px 固定)
-   ======================================================== */
-#ui-panel {
-    position: absolute; top: 10px; left: 10px; width: 140px;
-    max-height: calc(100vh - 100px); overflow: hidden;
-    background: var(--panel-bg); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-    border: 1px solid var(--panel-border); border-radius: 8px; padding: 6px; z-index: 10;
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.6);
-}
-.metrics-list { display: flex; flex-direction: column; gap: 2.5px; }
-.metric-row {
-    background: #000; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 4px;
-    padding: 2px 4px; height: 22px; display: flex; align-items: center; justify-content: space-between;
-    white-space: nowrap;
-}
-.metric-head { display: flex; align-items: center; gap: 3px; flex-shrink: 0; }
-.metric-row .metric-label { font-size: 0.58rem; color: var(--muted); font-weight: 600; }
-.metric-inline-btn { background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2); color: #cbd5e1; font-size: 0.52rem; font-weight: 700; padding: 1px 4px; border-radius: 3px; }
-
-.speed-row.editable, .ble-trainer-row.editable { border-color: rgba(0, 240, 255, 0.6); cursor: ns-resize; touch-action: none; }
-.speed-hint { font-size: 0.52rem; color: var(--accent); margin-left: 2px; font-weight: 800; }
-
-.metric-value-wrap { display: flex; align-items: baseline; justify-content: flex-end; font-family: var(--font-mono); line-height: 1; flex-shrink: 0; }
-.metric-num { display: inline-block; width: 48px; text-align: right; font-size: 0.65rem; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
-.metric-unit { display: inline-block; width: 32px; margin-left: 2px; font-size: 0.48rem; color: var(--muted); text-align: left; overflow: hidden; }
-
-.ble-metric-row { border-color: rgba(0, 240, 255, 0.2); }
-.ble-metric-row .metric-num { color: var(--accent); }
-.ble-trainer-row { border-color: rgba(56, 189, 248, 0.25); }
-.ble-trainer-row .metric-num, .ble-trainer-row .metric-unit { color: #38bdf8; }
-.ble-trainer-row .metric-num.alert { color: var(--climb); }
-
-/* ========================================================
    Bottom Bar (画面最下段 全幅 3行レイアウト)
    ======================================================== */
 #bottom-bar {
@@ -119,9 +86,9 @@ input[type="range"]::-webkit-slider-thumb {
 }
 .bottom-actions-group { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
 
-/* 2行目: 再生ボタン ＆ 標高, 斜度, 距離 */
+/* 2行目: 再生ボタン ＆ Speed ＆ 標高, 斜度, 距離 ＆ Power, Cadence */
 .bottom-row-2 { justify-content: space-between; }
-.bottom-stats-row { display: flex; align-items: center; gap: 6px; overflow-x: auto; }
+.bottom-stats-row { display: flex; align-items: center; gap: 4px; overflow-x: auto; }
 .bottom-play-btn { background: var(--accent); color: #0b0f19; border-radius: 3px; width: 22px; height: 24px; font-size: 0.70rem; font-weight: 700; flex-shrink: 0; }
 .bottom-play-btn:hover { background: #38bdf8; box-shadow: 0 0 6px var(--accent-glow); }
 .bottom-play-btn.running { background: var(--climb); color: #fff; }
@@ -129,10 +96,15 @@ input[type="range"]::-webkit-slider-thumb {
 .stacked-stat-item {
     display: flex; flex-direction: column; align-items: flex-start; justify-content: center;
     background: rgba(0, 0, 0, 0.45); border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 3px; padding: 1px 4px; min-width: 42px;
+    border-radius: 3px; padding: 1px 4px; min-width: 40px; flex-shrink: 0;
 }
 .stacked-stat-item .stat-label { font-size: 0.36rem; color: var(--muted); font-weight: 700; line-height: 1; margin-bottom: 1px; }
 .stacked-stat-item .stat-value { font-size: 0.62rem; font-family: var(--font-mono); font-weight: 700; color: #cbd5e1; line-height: 1; white-space: nowrap; }
+
+.speed-stack-item.editable { border-color: rgba(0, 240, 255, 0.6); cursor: ns-resize; touch-action: none; background: rgba(0, 240, 255, 0.08); }
+.speed-hint { font-size: 0.48rem; color: var(--accent); margin-left: 2px; font-weight: 800; }
+.accent-cyan { color: var(--accent) !important; }
+.ble-stat-item { border-color: rgba(0, 240, 255, 0.2); }
 
 /* 3行目: 標高プロファイルCanvas ＆ 縦型負荷スライダー */
 .bottom-main-row { align-items: stretch; gap: 6px; }
@@ -232,3 +204,4 @@ input[type="range"]::-webkit-slider-thumb {
 .compact-scan-row { margin-top: 3px; background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 4px; padding: 3px 6px; }
 .mini-scan-btn.running { background: var(--climb) !important; color: #fff !important; }
 .lfo-period-wrap { display: flex; align-items: center; gap: 2px; font-size: 0.58rem; color: var(--muted); }
+

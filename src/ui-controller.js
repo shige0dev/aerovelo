@@ -11,13 +11,8 @@ export class UIController {
     }
 
     initElements() {
-        // HUD (Main Panel)
-        this.rowTrainer = document.getElementById('row-trainer');
-        this.btnManualSlope = document.getElementById('btn-manual-slope');
-        this.elTrainerSlope = document.getElementById('val-trainer-slope');
-        this.elTrainerUnit = document.getElementById('val-trainer-unit');
-        this.trainerEditHint = document.getElementById('trainer-edit-hint');
-
+        // Bottom Bar Elements
+        this.btnPlay = document.getElementById('btn-play');
         this.rowSpeed = document.getElementById('row-speed');
         this.speedVal = document.getElementById('speed-val');
         this.speedEditHint = document.getElementById('speed-edit-hint');
@@ -25,13 +20,11 @@ export class UIController {
         this.valPower = document.getElementById('val-power');
         this.valCadence = document.getElementById('val-cadence');
 
-        // Bottom Bar
         this.elCourseNameDisplay = document.getElementById('course-name-display');
         this.btnModalSettings = document.getElementById('btn-modal-settings');
         this.btnFullscreen = document.getElementById('btn-fullscreen');
         this.btnToggleCamDialog = document.getElementById('btn-toggle-cam-dialog');
 
-        this.btnPlay = document.getElementById('btn-play');
         this.bottomAltDisplay = document.getElementById('bottom-alt-display');
         this.bottomSlopeDisplay = document.getElementById('bottom-slope-display');
         this.bottomDistDisplay = document.getElementById('bottom-dist-display');
@@ -144,13 +137,6 @@ export class UIController {
             });
         }
 
-        // Manual Load Toggle & Sliders
-        if (this.btnManualSlope) {
-            this.btnManualSlope.addEventListener('click', () => {
-                if (this.cb.onToggleManualMode) this.cb.onToggleManualMode();
-            });
-        }
-
         if (this.vSlopeSlider) {
             this.vSlopeSlider.addEventListener('input', (e) => {
                 if (this.cb.onManualSlopeInput) {
@@ -182,26 +168,7 @@ export class UIController {
             });
         }
 
-        // Vertical Drag on Trainer Load Row & Speed Row
-        this.setupVerticalDrag(this.rowTrainer, {
-            isEnabled: () => this.cb.isManualMode ? this.cb.isManualMode() : false,
-            getInitialValue: () => this.cb.getManualSlope ? this.cb.getManualSlope() : 0,
-            onDragChange: (startSlope, deltaY) => {
-                const nextSlope = Math.max(0, Math.min(7, startSlope + deltaY / 15));
-                if (this.cb.onManualSlopeInput) {
-                    this.cb.onManualSlopeInput(Math.round(nextSlope * 10) / 10, false);
-                }
-            },
-            onWheelDelta: (dir) => {
-                const cur = this.cb.getManualSlope ? this.cb.getManualSlope() : 0;
-                const nextSlope = Math.max(0, Math.min(7, cur + dir * 0.2));
-                if (this.cb.onManualSlopeInput) {
-                    this.cb.onManualSlopeInput(Math.round(nextSlope * 10) / 10, false);
-                }
-            },
-            ignoreTarget: this.btnManualSlope
-        });
-
+        // Vertical Drag on Speed item (AUTOPLAY時のみ有効)
         this.setupVerticalDrag(this.rowSpeed, {
             isEnabled: () => this.cb.isPlaying ? this.cb.isPlaying() : false,
             getInitialValue: () => this.cb.getSpeed ? this.cb.getSpeed() : 25,
@@ -425,15 +392,7 @@ export class UIController {
     }
 
     updateManualModeState(isManual) {
-        if (this.rowTrainer) {
-            this.rowTrainer.classList.toggle('editable', isManual);
-            if (this.trainerEditHint) {
-                this.trainerEditHint.style.display = isManual ? 'inline' : 'none';
-            }
-        }
-        if (this.btnManualSlope) {
-            this.btnManualSlope.classList.toggle('active', isManual);
-        }
+        // メインメニューからの負荷行は消去済み
     }
 
     updateManualSlopeControls(slope) {
@@ -454,13 +413,12 @@ export class UIController {
     }
 
     updateTrainerSlopeDisplay(clampedSlope) {
-        if (this.elTrainerSlope) {
-            const trSign = clampedSlope > 0 ? '+' : '';
-            this.elTrainerSlope.textContent = `${trSign}${clampedSlope.toFixed(2)}`;
-            this.elTrainerSlope.classList.toggle('alert', clampedSlope >= 7.0);
-        }
-        if (this.elTrainerUnit) {
-            this.elTrainerUnit.textContent = '%';
+        if (this.vSlopeSlider) this.vSlopeSlider.value = clampedSlope;
+        if (this.vSlopeVal) this.vSlopeVal.textContent = `${clampedSlope.toFixed(1)}%`;
+        if (this.testSlopeSlider) this.testSlopeSlider.value = clampedSlope;
+        if (this.testSlopeVal) {
+            const s = clampedSlope > 0 ? '+' : '';
+            this.testSlopeVal.textContent = `${s}${clampedSlope.toFixed(1)} %`;
         }
     }
 
@@ -486,19 +444,19 @@ export class UIController {
             this.bottomDistDisplay.textContent = `${distKm}km`;
         }
         if (this.speedVal) {
-            this.speedVal.textContent = speedKmh.toFixed(2);
+            this.speedVal.textContent = `${speedKmh.toFixed(2)}km/h`;
         }
     }
 
     updateBleMetrics({ power, cadence, speed }) {
         if (power !== null && power !== undefined && this.valPower) {
-            this.valPower.textContent = Number(power).toFixed(2);
+            this.valPower.textContent = `${Number(power).toFixed(2)}W`;
         }
         if (cadence !== null && cadence !== undefined && this.valCadence) {
-            this.valCadence.textContent = Number(cadence).toFixed(2);
+            this.valCadence.textContent = `${Number(cadence).toFixed(2)}rpm`;
         }
         if (speed !== null && speed !== undefined && this.speedVal) {
-            this.speedVal.textContent = Number(speed).toFixed(2);
+            this.speedVal.textContent = `${Number(speed).toFixed(2)}km/h`;
         }
     }
 
@@ -514,8 +472,8 @@ export class UIController {
             this.btnBleConnect.classList.remove('connected');
             this.bleStatusText.textContent = '⚡ スマートトレーナー接続';
             if (this.btnBleDisconnect) this.btnBleDisconnect.style.display = 'none';
-            if (this.valPower) this.valPower.textContent = '--.--';
-            if (this.valCadence) this.valCadence.textContent = '--.--';
+            if (this.valPower) this.valPower.textContent = '--.--W';
+            if (this.valCadence) this.valCadence.textContent = '--.--rpm';
         }
     }
 

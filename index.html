@@ -14,56 +14,9 @@
     <!-- Fullscreen 3D Map Container -->
     <div id="map"></div>
 
-    <!-- UI Overlay (メイン操作パネル) -->
-    <div id="ui-panel">
-        <!-- HUD Metrics (情報表示リスト) -->
-        <section class="hud-group">
-            <div class="metrics-list">
-                <!-- 1行目: 負荷 (旧Trainer負荷) [手動]ボタン付き -->
-                <div class="metric-row ble-trainer-row" id="row-trainer">
-                    <div class="metric-head">
-                        <span class="metric-label">負荷</span>
-                        <button type="button" id="btn-manual-slope" class="metric-inline-btn" title="手動負荷モード切替">手動</button>
-                    </div>
-                    <span class="metric-value-wrap">
-                        <span class="metric-num" id="val-trainer-slope">+0.00</span>
-                        <span class="metric-unit" id="val-trainer-unit">%</span>
-                        <span id="trainer-edit-hint" class="speed-hint" style="display: none;">⇅</span>
-                    </span>
-                </div>
-
-                <!-- 2行目: Speed -->
-                <div class="metric-row speed-row" id="row-speed" title="AUTOPLAY時のみ上下スワイプ・ドラッグで速度変更可能">
-                    <div class="metric-head">
-                        <span class="metric-label">Speed</span>
-                    </div>
-                    <span class="metric-value-wrap">
-                        <span class="metric-num" id="speed-val">25.00</span>
-                        <span class="metric-unit">km/h</span>
-                        <span id="speed-edit-hint" class="speed-hint" style="display: none;">⇅</span>
-                    </span>
-                </div>
-
-                <!-- 3行目: Power -->
-                <div class="metric-row ble-metric-row" id="card-power">
-                    <span class="metric-label">Power</span>
-                    <span class="metric-value-wrap">
-                        <span class="metric-num" id="val-power">--.--</span>
-                        <span class="metric-unit">W</span>
-                    </span>
-                </div>
-
-                <!-- 4行目: Cadence -->
-                <div class="metric-row ble-metric-row" id="card-cadence">
-                    <span class="metric-label">Cadence</span>
-                    <span class="metric-value-wrap">
-                        <span class="metric-num" id="val-cadence">--.--</span>
-                        <span class="metric-unit">rpm</span>
-                    </span>
-                </div>
-            </div>
-        </section>
-    </div>
+    <!-- UI Overlay (メイン操作パネル: すべて下部バーへ移設したため完全撤去) -->
+    <!-- Fullscreen 3D Map Container -->
+    <div id="map"></div>
 
     <!-- カメラ調整フローティングダイアログ (他操作を遮らないモードレスダイアログ) -->
     <div id="camera-dialog" class="floating-cam-dialog" style="display: none;">
@@ -101,7 +54,7 @@
         <div class="bottom-row-1">
             <div class="bottom-title-group">
                 <h1 class="bottom-app-title">AeroVelo</h1>
-                <span class="version-badge" id="app-version">v1.5.2</span>
+                <span class="version-badge" id="app-version">v1.6.0</span>
             </div>
             <div class="bottom-course-group">
                 <span id="course-name-display" class="bottom-course-badge">読み込み中...</span>
@@ -113,10 +66,14 @@
             </div>
         </div>
 
-        <!-- 2行目: 再生ボタン (左端) ＆ 標高, 斜度, 距離（2行スタック表示・タイトル50%縮小） -->
+        <!-- 2行目: 再生ボタン ＆ Speed ＆ 標高, 斜度, 距離 ＆ Power, Cadence（2行スタック表示） -->
         <div class="bottom-row-2">
             <div class="bottom-stats-row">
                 <button type="button" id="btn-play" class="bottom-play-btn" title="自動再生 (Auto Fly)">▶</button>
+                <div class="stacked-stat-item speed-stack-item" id="row-speed" title="AUTOPLAY時のみ上下スワイプ・ホイールで速度変更可能">
+                    <span class="stat-label">Speed<span id="speed-edit-hint" class="speed-hint" style="display: none;">⇅</span></span>
+                    <span id="speed-val" class="stat-value">25.00km/h</span>
+                </div>
                 <div class="stacked-stat-item">
                     <span class="stat-label">標高</span>
                     <span id="bottom-alt-display" class="stat-value">0.00m</span>
@@ -128,6 +85,14 @@
                 <div class="stacked-stat-item">
                     <span class="stat-label">距離</span>
                     <span id="bottom-dist-display" class="stat-value">0.00km</span>
+                </div>
+                <div class="stacked-stat-item ble-stat-item" title="トレーナー/パワーメーター計測値">
+                    <span class="stat-label">Power</span>
+                    <span id="val-power" class="stat-value accent-cyan">--.--W</span>
+                </div>
+                <div class="stacked-stat-item ble-stat-item" title="ケイデンスセンサー計測値">
+                    <span class="stat-label">Cadence</span>
+                    <span id="val-cadence" class="stat-value accent-cyan">--.--rpm</span>
                 </div>
             </div>
         </div>
