@@ -26,8 +26,8 @@ class App {
         this.setupEvents();
         this.setupGPXImporter();
 
-        // デフォルトで France GPX を優先自動ロード
-        this.loadDefaultGPX('gpx/France_14.3km_D1254.gpx');
+        // デフォルトで Hiyoshi GPX を最優先自動ロード
+        this.loadDefaultGPX('gpx/hiyoshi_27.9km_D1095.gpx');
     }
 
     getCameraOffset() {
