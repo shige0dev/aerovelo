@@ -329,6 +329,9 @@ class App {
         this.valPower = document.getElementById('val-power');
         this.valCadence = document.getElementById('val-cadence');
 
+        // Fullscreen Button
+        this.btnFullscreen = document.getElementById('btn-fullscreen');
+
         this.updateTotalDistanceUI();
     }
 
@@ -472,6 +475,30 @@ class App {
             this.btnBleDisconnect.addEventListener('click', (e) => {
                 e.stopPropagation();
                 this.bleManager.disconnect();
+            });
+        }
+
+        // 全画面表示 (Fullscreen API)
+        if (this.btnFullscreen) {
+            this.btnFullscreen.addEventListener('click', () => {
+                if (!document.fullscreenElement) {
+                    document.documentElement.requestFullscreen().catch(err => {
+                        console.warn('Fullscreen error:', err);
+                    });
+                } else {
+                    document.exitFullscreen().catch(err => {
+                        console.warn('Exit fullscreen error:', err);
+                    });
+                }
+            });
+
+            document.addEventListener('fullscreenchange', () => {
+                const isFs = !!document.fullscreenElement;
+                this.btnFullscreen.textContent = isFs ? '⤓' : '⛶';
+                this.btnFullscreen.title = isFs ? '全画面解除 (Esc)' : '全画面表示 (F11)';
+                if (this.map) {
+                    setTimeout(() => this.map.resize(), 100);
+                }
             });
         }
 
