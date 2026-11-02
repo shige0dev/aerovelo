@@ -30,10 +30,16 @@ class App {
     getCameraOffset() {
         const panelWidth = 240;
         const screenWidth = window.innerWidth;
-        if (screenWidth > 600) {
-            return [panelWidth / 2, 0];
-        }
-        return [0, 0];
+        const screenHeight = window.innerHeight;
+
+        // 水平方向: 左側UIパネル(240px)を避けて右側エリアの中心に配置
+        const offsetX = (screenWidth > 600) ? (panelWidth / 2) : 0;
+
+        // 垂直方向: 画面の高さ中央から「下から1/3（画面高さの約16.7%下方向へシフト）」の位置に配置
+        // ※MapLibreのoffset [x, y] は中心からのピクセル移動量。正のYで注視点が下側に移動。
+        const offsetY = screenHeight * (1 / 6); // 0.5 - 0.333 = 1/6
+
+        return [offsetX, offsetY];
     }
 
     initMap() {
