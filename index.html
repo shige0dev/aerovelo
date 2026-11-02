@@ -20,7 +20,7 @@
             <div class="header-top">
                 <h1>AeroVelo <span>3D</span></h1>
                 <div class="header-actions">
-                    <span class="version-badge" id="app-version">v1.3.7</span>
+                    <span class="version-badge" id="app-version">v1.3.8</span>
                     <button type="button" id="btn-modal-settings" class="icon-btn" title="設定 (GPX / トレーナー / テスト)">⚙️</button>
                     <button type="button" id="btn-fullscreen" class="icon-btn" title="全画面表示 (F11)">⛶</button>
                 </div>
@@ -61,52 +61,60 @@
                 <!-- 速度行: スライドなし、AUTOPLAY時のみ上下スワイプ・ドラッグで速度編集可能 -->
                 <div class="metric-row speed-row" id="row-speed" title="AUTOPLAY時のみ上下スワイプで速度変更可能">
                     <span class="metric-label">速度</span>
-                    <span class="metric-value">
-                        <span id="speed-val">25</span>
-                        <small>km/h</small>
+                    <span class="metric-value-wrap">
+                        <span class="metric-num" id="speed-val">25.0</span>
+                        <span class="metric-unit">km/h</span>
                         <span id="speed-edit-hint" class="speed-hint" style="display: none;">⇅</span>
                     </span>
                 </div>
                 <!-- 1行目: 距離 -->
                 <div class="metric-row">
                     <span class="metric-label">距離</span>
-                    <span class="metric-value">
-                        <span id="val-distance">0.00</span>
-                        <span class="metric-sub" id="val-total-distance">/ 0.00 km</span>
+                    <span class="metric-value-wrap">
+                        <span class="metric-num" id="val-distance">0.00</span>
+                        <span class="metric-unit" id="val-total-distance">/ 0.00 km</span>
                     </span>
                 </div>
                 <!-- 2行目: 標高 -->
                 <div class="metric-row">
                     <span class="metric-label">標高</span>
-                    <span class="metric-value"><span id="val-altitude">0.0</span> <small>m</small></span>
+                    <span class="metric-value-wrap">
+                        <span class="metric-num" id="val-altitude">0.0</span>
+                        <span class="metric-unit">m</span>
+                    </span>
                 </div>
                 <!-- 3行目: 斜度 -->
                 <div class="metric-row">
                     <span class="metric-label">斜度</span>
-                    <span class="metric-value" id="val-slope-wrap">
-                        <span id="val-slope">+0.0</span> <small>%</small>
+                    <span class="metric-value-wrap" id="val-slope-wrap">
+                        <span class="metric-num" id="val-slope">+0.0</span>
+                        <span class="metric-unit">%</span>
                         <span id="slope-cap-badge" class="cap-badge" style="display: none;">MAX 8%</span>
                     </span>
                 </div>
                 <!-- 4行目: Power -->
                 <div class="metric-row ble-metric-row" id="card-power">
                     <span class="metric-label">Power</span>
-                    <span class="metric-value"><span id="val-power">--</span> <small>W</small></span>
+                    <span class="metric-value-wrap">
+                        <span class="metric-num" id="val-power">--</span>
+                        <span class="metric-unit">W</span>
+                    </span>
                 </div>
                 <!-- 5行目: Cadence -->
                 <div class="metric-row ble-metric-row" id="card-cadence">
                     <span class="metric-label">Cadence</span>
-                    <span class="metric-value"><span id="val-cadence">--</span> <small>rpm</small></span>
+                    <span class="metric-value-wrap">
+                        <span class="metric-num" id="val-cadence">--</span>
+                        <span class="metric-unit">rpm</span>
+                    </span>
                 </div>
-                <!-- 6行目: 経緯度 -->
-                <div class="metric-row">
-                    <span class="metric-label">経緯度</span>
-                    <span class="metric-coords" id="val-coords">0.0000, 0.0000</span>
-                </div>
-                <!-- 7行目: スマートトレーナー負荷 -->
+                <!-- 6行目: 負荷 (旧Trainer負荷) -->
                 <div class="metric-row ble-trainer-row">
-                    <span class="metric-label">Trainer負荷</span>
-                    <span class="metric-value" id="val-trainer-slope">+0.0% [手動]</span>
+                    <span class="metric-label">負荷</span>
+                    <span class="metric-value-wrap">
+                        <span class="metric-num" id="val-trainer-slope">+0.0</span>
+                        <span class="metric-unit" id="val-trainer-unit">% [手動]</span>
+                    </span>
                 </div>
             </div>
         </section>
@@ -196,12 +204,12 @@
                 <div class="settings-section">
                     <div class="settings-sec-title">🛠️ 手動負荷設定</div>
                     <div id="test-controls-box" class="test-controls-box">
-                        <!-- Manual Slope Slider -->
+                        <!-- Manual Slope Slider (0%〜7%) -->
                         <div class="label-row">
                             <label for="test-slope-slider">手動指示負荷 (Slope)</label>
-                            <span id="test-slope-val" class="sub-val">+0.0 %</span>
+                            <span id="test-slope-val" class="sub-val">0.0 %</span>
                         </div>
-                        <input type="range" id="test-slope-slider" min="-3" max="7" step="0.2" value="0">
+                        <input type="range" id="test-slope-slider" min="0" max="7" step="0.2" value="0">
 
                         <!-- Quick Presets -->
                         <div class="test-presets-row">

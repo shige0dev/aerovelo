@@ -628,33 +628,33 @@ input[type="range"]::-webkit-slider-thumb {
     line-height: 1;
 }
 
-.metric-row .metric-value {
+/* 小数点位置が揃うメトリクス数値ラッパー */
+.metric-value-wrap {
+    display: flex;
+    align-items: baseline;
+    justify-content: flex-end;
+    font-family: monospace;
+    line-height: 1;
+}
+
+.metric-num {
+    display: inline-block;
+    width: 48px;
+    text-align: right;
     font-size: 0.68rem;
     font-weight: 700;
     color: var(--text-primary);
-    line-height: 1;
-    display: flex;
-    align-items: center;
-    gap: 3px;
-    font-family: monospace;
+    font-variant-numeric: tabular-nums;
 }
 
-.metric-row .metric-value small {
+.metric-unit {
+    display: inline-block;
+    min-width: 48px;
+    margin-left: 4px;
     font-size: 0.52rem;
     color: var(--text-muted);
     font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-}
-
-.metric-row .metric-sub {
-    font-size: 0.54rem;
-    color: var(--text-muted);
-    font-weight: normal;
-}
-
-.metric-row .metric-coords {
-    font-size: 0.56rem;
-    color: #cbd5e1;
-    font-family: monospace;
+    text-align: left;
 }
 
 .ble-metric-row {
@@ -662,7 +662,7 @@ input[type="range"]::-webkit-slider-thumb {
     background: rgba(0, 240, 255, 0.04);
 }
 
-.ble-metric-row .metric-value {
+.ble-metric-row .metric-num {
     color: var(--accent);
 }
 
@@ -671,7 +671,11 @@ input[type="range"]::-webkit-slider-thumb {
     background: rgba(56, 189, 248, 0.06);
 }
 
-.ble-trainer-row .metric-value {
+.ble-trainer-row .metric-num {
+    color: #38bdf8;
+}
+
+.ble-trainer-row .metric-unit {
     color: #38bdf8;
 }
 
@@ -683,7 +687,7 @@ input[type="range"]::-webkit-slider-thumb {
     transition: all 0.25s ease;
 }
 
-.metric-row.capped .metric-value,
+.metric-row.capped .metric-num,
 .metric-row.capped #val-slope {
     color: #ef4444 !important;
     text-shadow: 0 0 6px rgba(239, 68, 68, 0.6);

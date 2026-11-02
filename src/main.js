@@ -158,7 +158,8 @@ class App {
         this.updateTotalDistanceUI();
 
         this.isPlaying = false;
-        this.btnPlay.textContent = '再生 (Auto Fly)';
+        this.btnPlay.textContent = '▶';
+        this.btnPlay.title = '自動再生 (Auto Fly)';
         this.btnPlay.classList.remove('running');
         this.currentProgress = 0.0;
         this.currentCamBearing = null;
@@ -318,7 +319,7 @@ class App {
         this.elSlopeCard = this.elSlopeWrap ? (this.elSlopeWrap.closest('.metric-row') || this.elSlopeWrap.closest('.metric-card')) : null;
         this.slopeCapBadge = document.getElementById('slope-cap-badge');
         this.elTrainerSlope = document.getElementById('val-trainer-slope');
-        this.elCoords = document.getElementById('val-coords');
+        this.elTrainerUnit = document.getElementById('val-trainer-unit');
         this.elCourseNameDisplay = document.getElementById('course-name-display');
         this.presetSelect = document.getElementById('preset-select');
 
@@ -812,9 +813,9 @@ class App {
     }
 
     applyManualSlope(slope) {
-        this.manualSlope = Math.max(-3, Math.min(7, slope));
+        this.manualSlope = Math.max(0, Math.min(7, slope));
         if (this.testSlopeVal) {
-            const s = this.manualSlope >= 0 ? '+' : '';
+            const s = this.manualSlope > 0 ? '+' : '';
             this.testSlopeVal.textContent = `${s}${this.manualSlope.toFixed(1)} %`;
         }
         if (this.btnPresetSlopes) {
@@ -847,16 +848,19 @@ class App {
      * トレーナーへ指示負荷を送信し、HUDおよび画面へ常に現在指示負荷を反映
      */
     sendSlopeToTrainer(targetSlope) {
-        // NEROの上限7%（安全リミット8%）でクランプ
-        const clampedSlope = Math.max(-8.0, Math.min(8.0, targetSlope));
+        // NEROの上限7%（安全リミット8%）でクランプ（下限は0%）
+        const clampedSlope = Math.max(0.0, Math.min(7.0, targetSlope));
         this.lastTargetSlopeSent = clampedSlope;
 
-        // HUDの Trainer 指示負荷表示を常に更新
+        // HUDの 負荷 表示を常に更新（"Trainer:"は除去し、数値と単位・モードのみ表示）
         if (this.elTrainerSlope) {
-            const trSign = clampedSlope >= 0 ? '+' : '';
-            const modeTag = this.isLfoRunning ? '[AUTO]' : '[手動]';
-            this.elTrainerSlope.textContent = `Trainer: ${trSign}${clampedSlope.toFixed(1)}% ${modeTag}`;
+            const trSign = clampedSlope > 0 ? '+' : '';
+            this.elTrainerSlope.textContent = `${trSign}${clampedSlope.toFixed(1)}`;
             this.elTrainerSlope.classList.toggle('alert', clampedSlope >= 7.0);
+        }
+        if (this.elTrainerUnit) {
+            const modeTag = this.isLfoRunning ? '[AUTO]' : '[手動]';
+            this.elTrainerUnit.textContent = `% ${modeTag}`;
         }
 
         if (this.bleManager && this.bleManager.isConnected) {
@@ -908,8 +912,6 @@ class App {
 
         // 手動指示負荷（またはLFO）をトレーナーへ送信
         this.sendSlopeToTrainer(this.manualSlope);
-
-        this.elCoords.textContent = `${state.lon.toFixed(4)}, ${state.lat.toFixed(4)}`;
 
         this.drawElevationChart();
 
