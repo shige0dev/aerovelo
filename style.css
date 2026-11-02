@@ -446,8 +446,8 @@ input[type="range"]::-webkit-slider-thumb {
 
 .bottom-title-group {
     display: flex;
-    align-items: center;
-    gap: 4px;
+    align-items: baseline; /* 下合わせ */
+    gap: 3px;
     flex-shrink: 0;
 }
 
@@ -458,6 +458,16 @@ input[type="range"]::-webkit-slider-thumb {
     color: #f8fafc;
     margin: 0;
     line-height: 1;
+}
+
+.version-badge {
+    font-size: 0.44rem !important; /* 70% に縮小 (0.64rem * 0.7 ≒ 0.44rem) */
+    color: rgba(255, 255, 255, 0.75);
+    font-family: monospace;
+    letter-spacing: 0.02em;
+    padding: 0 1px;
+    line-height: 1;
+    align-self: flex-end; /* 下合わせ */
 }
 
 .bottom-course-group {
@@ -508,47 +518,111 @@ input[type="range"]::-webkit-slider-thumb {
     overflow-x: auto;
 }
 
-.bottom-stat-tag {
-    font-size: 0.62rem;
-    font-family: monospace;
-    font-weight: 600;
-    color: #cbd5e1;
-    background: rgba(0, 0, 0, 0.45);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+/* 2行目左端の再生ボタン */
+.bottom-play-btn {
+    background: var(--accent);
+    color: #0b0f19;
+    border: none;
     border-radius: 3px;
-    padding: 1px 4px; /* 余白を詰める */
-    line-height: 1.1;
-    white-space: nowrap;
-}
-
-.bottom-cam-wrap {
+    width: 22px;
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 0.65rem;
+    font-weight: 700;
+    line-height: 1;
+    transition: all 0.2s ease;
     flex-shrink: 0;
 }
 
-.bottom-cam-btn {
-    background: rgba(0, 240, 255, 0.15);
-    border: 1px solid rgba(0, 240, 255, 0.35);
-    color: var(--accent);
-    font-size: 0.58rem;
-    font-weight: 700;
-    padding: 1px 5px;
-    border-radius: 3px;
-    cursor: pointer;
-    line-height: 1.2;
-    transition: all 0.2s ease;
-    white-space: nowrap;
-}
-
-.bottom-cam-btn:hover {
-    background: rgba(0, 240, 255, 0.3);
-    color: #ffffff;
+.bottom-play-btn:hover {
+    background: #38bdf8;
     box-shadow: 0 0 6px rgba(0, 240, 255, 0.4);
 }
 
-.bottom-cam-btn.active {
-    background: #00f0ff;
-    color: #0b0f19;
-    border-color: #00f0ff;
+.bottom-play-btn.running {
+    background: #ef4444;
+    color: #ffffff;
+}
+
+/* 標高プロファイル ＆ 右側縦スライダーのレイアウト */
+.bottom-main-row {
+    display: flex;
+    align-items: stretch;
+    gap: 6px;
+    width: 100%;
+}
+
+.bottom-canvas-slider-container {
+    position: relative;
+    flex: 1; /* 幅を縮めて縦スライダーのスペースを確保 */
+    min-width: 0;
+    background: rgba(0, 0, 0, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 4px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+#elevation-canvas {
+    width: 100%;
+    height: 76px;
+    display: block;
+    cursor: ew-resize;
+    touch-action: none;
+    user-select: none;
+}
+
+/* 右側エリアの縦スライダー（負荷） */
+.bottom-slope-vertical-wrapper {
+    width: 32px;
+    flex-shrink: 0;
+    background: rgba(0, 0, 0, 0.5);
+    border: 1px solid rgba(56, 189, 248, 0.25);
+    border-radius: 4px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    padding: 2px 0 1px;
+    box-sizing: border-box;
+}
+
+.v-slope-title {
+    font-size: 0.50rem;
+    color: #38bdf8;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.v-slope-slider-box {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 52px;
+}
+
+#v-slope-slider {
+    -webkit-appearance: slider-vertical;
+    writing-mode: bt-lr;
+    width: 16px;
+    height: 50px;
+    padding: 0;
+    margin: 0;
+    cursor: pointer;
+}
+
+.v-slope-value {
+    font-size: 0.50rem;
+    font-family: monospace;
+    font-weight: 700;
+    color: #38bdf8;
+    line-height: 1;
 }
 
 /* モードレス・フローティングカメラダイアログ */
@@ -609,26 +683,6 @@ input[type="range"]::-webkit-slider-thumb {
 
 .floating-cam-close:hover {
     color: #ef4444;
-}
-
-.bottom-canvas-slider-container {
-    position: relative;
-    width: 100%;
-    background: rgba(0, 0, 0, 0.5);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 4px;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-}
-
-#elevation-canvas {
-    width: 100%;
-    height: 76px;
-    display: block;
-    cursor: ew-resize;
-    touch-action: none;
-    user-select: none;
 }
 
 .speed-group {

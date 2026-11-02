@@ -16,10 +16,10 @@
 
     <!-- UI Overlay (メイン操作パネル) -->
     <div id="ui-panel">
-        <!-- HUD Metrics (情報表示リスト: 負荷を速度の上に配置、手動/再生ボタン直結) -->
+        <!-- HUD Metrics (情報表示リスト) -->
         <section class="hud-group">
             <div class="metrics-list">
-                <!-- 1行目: 負荷 (旧Trainer負荷) [手動]ボタン付き・手動有効時はスライダー/スワイプで変更可能 -->
+                <!-- 1行目: 負荷 (旧Trainer負荷) [手動]ボタン付き -->
                 <div class="metric-row ble-trainer-row" id="row-trainer">
                     <div class="metric-head">
                         <span class="metric-label">負荷</span>
@@ -32,11 +32,10 @@
                     </span>
                 </div>
 
-                <!-- 2行目: 速度 [▶]ボタン付き・AUTOPLAY有効時はスライド/スワイプで変更可能 -->
+                <!-- 2行目: Speed -->
                 <div class="metric-row speed-row" id="row-speed" title="AUTOPLAY時のみ上下スワイプ・ドラッグで速度変更可能">
                     <div class="metric-head">
-                        <span class="metric-label">速度</span>
-                        <button type="button" id="btn-play" class="metric-inline-btn icon-play-btn" title="自動再生 (Auto Fly)">▶</button>
+                        <span class="metric-label">Speed</span>
                     </div>
                     <span class="metric-value-wrap">
                         <span class="metric-num" id="speed-val">25.00</span>
@@ -96,13 +95,13 @@
         </div>
     </div>
 
-    <!-- 画面最下段 全幅バー: 2行ヘッダー ＆ 標高プロファイルCanvas -->
+    <!-- 画面最下段 全幅バー: 2行ヘッダー ＆ 標高プロファイルCanvas + 縦負荷スライダー -->
     <div id="bottom-bar">
-        <!-- 1行目: AeroVelo + バージョン, コース名, 設定/全画面アクション -->
+        <!-- 1行目: AeroVelo + バージョン, コース名, アクション (⚙️ ⛶ 🎥) -->
         <div class="bottom-row-1">
             <div class="bottom-title-group">
                 <h1 class="bottom-app-title">AeroVelo</h1>
-                <span class="version-badge" id="app-version">v1.4.3</span>
+                <span class="version-badge" id="app-version">v1.4.4</span>
             </div>
             <div class="bottom-course-group">
                 <span id="course-name-display" class="bottom-course-badge">読み込み中...</span>
@@ -110,24 +109,32 @@
             <div class="bottom-actions-group">
                 <button type="button" id="btn-modal-settings" class="icon-btn" title="設定 (GPX / トレーナー / テスト)">⚙️</button>
                 <button type="button" id="btn-fullscreen" class="icon-btn" title="全画面表示 (F11)">⛶</button>
+                <button type="button" id="btn-toggle-cam-dialog" class="icon-btn" title="カメラ調整を展開">🎥</button>
             </div>
         </div>
 
-        <!-- 2行目: 標高, 斜度, 距離, カメラ展開ボタン (余白を詰めたコンパクト配置) -->
+        <!-- 2行目: 再生ボタン (左端) ＆ 標高, 斜度, 距離 -->
         <div class="bottom-row-2">
             <div class="bottom-stats-row">
+                <button type="button" id="btn-play" class="bottom-play-btn" title="自動再生 (Auto Fly)">▶</button>
                 <span id="bottom-alt-display" class="bottom-stat-tag">標高: 0.00m</span>
                 <span id="bottom-slope-display" class="bottom-stat-tag">斜度: +0.00%</span>
                 <span id="bottom-dist-display" class="bottom-stat-tag">距離: 0.00 / 0.00 km</span>
             </div>
-            <div class="bottom-cam-wrap">
-                <button type="button" id="btn-toggle-cam-dialog" class="bottom-cam-btn" title="カメラ調整を展開">📷 CAMERA</button>
-            </div>
         </div>
 
-        <!-- 標高プロファイルCanvas (進捗%を枠なしで内部描画) -->
-        <div class="bottom-canvas-slider-container">
-            <canvas id="elevation-canvas"></canvas>
+        <!-- 標高プロファイル ＆ 右側エリア縦スライダー (負荷) -->
+        <div class="bottom-main-row">
+            <div class="bottom-canvas-slider-container">
+                <canvas id="elevation-canvas"></canvas>
+            </div>
+            <div class="bottom-slope-vertical-wrapper">
+                <span class="v-slope-title">負荷</span>
+                <div class="v-slope-slider-box">
+                    <input type="range" id="v-slope-slider" min="0" max="7" step="0.1" value="0" orient="vertical">
+                </div>
+                <span id="v-slope-val" class="v-slope-value">0.0%</span>
+            </div>
         </div>
     </div>
 

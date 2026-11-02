@@ -381,6 +381,8 @@ class App {
         this.rowTrainer = document.getElementById('row-trainer');
         this.btnManualSlope = document.getElementById('btn-manual-slope');
         this.trainerEditHint = document.getElementById('trainer-edit-hint');
+        this.vSlopeSlider = document.getElementById('v-slope-slider');
+        this.vSlopeVal = document.getElementById('v-slope-val');
         this.isManualSlopeMode = false;
 
         // ボトムバー表示要素
@@ -726,6 +728,15 @@ class App {
             }
         };
 
+        if (this.vSlopeSlider) {
+            this.vSlopeSlider.addEventListener('input', (e) => {
+                const val = parseFloat(e.target.value);
+                this.isManualSlopeMode = true;
+                updateTrainerEditability();
+                this.applyManualSlope(val);
+            });
+        }
+
         if (this.btnManualSlope) {
             this.btnManualSlope.addEventListener('click', () => {
                 this.isManualSlopeMode = !this.isManualSlopeMode;
@@ -1050,6 +1061,12 @@ class App {
         if (this.testSlopeVal) {
             const s = this.manualSlope > 0 ? '+' : '';
             this.testSlopeVal.textContent = `${s}${this.manualSlope.toFixed(1)} %`;
+        }
+        if (this.vSlopeSlider) {
+            this.vSlopeSlider.value = this.manualSlope;
+        }
+        if (this.vSlopeVal) {
+            this.vSlopeVal.textContent = `${this.manualSlope.toFixed(1)}%`;
         }
         this.sendSlopeToTrainer(this.manualSlope);
     }
