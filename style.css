@@ -501,15 +501,11 @@ input[type="range"]::-webkit-slider-thumb {
 
 #elevation-canvas {
     width: 100%;
-    height: 38px;
+    height: 76px;
     display: block;
-    cursor: pointer;
-}
-
-.bottom-slider {
-    width: 100%;
-    margin-top: -3px;
-    cursor: pointer;
+    cursor: ew-resize;
+    touch-action: none;
+    user-select: none;
 }
 
 .speed-group {

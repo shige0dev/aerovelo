@@ -245,7 +245,7 @@ class App {
         const rect = this.chartCanvas.parentElement ? this.chartCanvas.parentElement.getBoundingClientRect() : null;
         const w = rect ? Math.floor(rect.width) : window.innerWidth;
         this.chartCanvas.width = Math.max(w, 300);
-        this.chartCanvas.height = 40;
+        this.chartCanvas.height = 80; // 縦方向に2倍 (40px -> 80px)
     }
 
     drawElevationChart() {
@@ -269,11 +269,12 @@ class App {
         }
 
         const altSpan = Math.max(maxAlt - minAlt, 10);
-        const padY = 8;
+        const padY = 10;
         const getY = (alt) => h - padY - ((alt - minAlt) / altSpan) * (h - padY * 2);
 
+        // 背景グラデーション
         const gradient = ctx.createLinearGradient(0, 0, 0, h);
-        gradient.addColorStop(0, 'rgba(0, 240, 255, 0.45)');
+        gradient.addColorStop(0, 'rgba(0, 240, 255, 0.50)');
         gradient.addColorStop(1, 'rgba(0, 240, 255, 0.05)');
 
         ctx.beginPath();
@@ -288,6 +289,7 @@ class App {
         ctx.fillStyle = gradient;
         ctx.fill();
 
+        // 標高ライン
         ctx.beginPath();
         for (let i = 0; i <= samples; i++) {
             const x = (i / samples) * w;
@@ -296,20 +298,47 @@ class App {
             else ctx.lineTo(x, y);
         }
         ctx.strokeStyle = '#00f0ff';
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 2.5;
         ctx.stroke();
 
+        // 現在位置の縦線スライダー (全高にわたるネオンシアン縦ライン)
         const riderX = this.currentProgress * w;
         const riderState = this.course.getStateAtProgress(this.currentProgress);
         const riderY = getY(riderState.alt);
 
+        // 縦線背景グロー
         ctx.beginPath();
-        ctx.arc(riderX, riderY, 4, 0, Math.PI * 2);
+        ctx.moveTo(riderX, 0);
+        ctx.lineTo(riderX, h);
+        ctx.strokeStyle = 'rgba(0, 240, 255, 0.35)';
+        ctx.lineWidth = 6;
+        ctx.stroke();
+
+        // 縦線本体
+        ctx.beginPath();
+        ctx.moveTo(riderX, 0);
+        ctx.lineTo(riderX, h);
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // 現在位置ドット (標高線上)
+        ctx.beginPath();
+        ctx.arc(riderX, riderY, 6, 0, Math.PI * 2);
         ctx.fillStyle = '#ffffff';
         ctx.fill();
         ctx.strokeStyle = '#00f0ff';
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 2.5;
         ctx.stroke();
+
+        // 上部ハンドル（縦線スライダつまみ）
+        ctx.beginPath();
+        ctx.moveTo(riderX - 5, 0);
+        ctx.lineTo(riderX + 5, 0);
+        ctx.lineTo(riderX, 8);
+        ctx.closePath();
+        ctx.fillStyle = '#00f0ff';
+        ctx.fill();
     }
 
     initUI() {
@@ -638,34 +667,27 @@ class App {
             }
         });
 
-        this.progressSlider.addEventListener('input', (e) => {
-            const val = parseFloat(e.target.value) / 100;
-            this.setManualProgress(val);
-        });
+        if (this.progressSlider) {
+            this.progressSlider.addEventListener('input', (e) => {
+                const val = parseFloat(e.target.value) / 100;
+                this.setManualProgress(val);
+            });
+        }
 
-        this.progressInput.addEventListener('change', (e) => {
-            let val = parseFloat(e.target.value);
-            if (isNaN(val)) val = 0;
-            val = Math.max(0, Math.min(100, val)) / 100;
-            this.setManualProgress(val);
-        });
+        if (this.progressInput) {
+            this.progressInput.addEventListener('change', (e) => {
+                let val = parseFloat(e.target.value);
+                if (isNaN(val)) val = 0;
+                val = Math.max(0, Math.min(100, val)) / 100;
+                this.setManualProgress(val);
+            });
+        }
 
-        const updateSpeedEditability = () => {
-            if (this.rowSpeed) {
-                this.rowSpeed.classList.toggle('editable', this.isPlaying);
-                if (this.speedEditHint) {
-                    this.speedEditHint.style.display = this.isPlaying ? 'inline' : 'none';
-                }
-            }
-        };
-
-        this.btnPlay.addEventListener('click', () => {
-            this.isPlaying = !this.isPlaying;
-            this.btnPlay.textContent = this.isPlaying ? '❚❚' : '▶';
-            this.btnPlay.title = this.isPlaying ? '一時停止 (Pause)' : '自動再生 (Auto Fly)';
-            this.btnPlay.classList.toggle('running', this.isPlaying);
-            updateSpeedEditability();
-        });
+        if (this.btnPlay) {
+            this.btnPlay.addEventListener('click', () => {
+                this.setPlayState(!this.isPlaying);
+            });
+        }
 
         // 負荷「手動」ボタントグル & 負荷スワイプ/スライド操作
         const updateTrainerEditability = () => {
@@ -885,12 +907,53 @@ class App {
         this.camChaseBtn.addEventListener('click', () => setCamMode('track'));
         this.camFreeBtn.addEventListener('click', () => setCamMode('free'));
 
-        this.chartCanvas.addEventListener('click', (e) => {
-            const rect = this.chartCanvas.getBoundingClientRect();
-            const clickX = e.clientX - rect.left;
-            const progress = Math.max(0, Math.min(1, clickX / rect.width));
-            this.setManualProgress(progress);
-        });
+        // 標高プロファイルCanvas上の縦線スライド/ドラッグ操作
+        if (this.chartCanvas) {
+            let isDraggingProgress = false;
+
+            const updateProgressFromEvent = (clientX) => {
+                const rect = this.chartCanvas.getBoundingClientRect();
+                const clickX = clientX - rect.left;
+                const progress = Math.max(0, Math.min(1.0, clickX / rect.width));
+                this.setManualProgress(progress);
+            };
+
+            this.chartCanvas.addEventListener('mousedown', (e) => {
+                isDraggingProgress = true;
+                updateProgressFromEvent(e.clientX);
+                const moveHandler = (moveEvent) => {
+                    if (isDraggingProgress) {
+                        updateProgressFromEvent(moveEvent.clientX);
+                    }
+                };
+                const upHandler = () => {
+                    isDraggingProgress = false;
+                    window.removeEventListener('mousemove', moveHandler);
+                    window.removeEventListener('mouseup', upHandler);
+                };
+                window.addEventListener('mousemove', moveHandler);
+                window.addEventListener('mouseup', upHandler);
+            });
+
+            this.chartCanvas.addEventListener('touchstart', (e) => {
+                if (e.touches.length > 0) {
+                    isDraggingProgress = true;
+                    updateProgressFromEvent(e.touches[0].clientX);
+                }
+            }, { passive: true });
+
+            this.chartCanvas.addEventListener('touchmove', (e) => {
+                if (isDraggingProgress && e.touches.length > 0) {
+                    updateProgressFromEvent(e.touches[0].clientX);
+                }
+            }, { passive: true });
+
+            const touchEndHandler = () => {
+                isDraggingProgress = false;
+            };
+            this.chartCanvas.addEventListener('touchend', touchEndHandler);
+            this.chartCanvas.addEventListener('touchcancel', touchEndHandler);
+        }
 
         window.addEventListener('resize', () => {
             this.map.resize();
@@ -907,6 +970,21 @@ class App {
      * BLE接続中であっても、この調整位置を新しい基準点（baseProgressAtBleStart）としてリセットし、
      * ここからトレーナーのペダリングが前進するように同期する
      */
+    setPlayState(playing) {
+        this.isPlaying = playing;
+        if (this.btnPlay) {
+            this.btnPlay.textContent = this.isPlaying ? '❚❚' : '▶';
+            this.btnPlay.title = this.isPlaying ? '一時停止 (Pause)' : '自動再生 (Auto Fly)';
+            this.btnPlay.classList.toggle('running', this.isPlaying);
+        }
+        if (this.rowSpeed) {
+            this.rowSpeed.classList.toggle('editable', this.isPlaying);
+            if (this.speedEditHint) {
+                this.speedEditHint.style.display = this.isPlaying ? 'inline' : 'none';
+            }
+        }
+    }
+
     setManualProgress(progress) {
         if (this.bleManager && this.bleManager.isConnected) {
             this.bleManager.resetDistance();
@@ -973,10 +1051,12 @@ class App {
         }
 
         const pct100 = (this.currentProgress * 100).toFixed(1);
-        if (document.activeElement !== this.progressInput) {
+        if (document.activeElement !== this.progressInput && this.progressInput) {
             this.progressInput.value = pct100;
         }
-        this.progressSlider.value = (this.currentProgress * 100).toFixed(2);
+        if (this.progressSlider) {
+            this.progressSlider.value = (this.currentProgress * 100).toFixed(2);
+        }
 
         // 小数点下2桁に統一して数値を揃える
         const distKm = (state.distance / 1000).toFixed(2);
@@ -1118,8 +1198,16 @@ class App {
                 const distanceMoved = metersPerSecond * deltaSeconds;
                 const progressDelta = this.course.totalDistance > 0 ? (distanceMoved / this.course.totalDistance) : 0;
 
-                const nextProgress = (this.currentProgress + progressDelta) % 1.0;
-                this.updateState(nextProgress);
+                const nextProgress = this.currentProgress + progressDelta;
+                if (nextProgress >= 1.0) {
+                    // 自動再生はループ中止（ゴール到達で再生停止）
+                    this.updateState(1.0);
+                    if (this.isPlaying) {
+                        this.setPlayState(false);
+                    }
+                } else {
+                    this.updateState(nextProgress);
+                }
             }
         } else {
             this.lastFrameTime = 0;
