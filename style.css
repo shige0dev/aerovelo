@@ -148,15 +148,11 @@ body {
 }
 
 .version-badge {
-    font-size: 0.62rem;
-    font-weight: 600;
-    color: var(--accent);
-    background: rgba(0, 240, 255, 0.12);
-    border: 1px solid rgba(0, 240, 255, 0.35);
-    padding: 1px 4px;
-    border-radius: 999px;
-    letter-spacing: 0.04em;
+    font-size: 0.58rem;
+    color: var(--text-muted);
     font-family: monospace;
+    letter-spacing: 0.02em;
+    padding: 0 2px;
 }
 
 .panel-header h1 {
@@ -559,6 +555,26 @@ input[type="range"]::-webkit-slider-thumb {
     background: rgba(0, 240, 255, 0.15);
     color: var(--accent);
     border-color: var(--accent);
+}
+
+.camera-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2px;
+}
+
+.inline-cam-btns {
+    display: flex;
+    gap: 3px;
+}
+
+.inline-cam-btns .btn.toggle {
+    min-height: 18px;
+    padding: 1px 6px;
+    font-size: 0.58rem;
+    font-weight: 700;
+    border-radius: 3px;
 }
 
 /* Camera Adjust Box */

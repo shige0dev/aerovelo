@@ -18,9 +18,9 @@
     <div id="ui-panel">
         <header class="panel-header">
             <div class="header-top">
-                <h1>AeroVelo <span>3D</span></h1>
+                <h1>AeroVelo</h1>
                 <div class="header-actions">
-                    <span class="version-badge" id="app-version">v1.3.8</span>
+                    <span class="version-badge" id="app-version">v1.3.9</span>
                     <button type="button" id="btn-modal-settings" class="icon-btn" title="設定 (GPX / トレーナー / テスト)">⚙️</button>
                     <button type="button" id="btn-fullscreen" class="icon-btn" title="全画面表示 (F11)">⛶</button>
                 </div>
@@ -121,10 +121,12 @@
 
         <!-- Camera Controls (メインダイアログに常駐) -->
         <section class="control-group camera-group">
-            <div class="ctrl-title" style="margin-bottom: 2px;">CAMERA</div>
-            <div class="btn-group">
-                <button id="cam-chase" class="btn toggle active">CHASE</button>
-                <button id="cam-free" class="btn toggle">FREE</button>
+            <div class="camera-header-row">
+                <span class="ctrl-title">CAMERA</span>
+                <div class="btn-group inline-cam-btns">
+                    <button id="cam-chase" class="btn toggle active">CHASE</button>
+                    <button id="cam-free" class="btn toggle">FREE</button>
+                </div>
             </div>
 
             <!-- Camera Adjustment Sliders -->
