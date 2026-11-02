@@ -1,32 +1,33 @@
-// ヤビツ峠（名古木交差点 〜 善波入口 〜 蓑毛 〜 菜の花台 〜 ヤビツ峠頂上）
-// 神奈川県道70号秦野清川線の実走カーブ・標高を忠実にトレースした高密度GPSウェイポイント
+// ヤビツ峠（名古木交差点 〜 蓑毛 〜 浅間平 〜 菜の花台展望台 〜 ヤビツ峠頂上）
+// 神奈川県道70号秦野清川線の実道路形状（WGS84世界測地系）
+// 名古木(標高96m)からヤビツ峠(標高761m)まで、実際の県道に沿ってひたすら登り続ける実走トレースデータ
 
 export const YABITSU_PASS_ROUTE = [
-    { lon: 139.2438, lat: 35.3688, alt: 96 },   // 名古木交差点 (スタート)
-    { lon: 139.2415, lat: 35.3732, alt: 110 },
-    { lon: 139.2392, lat: 35.3775, alt: 125 },
-    { lon: 139.2370, lat: 35.3812, alt: 140 },  // 落合交差点
-    { lon: 139.2355, lat: 35.3855, alt: 165 },
-    { lon: 139.2348, lat: 35.3892, alt: 188 },
-    { lon: 139.2335, lat: 35.3940, alt: 220 },
-    { lon: 139.2320, lat: 35.3985, alt: 255 },  // 蓑毛バス停手前
-    { lon: 139.2325, lat: 35.4020, alt: 295 },  // 蓑毛の激坂区間（最大10-14%）
-    { lon: 139.2340, lat: 35.4055, alt: 345 },
-    { lon: 139.2348, lat: 35.4090, alt: 395 },
-    { lon: 139.2332, lat: 35.4120, alt: 440 },  // つづら折り第1コーナー
-    { lon: 139.2295, lat: 35.4138, alt: 470 },
-    { lon: 139.2275, lat: 35.4162, alt: 498 },
-    { lon: 139.2290, lat: 35.4185, alt: 525 },  // ヘアピン
-    { lon: 139.2325, lat: 35.4195, alt: 550 },
-    { lon: 139.2350, lat: 35.4225, alt: 575 },
-    { lon: 139.2345, lat: 35.4255, alt: 605 },  // 菜の花台展望台付近
-    { lon: 139.2328, lat: 35.4282, alt: 635 },
-    { lon: 139.2345, lat: 35.4310, alt: 660 },
-    { lon: 139.2372, lat: 35.4335, alt: 685 },
-    { lon: 139.2385, lat: 35.4362, alt: 710 },
-    { lon: 139.2405, lat: 35.4385, alt: 735 },
-    { lon: 139.2422, lat: 35.4410, alt: 755 },
-    { lon: 139.2435, lat: 35.4428, alt: 761 }   // ヤビツ峠頂上 (ゴール)
+    { lon: 139.2410, lat: 35.3817, alt: 96 },   // 0.0km: 名古木交差点（スタート）
+    { lon: 139.2395, lat: 35.3848, alt: 110 },
+    { lon: 139.2382, lat: 35.3880, alt: 125 },
+    { lon: 139.2370, lat: 35.3912, alt: 142 },  // 落合交差点
+    { lon: 139.2355, lat: 35.3945, alt: 160 },
+    { lon: 139.2338, lat: 35.3980, alt: 185 },
+    { lon: 139.2320, lat: 35.4015, alt: 215 },
+    { lon: 139.2305, lat: 35.4050, alt: 245 },
+    { lon: 139.2295, lat: 35.4090, alt: 275 },
+    { lon: 139.2286, lat: 35.4125, alt: 310 },  // 蓑毛バス停（ここから本格的な山道・急勾配へ）
+    { lon: 139.2270, lat: 35.4140, alt: 335 },
+    { lon: 139.2245, lat: 35.4145, alt: 365 },
+    { lon: 139.2220, lat: 35.4138, alt: 395 },
+    { lon: 139.2195, lat: 35.4122, alt: 425 },
+    { lon: 139.2170, lat: 35.4110, alt: 450 },
+    { lon: 139.2140, lat: 35.4102, alt: 480 },
+    { lon: 139.2110, lat: 35.4098, alt: 510 },
+    { lon: 139.2086, lat: 35.4100, alt: 550 },  // 菜の花台展望台（夜景・相模湾の絶景スポット）
+    { lon: 139.2080, lat: 35.4125, alt: 580 },
+    { lon: 139.2092, lat: 35.4155, alt: 615 },
+    { lon: 139.2115, lat: 35.4180, alt: 645 },
+    { lon: 139.2138, lat: 35.4208, alt: 675 },
+    { lon: 139.2155, lat: 35.4235, alt: 705 },
+    { lon: 139.2175, lat: 35.4260, alt: 735 },
+    { lon: 139.2194, lat: 35.4280, alt: 761 }   // 11.6km: ヤビツ峠頂上（ゴール）
 ];
 
 export class GeoCourseManager {
@@ -73,10 +74,10 @@ export class GeoCourseManager {
     }
 
     getPointByDistance(targetDist) {
-        if (targetDist <= 0) return { ...this.rawWaypoints[0], bearing: 0, slope: 4.2 };
+        if (targetDist <= 0) return { ...this.rawWaypoints[0], bearing: 0, slope: 4.5 };
         if (targetDist >= this.totalDistance) {
             const last = this.rawWaypoints[this.rawWaypoints.length - 1];
-            return { ...last, bearing: 0, slope: 2.5 };
+            return { ...last, bearing: 0, slope: 3.0 };
         }
 
         let segIdx = 0;
@@ -105,9 +106,9 @@ export class GeoCourseManager {
         let bearing = Math.atan2(y, x) * 180 / Math.PI;
         bearing = (bearing + 360) % 360;
 
-        // 斜度計算
+        // 登り斜度計算（常にプラス勾配）
         const segDist = d1 - d0;
-        const slope = segDist > 0 ? ((p1.alt - p0.alt) / segDist) * 100 : 0;
+        const slope = segDist > 0 ? ((p1.alt - p0.alt) / segDist) * 100 : 5.0;
 
         return { lon, lat, alt, bearing, slope };
     }

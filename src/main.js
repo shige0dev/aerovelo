@@ -8,6 +8,7 @@ class App {
         this.isPlaying = false;
         this.playSpeed = 0.0006; // progress step per frame
         this.isModeTransitioning = false;
+        this.lastFrameTime = 0;
 
         this.initUI();
         this.initElevationProfile();
@@ -20,7 +21,6 @@ class App {
         const panelWidth = 380;
         const screenWidth = window.innerWidth;
         if (screenWidth > 800) {
-            // パネルの半分だけ右にシフトしてライダーを空き領域のど真ん中に配置
             return [panelWidth / 2, 0];
         }
         return [0, 0];
@@ -73,17 +73,17 @@ class App {
                 }
             },
             center: [startState.lon, startState.lat],
-            zoom: 16.0,
-            pitch: 75,
+            zoom: 15.6,
+            pitch: 70,
             bearing: startState.bearing,
             maxPitch: 85
         });
 
         this.map.on('load', () => {
-            // 3D 地形有効化
+            // 3D 地形有効化 (起伏の強調倍率を自然な 1.15 に調整)
             this.map.setTerrain({
                 source: 'terrain-dem',
-                exaggeration: 1.25
+                exaggeration: 1.15
             });
 
             // コース全体の高精度3Dライン
@@ -329,7 +329,7 @@ class App {
         this.elSlope.textContent = `${sign}${state.slope.toFixed(1)}`;
         if (state.slope > 7) {
             this.elSlopeWrap.style.color = 'var(--climb-color)';
-        } else if (state.slope < -2) {
+        } else if (state.slope < 0) {
             this.elSlopeWrap.style.color = 'var(--descent-color)';
         } else {
             this.elSlopeWrap.style.color = 'var(--flat-color)';
@@ -342,30 +342,24 @@ class App {
 
         // カメラ同期（モード切り替えアニメーション中以外）
         if (!this.isModeTransitioning && this.cameraMode !== 'free') {
-            this.applyCameraTarget(0); // リアルタイム追従（即座にターゲット位置を固定）
+            this.applyCameraTarget(0);
         }
     }
 
-    /**
-     * カメラの視界設定
-     * - chase: ライダー直後方・低高度・高い仰角で臨場感ある追従
-     * - drone: 斜め上空・中高度・広角でコース全体と山並みを見渡す
-     */
     applyCameraTarget(duration = 0) {
         if (!this.map || this.cameraMode === 'free') return;
 
         const state = this.course.getStateAtProgress(this.currentProgress);
         const offset = this.getCameraOffset();
 
-        let targetPitch = 76;
+        let targetPitch = 68; // 適度な仰角（負荷軽減 & 視界確保）
         let targetBearing = state.bearing;
-        let targetZoom = 16.2;
+        let targetZoom = 15.6;
 
         if (this.cameraMode === 'drone') {
-            // ドローン空撮: 斜め上空から見下ろし（Zoom 14.5, 仰角 48度, 方位は少し斜め前方）
-            targetPitch = 48;
+            targetPitch = 45;
             targetBearing = (state.bearing + 35) % 360;
-            targetZoom = 14.6;
+            targetZoom = 14.5;
         }
 
         const cameraOptions = {
@@ -385,12 +379,19 @@ class App {
         }
     }
 
-    animate() {
+    animate(timestamp) {
         requestAnimationFrame(this.animate);
 
         if (this.isPlaying) {
-            const nextProgress = (this.currentProgress + this.playSpeed) % 1.0;
+            // 前フレームからの経過時間によるスムーズな進捗（30/60/120Hzモニタ対応）
+            if (!this.lastFrameTime) this.lastFrameTime = timestamp;
+            const delta = Math.min((timestamp - this.lastFrameTime) / 1000, 0.1);
+            this.lastFrameTime = timestamp;
+
+            const nextProgress = (this.currentProgress + this.playSpeed * (delta * 60)) % 1.0;
             this.updateState(nextProgress);
+        } else {
+            this.lastFrameTime = 0;
         }
     }
 }
