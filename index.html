@@ -19,23 +19,25 @@
         <header class="panel-header">
             <div class="header-top">
                 <h1>AeroVelo <span>3D Terrain</span></h1>
-                <span class="version-badge" id="app-version">v0.8.1</span>
+                <span class="version-badge" id="app-version">v0.9.0</span>
             </div>
             <p class="subtitle" id="course-title">実地形 3D 衛星空撮バーチャルサイクリング</p>
         </header>
 
-        <!-- GPX Importer Section (Compact) -->
+        <!-- GPX Importer & Preset Selector Section -->
         <section class="control-group gpx-section">
+            <div class="preset-row">
+                <select id="preset-select" class="preset-select">
+                    <option value="gpx/France_14.3km_D1254.gpx" selected>🇫🇷 France (14.3km D+1254m)</option>
+                    <option value="gpx/kashida_27.9km_D1095.gpx">🇯🇵 Kashida (27.9km D+1095m)</option>
+                </select>
+            </div>
             <div class="gpx-compact-row">
                 <input type="file" id="gpx-file-input" accept=".gpx" style="display: none;">
                 <div id="drop-zone" class="drop-zone">
                     <span class="drop-text">📁 GPXドロップ または <button type="button" id="btn-browse" class="btn-link">選択</button></span>
                 </div>
                 <a href="https://gpx-edit-pro.ovh/editeur-gpx/?lang=ja" target="_blank" rel="noopener noreferrer" class="tool-link">エディタ ↗</a>
-            </div>
-            <div id="course-meta" class="course-meta">
-                <span class="badge-active">現在: </span>
-                <span id="active-course-name">本栖湖レイクサイド (サンプル)</span>
             </div>
         </section>
 
@@ -51,14 +53,14 @@
             <input type="range" id="progress-slider" min="0" max="100" step="0.05" value="0">
         </section>
 
-        <!-- Playback Controls with Speed Slider (km/h) -->
+        <!-- Playback Controls (ボタン高さをスマートに削減) -->
         <section class="control-group">
             <div class="buttons-row">
                 <button id="btn-play" class="btn primary">再生 (Auto Fly)</button>
                 <button id="btn-reset" class="btn secondary">リセット (0%)</button>
             </div>
-            <div class="label-row" style="margin-top: 6px;">
-                <label for="speed-slider">走行速度 (シミュレーション)</label>
+            <div class="label-row" style="margin-top: 4px;">
+                <label for="speed-slider">走行速度</label>
                 <span id="speed-val" class="sub-val">25 km/h</span>
             </div>
             <input type="range" id="speed-slider" min="1" max="50" step="1" value="25">
@@ -82,12 +84,12 @@
                 </div>
                 <div class="metric-card">
                     <span class="metric-label">経度・緯度</span>
-                    <span class="metric-coords" id="val-coords">138.58, 35.47</span>
+                    <span class="metric-coords" id="val-coords">0.00, 0.00</span>
                 </div>
             </div>
         </section>
 
-        <!-- Camera Control: Track (Chase & Orbit) & Free -->
+        <!-- Camera Control: Track & Free -->
         <section class="control-group camera-group">
             <div class="btn-group">
                 <button id="cam-chase" class="btn toggle active">ライダー追従 (Track)</button>

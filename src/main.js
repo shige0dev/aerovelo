@@ -2,9 +2,9 @@ import { GeoCourseManager, GPXParser, DEFAULT_LAKE_ROUTE } from './course.js';
 
 class App {
     constructor() {
-        this.course = new GeoCourseManager(DEFAULT_LAKE_ROUTE, '本栖湖レイクサイド (サンプル)');
+        this.course = new GeoCourseManager(DEFAULT_LAKE_ROUTE, '読み込み中...');
         this.currentProgress = 0.0;
-        this.cameraMode = 'track'; // 'track' (旧chase/droneを統合) | 'free'
+        this.cameraMode = 'track'; // 'track' | 'free'
         this.isPlaying = false;
         this.speedKmh = 25; // 時速 (km/h)
         this.isModeTransitioning = false;
@@ -12,7 +12,7 @@ class App {
 
         // 滑らかな角度補間（Lerp）用の現在カメラBearing
         this.currentCamBearing = null;
-        this.orbitAngleOffset = 0; // 真後ろ基準の相対アングル (0° = 真後ろ, -180°〜+180°)
+        this.orbitAngleOffset = 0; // スライダー値 (-180°〜+180°)
 
         // カメラパラメータ（Pitch / Zoom）
         this.cameraParams = {
@@ -25,6 +25,9 @@ class App {
         this.initMap();
         this.setupEvents();
         this.setupGPXImporter();
+
+        // デフォルトで France GPX を優先自動ロード
+        this.loadDefaultGPX('gpx/France_14.3km_D1254.gpx');
     }
 
     getCameraOffset() {
@@ -32,12 +35,8 @@ class App {
         const screenWidth = window.innerWidth;
         const screenHeight = window.innerHeight;
 
-        // 水平方向: 左側UIパネル(240px)を避けて右側エリアの中心に配置
         const offsetX = (screenWidth > 600) ? (panelWidth / 2) : 0;
-
-        // 垂直方向: 画面の高さ中央から「下から1/3（画面高さの約16.7%下方向へシフト）」の位置に配置
-        // ※MapLibreのoffset [x, y] は中心からのピクセル移動量。正のYで注視点が下側に移動。
-        const offsetY = screenHeight * (1 / 6); // 0.5 - 0.333 = 1/6
+        const offsetY = screenHeight * (1 / 6); // 下から1/3の位置に配置
 
         return [offsetX, offsetY];
     }
@@ -116,6 +115,37 @@ class App {
             this.animate = this.animate.bind(this);
             requestAnimationFrame(this.animate);
         });
+    }
+
+    async loadDefaultGPX(url) {
+        try {
+            const res = await fetch(url);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const gpxText = await res.text();
+            const { courseName, waypoints } = GPXParser.parse(gpxText);
+            const finalName = courseName !== 'カスタムコース' ? courseName : url.split('/').pop().replace(/\.gpx$/i, '');
+            this.applyNewCourse(waypoints, finalName);
+        } catch (err) {
+            console.warn(`デフォルトGPX取得エラー (${url}):`, err);
+        }
+    }
+
+    applyNewCourse(waypoints, name) {
+        this.course = new GeoCourseManager(waypoints, name);
+        this.updateTotalDistanceUI();
+
+        this.isPlaying = false;
+        this.btnPlay.textContent = '再生 (Auto Fly)';
+        this.btnPlay.classList.remove('running');
+        this.currentProgress = 0.0;
+        this.currentCamBearing = null;
+
+        if (this.map && this.map.isStyleLoaded()) {
+            this.updateMapCourseLayers();
+            this.drawElevationChart();
+            this.updateState(0.0);
+            this.applyCameraTarget(1500);
+        }
     }
 
     updateMapCourseLayers() {
@@ -253,8 +283,8 @@ class App {
         this.elSlope = document.getElementById('val-slope');
         this.elSlopeWrap = document.getElementById('val-slope-wrap');
         this.elCoords = document.getElementById('val-coords');
-        this.elActiveCourseName = document.getElementById('active-course-name');
         this.elProfileChartTitle = document.getElementById('profile-chart-title');
+        this.presetSelect = document.getElementById('preset-select');
 
         this.speedSlider = document.getElementById('speed-slider');
         this.speedVal = document.getElementById('speed-val');
@@ -274,9 +304,6 @@ class App {
     updateTotalDistanceUI() {
         const totalKm = (this.course.totalDistance / 1000).toFixed(2);
         this.elTotalDist.textContent = `/ ${totalKm} km`;
-        if (this.elActiveCourseName) {
-            this.elActiveCourseName.textContent = this.course.name;
-        }
         if (this.elProfileChartTitle) {
             this.elProfileChartTitle.textContent = `${this.course.name} 標高プロファイル`;
         }
@@ -289,6 +316,13 @@ class App {
         const btnBrowse = document.getElementById('btn-browse');
 
         if (!dropZone || !fileInput) return;
+
+        // プリセット切替プルダウン
+        if (this.presetSelect) {
+            this.presetSelect.addEventListener('change', (e) => {
+                this.loadDefaultGPX(e.target.value);
+            });
+        }
 
         btnBrowse.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -336,22 +370,7 @@ class App {
                 const gpxText = e.target.result;
                 const { courseName, waypoints } = GPXParser.parse(gpxText);
                 const finalName = courseName !== 'カスタムコース' ? courseName : file.name.replace(/\.gpx$/i, '');
-                
-                this.course = new GeoCourseManager(waypoints, finalName);
-                this.updateTotalDistanceUI();
-
-                this.isPlaying = false;
-                this.btnPlay.textContent = '再生 (Auto Fly)';
-                this.btnPlay.classList.remove('running');
-                this.currentProgress = 0.0;
-                this.currentCamBearing = null;
-
-                this.updateMapCourseLayers();
-                this.drawElevationChart();
-
-                this.updateState(0.0);
-                this.applyCameraTarget(1500);
-
+                this.applyNewCourse(waypoints, finalName);
                 console.log(`GPX Loaded: ${finalName} (${waypoints.length} points)`);
             } catch (err) {
                 console.error(err);
@@ -408,7 +427,7 @@ class App {
             }
         });
 
-        // 真後ろ基準の相対アングルスライダー (-180°〜+180°)
+        // アングルスライダー（極性反転）
         this.camOrbitSlider.addEventListener('input', (e) => {
             this.orbitAngleOffset = parseFloat(e.target.value);
             if (this.orbitAngleOffset === 0) {
@@ -514,18 +533,15 @@ class App {
         let targetPitch = this.cameraParams.pitch;
         let targetZoom = this.cameraParams.zoom;
 
-        // 真後ろ（state.bearing）を基準とし、スライダーで指定された相対オフセット（-180°〜+180°）を加算
-        const targetBearing = (state.bearing + this.orbitAngleOffset + 360) % 360;
+        // アングル極性反転: - this.orbitAngleOffset に変更
+        const targetBearing = (state.bearing - this.orbitAngleOffset + 360) % 360;
 
-        // カメラ角度の線形補間（滑らかな首振り・ダンピング）
         if (this.currentCamBearing === null || duration > 0) {
             this.currentCamBearing = targetBearing;
         } else {
             this.currentCamBearing = App.lerpAngle(this.currentCamBearing, targetBearing, 0.08);
         }
 
-        // --- 山岳衝突防止ガード ---
-        // カメラ位置（ライダー後方約50m）の地表標高をサンプリングし、衝突しそうな場合はピッチを安全角度へ自動退避
         if (this.map.queryTerrainElevation) {
             const riderAlt = state.alt;
             const rad = (this.currentCamBearing + 180) * (Math.PI / 180);
@@ -535,7 +551,7 @@ class App {
             const terrainAlt = this.map.queryTerrainElevation([camLon, camLat]);
 
             if (terrainAlt !== null && terrainAlt > riderAlt + 12) {
-                targetPitch = Math.min(targetPitch, 45); // 地形突入を回避
+                targetPitch = Math.min(targetPitch, 45);
             }
         }
 
