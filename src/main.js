@@ -1,154 +1,141 @@
-import { CourseManager } from './course.js';
+import { GeoCourseManager, YABITSU_PASS_ROUTE } from './course.js';
 
 class App {
     constructor() {
-        this.container = document.getElementById('canvas-container');
-        this.courseManager = new CourseManager();
+        this.course = new GeoCourseManager(YABITSU_PASS_ROUTE);
         this.currentProgress = 0.0;
-        this.cameraMode = 'follow'; // 'follow' | 'free'
+        this.cameraMode = 'chase'; // 'chase' | 'drone' | 'free'
         this.isPlaying = false;
-        this.playSpeed = 0.0006; // progress increment per frame
+        this.playSpeed = 0.0007; // progress step per frame
 
-        this.initThree();
-        this.initCourseVisuals();
-        this.initRider();
-        this.initElevationProfile();
         this.initUI();
+        this.initElevationProfile();
+        this.initMap();
         this.setupEvents();
-
-        this.updateState(0.0);
-        this.animate = this.animate.bind(this);
-        requestAnimationFrame(this.animate);
     }
 
-    initThree() {
-        // Scene
-        this.scene = new THREE.Scene();
-        this.scene.background = new THREE.Color(0x0b0f19);
-        this.scene.fog = new THREE.FogExp2(0x0b0f19, 0.0015);
-
-        // Camera
-        this.camera = new THREE.PerspectiveCamera(
-            55,
-            window.innerWidth / window.innerHeight,
-            0.5,
-            5000
-        );
-
-        // Renderer
-        this.renderer = new THREE.WebGLRenderer({ antialias: true });
-        this.renderer.setSize(window.innerWidth, window.innerHeight);
-        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-        this.renderer.shadowMap.enabled = true;
-        this.container.appendChild(this.renderer.domElement);
-
-        // OrbitControls for Free Camera
-        this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
-        this.controls.enableDamping = true;
-        this.controls.dampingFactor = 0.05;
-        this.controls.maxPolarAngle = Math.PI / 2 - 0.02; // Don't dip below ground
-
-        // Lighting
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
-        this.scene.add(ambientLight);
-
-        const dirLight = new THREE.DirectionalLight(0xa5f3fc, 1.2);
-        dirLight.position.set(300, 500, 200);
-        dirLight.castShadow = true;
-        this.scene.add(dirLight);
-
-        // Subtle ground grid
-        const gridHelper = new THREE.GridHelper(1500, 60, 0x1e293b, 0x0f172a);
-        gridHelper.position.y = -0.5;
-        this.scene.add(gridHelper);
-    }
-
-    initCourseVisuals() {
-        if (!this.courseManager.curve) {
-            this.courseManager.initDenseCurve();
-        }
-
-        // 1. Road Tube Geometry
-        const tubeGeometry = new THREE.TubeGeometry(
-            this.courseManager.curve,
-            200,   // tubularSegments
-            3.0,   // radius (road width ~6m)
-            12,    // radialSegments
-            true   // closed
-        );
-
-        // Dark asphalt material with high specularity
-        const roadMaterial = new THREE.MeshStandardMaterial({
-            color: 0x1e293b,
-            roughness: 0.6,
-            metalness: 0.1,
-            wireframe: false
+    initMap() {
+        // MapLibre GL JS with ESRI World Imagery (High-res Satellite) + AWS Open Terrain RGB (3D Dem)
+        // Completely Free & No API Key Required
+        this.map = new maplibregl.Map({
+            container: 'map',
+            style: {
+                version: 8,
+                sources: {
+                    // 1. 高精細 衛星写真タイル (ESRI World Imagery - Free & No Key)
+                    'satellite': {
+                        type: 'raster',
+                        tiles: [
+                            'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+                        ],
+                        tileSize: 256,
+                        attribution: 'Tiles &copy; Esri, Maxar, Earthstar Geographics'
+                    },
+                    // 2. 標高 DEM 3D地形 (AWS Open Terrain RGB - Free & Global 3D)
+                    'terrain-dem': {
+                        type: 'raster-dem',
+                        tiles: [
+                            'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'
+                        ],
+                        encoding: 'terrarium',
+                        tileSize: 256,
+                        maxzoom: 14
+                    }
+                },
+                layers: [
+                    {
+                        id: 'satellite-layer',
+                        type: 'raster',
+                        source: 'satellite',
+                        minzoom: 0,
+                        maxzoom: 22
+                    }
+                ],
+                sky: {
+                    'sky-color': '#199EF3',
+                    'sky-horizon-blend': 0.5,
+                    'horizon-color': '#ffffff',
+                    'horizon-fog-blend': 0.5,
+                    'fog-color': '#0000ff',
+                    'fog-ground-blend': 0.5
+                }
+            },
+            center: [139.2248, 35.3721],
+            zoom: 14.5,
+            pitch: 65,     // 傾斜角（3D地形が見えるアングル）
+            bearing: 15,   // 方位角
+            maxPitch: 85
         });
-        const roadMesh = new THREE.Mesh(tubeGeometry, roadMaterial);
-        roadMesh.receiveShadow = true;
-        this.scene.add(roadMesh);
 
-        // 2. Centerline Glowing Line
-        const linePoints = this.courseManager.curve.getPoints(500);
-        const lineGeometry = new THREE.BufferGeometry().setFromPoints(linePoints);
-        const lineMaterial = new THREE.LineBasicMaterial({
-            color: 0x00f0ff,
-            linewidth: 2,
-            transparent: true,
-            opacity: 0.8
-        });
-        const centerLine = new THREE.Line(lineGeometry, lineMaterial);
-        centerLine.position.y += 0.05; // Slightly above road
-        this.scene.add(centerLine);
-
-        // 3. Waypoint Markers (Pillars / Beacons)
-        this.courseManager.rawWaypoints.forEach((wp, idx) => {
-            const markerGeo = new THREE.CylinderGeometry(0.8, 0.8, wp.y + 4, 16);
-            const markerMat = new THREE.MeshBasicMaterial({
-                color: idx === 0 ? 0x10b981 : 0x38bdf8,
-                wireframe: true,
-                transparent: true,
-                opacity: 0.35
+        // 3D地形（起伏）と陰影を追加
+        this.map.on('load', () => {
+            // Enable 3D Terrain
+            this.map.setTerrain({
+                source: 'terrain-dem',
+                exaggeration: 1.25 // 起伏感を強調
             });
-            const marker = new THREE.Mesh(markerGeo, markerMat);
-            marker.position.set(wp.x, wp.y / 2, wp.z);
-            this.scene.add(marker);
+
+            // コース全体の3Dラインを追加
+            const coordinates = this.course.toGeoJSONCoordinates();
+            this.map.addSource('route', {
+                type: 'geojson',
+                data: {
+                    type: 'Feature',
+                    properties: {},
+                    geometry: {
+                        type: 'LineString',
+                        coordinates: coordinates
+                    }
+                }
+            });
+
+            // コースのグローライン（発光下地）
+            this.map.addLayer({
+                id: 'route-glow',
+                type: 'line',
+                source: 'route',
+                layout: {
+                    'line-join': 'round',
+                    'line-cap': 'round'
+                },
+                paint: {
+                    'line-color': '#00f0ff',
+                    'line-width': 8,
+                    'line-opacity': 0.5,
+                    'line-blur': 3
+                }
+            });
+
+            // コースメインライン
+            this.map.addLayer({
+                id: 'route-line',
+                type: 'line',
+                source: 'route',
+                layout: {
+                    'line-join': 'round',
+                    'line-cap': 'round'
+                },
+                paint: {
+                    'line-color': '#ffffff',
+                    'line-width': 4
+                }
+            });
+
+            // ライダー（現在地）のカスタムDOMマーカー作成
+            const el = document.createElement('div');
+            el.className = 'rider-marker';
+            el.innerHTML = `
+                <div class="rider-beacon"></div>
+                <div class="rider-arrow">▲</div>
+            `;
+            this.riderMarker = new maplibregl.Marker({ element: el })
+                .setLngLat([coordinates[0][0], coordinates[0][1]])
+                .addTo(this.map);
+
+            this.updateState(0.0);
+            this.animate = this.animate.bind(this);
+            requestAnimationFrame(this.animate);
         });
-    }
-
-    initRider() {
-        this.riderGroup = new THREE.Group();
-
-        // Pin body (Glowing sphere & arrow indicator)
-        const sphereGeo = new THREE.SphereGeometry(2.5, 32, 16);
-        const sphereMat = new THREE.MeshStandardMaterial({
-            color: 0x00f0ff,
-            emissive: 0x00f0ff,
-            emissiveIntensity: 0.6,
-            roughness: 0.2
-        });
-        this.riderSphere = new THREE.Mesh(sphereGeo, sphereMat);
-        this.riderSphere.position.y = 2.5;
-        this.riderGroup.add(this.riderSphere);
-
-        // Direction Arrow Pointer
-        const pointerGeo = new THREE.ConeGeometry(1.4, 4, 16);
-        pointerGeo.rotateX(Math.PI / 2); // Point forward along Z
-        const pointerMat = new THREE.MeshStandardMaterial({
-            color: 0xffffff,
-            emissive: 0xffffff,
-            emissiveIntensity: 0.4
-        });
-        const pointer = new THREE.Mesh(pointerGeo, pointerMat);
-        pointer.position.set(0, 2.5, 4.0);
-        this.riderGroup.add(pointer);
-
-        // Pulsing light on rider
-        this.riderLight = new THREE.PointLight(0x00f0ff, 2.5, 30);
-        this.riderLight.position.y = 3;
-        this.riderGroup.add(this.riderLight);
-
-        this.scene.add(this.riderGroup);
     }
 
     initElevationProfile() {
@@ -170,20 +157,20 @@ class App {
 
         for (let i = 0; i <= samples; i++) {
             const u = i / samples;
-            const state = this.courseManager.getStateAtProgress(u);
-            elevations.push(state.altitude);
-            if (state.altitude < minAlt) minAlt = state.altitude;
-            if (state.altitude > maxAlt) maxAlt = state.altitude;
+            const state = this.course.getStateAtProgress(u);
+            elevations.push(state.alt);
+            if (state.alt < minAlt) minAlt = state.alt;
+            if (state.alt > maxAlt) maxAlt = state.alt;
         }
 
         const altSpan = Math.max(maxAlt - minAlt, 10);
         const padY = 8;
         const getY = (alt) => h - padY - ((alt - minAlt) / altSpan) * (h - padY * 2);
 
-        // Draw profile fill
+        // 背景グラデーション
         const gradient = ctx.createLinearGradient(0, 0, 0, h);
-        gradient.addColorStop(0, 'rgba(0, 240, 255, 0.4)');
-        gradient.addColorStop(1, 'rgba(0, 240, 255, 0.02)');
+        gradient.addColorStop(0, 'rgba(0, 240, 255, 0.45)');
+        gradient.addColorStop(1, 'rgba(0, 240, 255, 0.05)');
 
         ctx.beginPath();
         ctx.moveTo(0, h);
@@ -197,7 +184,7 @@ class App {
         ctx.fillStyle = gradient;
         ctx.fill();
 
-        // Stroke line
+        // コースライン
         ctx.beginPath();
         for (let i = 0; i <= samples; i++) {
             const x = (i / samples) * w;
@@ -206,16 +193,16 @@ class App {
             else ctx.lineTo(x, y);
         }
         ctx.strokeStyle = '#00f0ff';
-        ctx.lineWidth = 1.8;
+        ctx.lineWidth = 2;
         ctx.stroke();
 
-        // Rider indicator dot on profile
+        // ライダーインジケータ
         const riderX = this.currentProgress * w;
-        const riderState = this.courseManager.getStateAtProgress(this.currentProgress);
-        const riderY = getY(riderState.altitude);
+        const riderState = this.course.getStateAtProgress(this.currentProgress);
+        const riderY = getY(riderState.alt);
 
         ctx.beginPath();
-        ctx.arc(riderX, riderY, 4, 0, Math.PI * 2);
+        ctx.arc(riderX, riderY, 4.5, 0, Math.PI * 2);
         ctx.fillStyle = '#ffffff';
         ctx.fill();
         ctx.strokeStyle = '#00f0ff';
@@ -224,15 +211,15 @@ class App {
     }
 
     initUI() {
-        // Elements
         this.progressSlider = document.getElementById('progress-slider');
         this.progressInput = document.getElementById('progress-input');
         this.btnPlay = document.getElementById('btn-play');
         this.btnReset = document.getElementById('btn-reset');
-        this.camFollowBtn = document.getElementById('cam-follow');
+        
+        this.camChaseBtn = document.getElementById('cam-chase');
+        this.camDroneBtn = document.getElementById('cam-drone');
         this.camFreeBtn = document.getElementById('cam-free');
 
-        // Metrics elements
         this.elDistance = document.getElementById('val-distance');
         this.elTotalDist = document.getElementById('val-total-distance');
         this.elAltitude = document.getElementById('val-altitude');
@@ -240,18 +227,16 @@ class App {
         this.elSlopeWrap = document.getElementById('val-slope-wrap');
         this.elCoords = document.getElementById('val-coords');
 
-        const totalKm = (this.courseManager.totalDistance / 1000).toFixed(2);
+        const totalKm = (this.course.totalDistance / 1000).toFixed(2);
         this.elTotalDist.textContent = `/ ${totalKm} km`;
     }
 
     setupEvents() {
-        // Slider drag
         this.progressSlider.addEventListener('input', (e) => {
             const val = parseFloat(e.target.value) / 100;
             this.updateState(val);
         });
 
-        // Numerical input
         this.progressInput.addEventListener('change', (e) => {
             let val = parseFloat(e.target.value);
             if (isNaN(val)) val = 0;
@@ -259,98 +244,104 @@ class App {
             this.updateState(val);
         });
 
-        // Play / Pause
         this.btnPlay.addEventListener('click', () => {
             this.isPlaying = !this.isPlaying;
-            this.btnPlay.textContent = this.isPlaying ? '停止 (Pause)' : '再生 (Auto Run)';
+            this.btnPlay.textContent = this.isPlaying ? '停止 (Pause)' : '再生 (Auto Fly)';
             this.btnPlay.classList.toggle('running', this.isPlaying);
         });
 
-        // Reset
         this.btnReset.addEventListener('click', () => {
             this.isPlaying = false;
-            this.btnPlay.textContent = '再生 (Auto Run)';
+            this.btnPlay.textContent = '再生 (Auto Fly)';
             this.btnPlay.classList.remove('running');
             this.updateState(0.0);
         });
 
-        // Camera toggles
-        this.camFollowBtn.addEventListener('click', () => {
-            this.cameraMode = 'follow';
-            this.camFollowBtn.classList.add('active');
-            this.camFreeBtn.classList.remove('active');
-            this.controls.enabled = false;
-        });
+        const setCamMode = (mode) => {
+            this.cameraMode = mode;
+            this.camChaseBtn.classList.toggle('active', mode === 'chase');
+            this.camDroneBtn.classList.toggle('active', mode === 'drone');
+            this.camFreeBtn.classList.toggle('active', mode === 'free');
+            this.updateCamera();
+        };
 
-        this.camFreeBtn.addEventListener('click', () => {
-            this.cameraMode = 'free';
-            this.camFreeBtn.classList.add('active');
-            this.camFollowBtn.classList.remove('active');
-            this.controls.enabled = true;
-            this.controls.target.copy(this.riderGroup.position);
-        });
+        this.camChaseBtn.addEventListener('click', () => setCamMode('chase'));
+        this.camDroneBtn.addEventListener('click', () => setCamMode('drone'));
+        this.camFreeBtn.addEventListener('click', () => setCamMode('free'));
 
-        // Click on elevation chart to jump
         this.chartCanvas.addEventListener('click', (e) => {
             const rect = this.chartCanvas.getBoundingClientRect();
             const clickX = e.clientX - rect.left;
             const progress = Math.max(0, Math.min(1, clickX / rect.width));
             this.updateState(progress);
         });
-
-        // Resize
-        window.addEventListener('resize', () => {
-            this.camera.aspect = window.innerWidth / window.innerHeight;
-            this.camera.updateProjectionMatrix();
-            this.renderer.setSize(window.innerWidth, window.innerHeight);
-        });
     }
 
     updateState(progress) {
-        this.currentProgress = ((progress % 1.0) + 1.0) % 1.0; // wrap safely
-        const state = this.courseManager.getStateAtProgress(this.currentProgress);
+        this.currentProgress = ((progress % 1.0) + 1.0) % 1.0;
+        const state = this.course.getStateAtProgress(this.currentProgress);
 
-        // Update 3D Rider Position & Heading
-        this.riderGroup.position.copy(state.position);
+        // Update Rider Marker
+        if (this.riderMarker) {
+            this.riderMarker.setLngLat([state.lon, state.lat]);
+            const arrow = this.riderMarker.getElement().querySelector('.rider-arrow');
+            if (arrow) {
+                arrow.style.transform = `rotate(${state.bearing}deg)`;
+            }
+        }
 
-        // Orient rider along tangent
-        const lookTarget = state.position.clone().add(state.tangent);
-        this.riderGroup.lookAt(lookTarget);
-
-        // Update UI Controls
+        // Update UI
         const pct100 = (this.currentProgress * 100).toFixed(1);
         if (document.activeElement !== this.progressInput) {
             this.progressInput.value = pct100;
         }
         this.progressSlider.value = (this.currentProgress * 100).toFixed(2);
 
-        // Update Metrics
         this.elDistance.textContent = (state.distance / 1000).toFixed(2);
-        this.elAltitude.textContent = state.altitude.toFixed(1);
+        this.elAltitude.textContent = state.alt.toFixed(1);
 
-        const slopeSign = state.slopePct >= 0 ? '+' : '';
-        this.elSlope.textContent = `${slopeSign}${state.slopePct.toFixed(1)}`;
-        if (state.slopePct > 3) {
+        const sign = state.slope >= 0 ? '+' : '';
+        this.elSlope.textContent = `${sign}${state.slope.toFixed(1)}`;
+        if (state.slope > 5) {
             this.elSlopeWrap.style.color = 'var(--climb-color)';
-        } else if (state.slopePct < -3) {
+        } else if (state.slope < -2) {
             this.elSlopeWrap.style.color = 'var(--descent-color)';
         } else {
             this.elSlopeWrap.style.color = 'var(--flat-color)';
         }
 
-        this.elCoords.textContent = `${state.position.x.toFixed(0)}, ${state.position.y.toFixed(0)}, ${state.position.z.toFixed(0)}`;
+        this.elCoords.textContent = `${state.lon.toFixed(4)}, ${state.lat.toFixed(4)}`;
 
-        // Redraw Mini Chart
+        // Chart dot
         this.drawElevationChart();
 
-        // Update Follow Camera
-        if (this.cameraMode === 'follow') {
-            const backwardOffset = state.tangent.clone().multiplyScalar(-24);
-            const upwardOffset = new THREE.Vector3(0, 10, 0);
-            const cameraPos = state.position.clone().add(backwardOffset).add(upwardOffset);
+        // Camera sync
+        this.updateCamera();
+    }
 
-            this.camera.position.lerp(cameraPos, 0.12);
-            this.camera.lookAt(state.position.clone().add(new THREE.Vector3(0, 3, 0)));
+    updateCamera() {
+        if (!this.map || this.cameraMode === 'free') return;
+
+        const state = this.course.getStateAtProgress(this.currentProgress);
+
+        if (this.cameraMode === 'chase') {
+            // ライダー後方からのダイナミック追従
+            this.map.easeTo({
+                center: [state.lon, state.lat],
+                pitch: 75,
+                bearing: state.bearing,
+                zoom: 15.8,
+                duration: 100
+            });
+        } else if (this.cameraMode === 'drone') {
+            // 上空からのドローン空撮視点
+            this.map.easeTo({
+                center: [state.lon, state.lat],
+                pitch: 45,
+                bearing: (state.bearing + 40) % 360,
+                zoom: 14.5,
+                duration: 100
+            });
         }
     }
 
@@ -360,16 +351,10 @@ class App {
         if (this.isPlaying) {
             const nextProgress = (this.currentProgress + this.playSpeed) % 1.0;
             this.updateState(nextProgress);
-        } else if (this.cameraMode === 'free') {
-            this.controls.update();
         }
-
-        this.renderer.render(this.scene, this.camera);
     }
 }
 
-// Start on DOM loaded
 window.addEventListener('DOMContentLoaded', () => {
     new App();
 });
-
