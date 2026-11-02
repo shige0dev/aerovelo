@@ -236,11 +236,21 @@ class App {
     initElevationProfile() {
         this.chartCanvas = document.getElementById('elevation-canvas');
         this.chartCtx = this.chartCanvas.getContext('2d');
+        this.resizeChartCanvas();
         this.drawElevationChart();
+    }
+
+    resizeChartCanvas() {
+        if (!this.chartCanvas) return;
+        const rect = this.chartCanvas.parentElement ? this.chartCanvas.parentElement.getBoundingClientRect() : null;
+        const w = rect ? Math.floor(rect.width) : window.innerWidth;
+        this.chartCanvas.width = Math.max(w, 300);
+        this.chartCanvas.height = 40;
     }
 
     drawElevationChart() {
         const ctx = this.chartCtx;
+        if (!ctx || !this.chartCanvas) return;
         const w = this.chartCanvas.width;
         const h = this.chartCanvas.height;
 
@@ -326,6 +336,16 @@ class App {
         this.rowSpeed = document.getElementById('row-speed');
         this.speedVal = document.getElementById('speed-val');
         this.speedEditHint = document.getElementById('speed-edit-hint');
+
+        // 負荷手動操作 UI
+        this.rowTrainer = document.getElementById('row-trainer');
+        this.btnManualSlope = document.getElementById('btn-manual-slope');
+        this.trainerEditHint = document.getElementById('trainer-edit-hint');
+        this.isManualSlopeMode = false;
+
+        // ボトムバー表示要素
+        this.bottomSlopeDisplay = document.getElementById('bottom-slope-display');
+        this.bottomDistDisplay = document.getElementById('bottom-dist-display');
 
         this.camPitchSlider = document.getElementById('cam-pitch-slider');
         this.camPitchVal = document.getElementById('cam-pitch-val');
@@ -647,6 +667,98 @@ class App {
             updateSpeedEditability();
         });
 
+        // 負荷「手動」ボタントグル & 負荷スワイプ/スライド操作
+        const updateTrainerEditability = () => {
+            if (this.rowTrainer) {
+                this.rowTrainer.classList.toggle('editable', this.isManualSlopeMode);
+                if (this.trainerEditHint) {
+                    this.trainerEditHint.style.display = this.isManualSlopeMode ? 'inline' : 'none';
+                }
+            }
+            if (this.btnManualSlope) {
+                this.btnManualSlope.classList.toggle('active', this.isManualSlopeMode);
+            }
+        };
+
+        if (this.btnManualSlope) {
+            this.btnManualSlope.addEventListener('click', () => {
+                this.isManualSlopeMode = !this.isManualSlopeMode;
+                updateTrainerEditability();
+                if (!this.isManualSlopeMode) {
+                    // 自動モードに戻す場合はコース斜度を送信
+                    const state = this.course.getStateAtProgress(this.currentProgress);
+                    this.sendSlopeToTrainer(state.slope);
+                }
+            });
+        }
+
+        // 負荷表示行の上下スワイプ／ドラッグ操作（手動モード時のみ有効）
+        if (this.rowTrainer) {
+            let isDragging = false;
+            let startY = 0;
+            let startSlope = 0;
+
+            const onPointerDown = (clientY) => {
+                if (!this.isManualSlopeMode) return;
+                isDragging = true;
+                startY = clientY;
+                startSlope = this.manualSlope;
+                document.body.style.userSelect = 'none';
+            };
+
+            const onPointerMove = (clientY) => {
+                if (!isDragging || !this.isManualSlopeMode) return;
+                // 上へドラッグ（-Y）で負荷アップ、下へドラッグ（+Y）で負荷ダウン
+                const deltaY = startY - clientY;
+                const slopeChange = (deltaY / 15); // 15pxごとに 1.0% 変化
+                const nextSlope = Math.max(0, Math.min(7, startSlope + slopeChange));
+                this.applyManualSlope(Math.round(nextSlope * 10) / 10);
+            };
+
+            const onPointerUp = () => {
+                if (isDragging) {
+                    isDragging = false;
+                    document.body.style.userSelect = '';
+                }
+            };
+
+            this.rowTrainer.addEventListener('mousedown', (e) => {
+                if (e.target === this.btnManualSlope) return;
+                onPointerDown(e.clientY);
+                const moveHandler = (moveEvent) => onPointerMove(moveEvent.clientY);
+                const upHandler = () => {
+                    onPointerUp();
+                    window.removeEventListener('mousemove', moveHandler);
+                    window.removeEventListener('mouseup', upHandler);
+                };
+                window.addEventListener('mousemove', moveHandler);
+                window.addEventListener('mouseup', upHandler);
+            });
+
+            this.rowTrainer.addEventListener('touchstart', (e) => {
+                if (e.touches.length > 0 && e.target !== this.btnManualSlope) {
+                    onPointerDown(e.touches[0].clientY);
+                }
+            }, { passive: true });
+
+            this.rowTrainer.addEventListener('touchmove', (e) => {
+                if (isDragging && e.touches.length > 0) {
+                    onPointerMove(e.touches[0].clientY);
+                }
+            }, { passive: true });
+
+            this.rowTrainer.addEventListener('touchend', onPointerUp);
+            this.rowTrainer.addEventListener('touchcancel', onPointerUp);
+
+            this.rowTrainer.addEventListener('wheel', (e) => {
+                if (!this.isManualSlopeMode) return;
+                e.preventDefault();
+                const delta = e.deltaY < 0 ? 0.2 : -0.2;
+                const nextSlope = Math.max(0, Math.min(7, this.manualSlope + delta));
+                this.applyManualSlope(Math.round(nextSlope * 10) / 10);
+            }, { passive: false });
+        }
+
         // 速度表示行の上下スワイプ／ドラッグ操作（AUTOPLAY時のみ有効）
         if (this.rowSpeed) {
             let isDragging = false;
@@ -669,7 +781,7 @@ class App {
                 const nextSpeed = Math.max(1, Math.min(80, startSpeed + speedChange));
                 this.speedKmh = nextSpeed;
                 if (this.speedVal) {
-                    this.speedVal.textContent = Math.round(this.speedKmh);
+                    this.speedVal.textContent = this.speedKmh.toFixed(2);
                 }
             };
 
@@ -682,6 +794,7 @@ class App {
 
             // マウスイベント
             this.rowSpeed.addEventListener('mousedown', (e) => {
+                if (e.target === this.btnPlay) return;
                 onPointerDown(e.clientY);
                 const moveHandler = (moveEvent) => onPointerMove(moveEvent.clientY);
                 const upHandler = () => {
@@ -695,7 +808,7 @@ class App {
 
             // タッチイベント（スマートフォン向け上下スワイプ）
             this.rowSpeed.addEventListener('touchstart', (e) => {
-                if (e.touches.length > 0) {
+                if (e.touches.length > 0 && e.target !== this.btnPlay) {
                     onPointerDown(e.touches[0].clientY);
                 }
             }, { passive: true });
@@ -716,7 +829,7 @@ class App {
                 const delta = e.deltaY < 0 ? 1 : -1;
                 this.speedKmh = Math.max(1, Math.min(80, this.speedKmh + delta));
                 if (this.speedVal) {
-                    this.speedVal.textContent = Math.round(this.speedKmh);
+                    this.speedVal.textContent = this.speedKmh.toFixed(2);
                 }
             }, { passive: false });
         }
@@ -781,6 +894,8 @@ class App {
 
         window.addEventListener('resize', () => {
             this.map.resize();
+            this.resizeChartCanvas();
+            this.drawElevationChart();
             if (this.cameraMode !== 'free') {
                 this.applyCameraTarget(0);
             }
@@ -834,15 +949,14 @@ class App {
         const clampedSlope = Math.max(0.0, Math.min(7.0, targetSlope));
         this.lastTargetSlopeSent = clampedSlope;
 
-        // HUDの 負荷 表示を常に更新（"Trainer:"は除去し、数値と単位・モードのみ表示）
+        // HUDの 負荷 表示を常に更新（下2桁小数点揃え）
         if (this.elTrainerSlope) {
             const trSign = clampedSlope > 0 ? '+' : '';
-            this.elTrainerSlope.textContent = `${trSign}${clampedSlope.toFixed(1)}`;
+            this.elTrainerSlope.textContent = `${trSign}${clampedSlope.toFixed(2)}`;
             this.elTrainerSlope.classList.toggle('alert', clampedSlope >= 7.0);
         }
         if (this.elTrainerUnit) {
-            const modeTag = this.isLfoRunning ? '[AUTO]' : '[手動]';
-            this.elTrainerUnit.textContent = `% ${modeTag}`;
+            this.elTrainerUnit.textContent = '%';
         }
 
         if (this.bleManager && this.bleManager.isConnected) {
@@ -864,17 +978,32 @@ class App {
         }
         this.progressSlider.value = (this.currentProgress * 100).toFixed(2);
 
-        this.elDistance.textContent = (state.distance / 1000).toFixed(2);
-        this.elAltitude.textContent = state.alt.toFixed(1);
+        // 小数点下2桁に統一して数値を揃える
+        const distKm = (state.distance / 1000).toFixed(2);
+        this.elDistance.textContent = distKm;
+        this.elAltitude.textContent = state.alt.toFixed(2);
 
         const sign = state.slope >= 0 ? '+' : '';
-        this.elSlope.textContent = `${sign}${state.slope.toFixed(1)}`;
+        const slopeFormatted = `${sign}${state.slope.toFixed(2)}`;
+        this.elSlope.textContent = slopeFormatted;
 
-        // スマートトレーナー上限ガード（8%で頭打ち・下限は急降下防止で-8%）
+        // ボトムバーの統計表示も更新
+        if (this.bottomSlopeDisplay) {
+            this.bottomSlopeDisplay.textContent = `斜度: ${slopeFormatted}%`;
+        }
+        if (this.bottomDistDisplay) {
+            const totalKm = (this.course.totalDistance / 1000).toFixed(2);
+            this.bottomDistDisplay.textContent = `${distKm} / ${totalKm} km`;
+        }
+
+        // 速度表示（未設定時も下2桁）
+        if (this.speedVal && !this.speedVal.textContent.includes('.')) {
+            this.speedVal.textContent = this.speedKmh.toFixed(2);
+        }
+
+        // スマートトレーナー上限ガード（8%で頭打ち）
         const MAX_TRAINER_SLOPE = 8.0;
-        const MIN_TRAINER_SLOPE = -8.0;
         const rawSlope = state.slope;
-        const cappedTrainerSlope = Math.max(MIN_TRAINER_SLOPE, Math.min(MAX_TRAINER_SLOPE, rawSlope));
         const isCapped = rawSlope > MAX_TRAINER_SLOPE;
 
         if (this.elSlopeCard) {
@@ -889,8 +1018,9 @@ class App {
             this.elSlopeWrap.style.color = 'var(--flat-color)';
         }
 
-        // 手動指示負荷（またはLFO）をトレーナーへ送信
-        this.sendSlopeToTrainer(this.manualSlope);
+        // 手動負荷モード時は manualSlope、自動時はコース斜度 state.slope をトレーナーに反映
+        const targetTrainerSlope = this.isManualSlopeMode ? this.manualSlope : state.slope;
+        this.sendSlopeToTrainer(targetTrainerSlope);
 
         this.drawElevationChart();
 

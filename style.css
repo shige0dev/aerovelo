@@ -81,15 +81,16 @@ body {
 }
 
 /* ========================================================
-   UI Panel (横幅を半減: 230px -> 115px、幅狭超極小スリム化)
+   UI Panel (横幅を20px戻して135pxに設定、横スクロール完全防止)
    ======================================================== */
 #ui-panel {
     position: absolute;
     top: 10px;
     left: 10px;
-    width: 115px;
-    max-height: calc(100vh - 20px);
+    width: 135px;
+    max-height: calc(100vh - 100px);
     overflow-y: auto;
+    overflow-x: hidden;
     background: var(--panel-bg);
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
@@ -413,31 +414,89 @@ input[type="range"]::-webkit-slider-thumb {
     box-shadow: 0 0 6px var(--accent-glow);
 }
 
-/* Progress Main Row: 進捗率入力の横に 再生 / 0% をインライン配置 */
-.progress-group {
-    padding: 2px 0 3px;
+/* ========================================================
+   Bottom Bar (画面最下段 全幅 進捗＆標高・勾配プロファイル)
+   ======================================================== */
+#bottom-bar {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100vw;
+    background: rgba(15, 23, 42, 0.92);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-top: 1px solid var(--panel-border);
+    padding: 4px 12px 6px;
+    z-index: 10;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.6);
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 3px;
+    box-sizing: border-box;
 }
 
-.elevation-slider-wrapper {
-    position: relative;
+.bottom-bar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     width: 100%;
+}
+
+.bottom-progress-info {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.bottom-title {
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: 0.04em;
+}
+
+.mini-wrap {
+    padding: 1px 4px;
+}
+
+.mini-wrap input {
+    width: 44px;
+    background: transparent;
+    border: none;
+    color: #ffffff;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-align: right;
+    outline: none;
+    font-family: monospace;
+}
+
+.bottom-course-stats {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.bottom-stat-tag {
+    font-size: 0.64rem;
+    font-family: monospace;
+    font-weight: 600;
+    color: #cbd5e1;
     background: rgba(0, 0, 0, 0.4);
     border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+    padding: 1px 6px;
+}
+
+.bottom-canvas-slider-container {
+    position: relative;
+    width: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: 4px;
     overflow: hidden;
     display: flex;
     flex-direction: column;
-}
-
-/* スライダーのつまみ（幅12px）の中心に合わせるため左右に6pxのパディング */
-.elevation-canvas-box {
-    width: 100%;
-    box-sizing: border-box;
-    padding: 0 6px;
-    display: flex;
 }
 
 #elevation-canvas {
@@ -447,48 +506,10 @@ input[type="range"]::-webkit-slider-thumb {
     cursor: pointer;
 }
 
-.overlay-slider {
+.bottom-slider {
     width: 100%;
-    margin-top: -2px;
-}
-
-.progress-main-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 2px;
-}
-
-.progress-info-wrap {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-}
-
-.ctrl-title {
-    font-size: 0.62rem;
-    font-weight: 600;
-    color: var(--text-muted);
-}
-
-.inline-play-btns {
-    display: flex;
-    gap: 3px;
-}
-
-.mini-ctrl-btn {
-    min-height: 18px !important;
-    padding: 1px 6px !important;
-    font-size: 0.58rem !important;
-    border-radius: 3px !important;
-}
-
-.icon-play-btn {
-    width: 26px !important;
-    padding: 1px 0 !important;
-    font-size: 0.72rem !important;
-    font-family: inherit;
-    line-height: 1;
+    margin-top: -3px;
+    cursor: pointer;
 }
 
 .speed-group {
@@ -585,7 +606,7 @@ input[type="range"]::-webkit-slider-thumb {
     gap: 3px;
 }
 
-/* HUD Metrics (7行リスト表示) */
+/* HUD Metrics (7行リスト表示: 負荷・速度・距離・標高・斜度・Power・Cadence) */
 .hud-group {
     padding: 0;
 }
@@ -593,44 +614,27 @@ input[type="range"]::-webkit-slider-thumb {
 .metrics-list {
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 2.5px;
 }
 
 .metric-row {
     background: #000000;
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 4px;
-    padding: 2px 6px;
+    padding: 2px 4px;
     height: 22px;
     box-sizing: border-box;
     display: flex;
     align-items: center;
     justify-content: space-between;
+    white-space: nowrap;
 }
 
-/* 速度行 (スライドなし・AUTOPLAY時のみ上下スワイプ編集可能) */
-.speed-row {
-    transition: all 0.2s ease;
-}
-
-.speed-row.editable {
-    background: #000000;
-    border-color: rgba(0, 240, 255, 0.5);
-    cursor: ns-resize;
-    user-select: none;
-    touch-action: none;
-}
-
-.speed-row.editable:hover {
-    background: #000000;
-    box-shadow: 0 0 8px rgba(0, 240, 255, 0.3);
-}
-
-.speed-hint {
-    font-size: 0.52rem;
-    color: var(--accent);
-    margin-left: 2px;
-    font-weight: 800;
+.metric-head {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    flex-shrink: 0;
 }
 
 .metric-row .metric-label {
@@ -640,20 +644,88 @@ input[type="range"]::-webkit-slider-thumb {
     line-height: 1;
 }
 
-/* 小数点位置が揃うメトリクス数値ラッパー */
+/* インライン操作ボタン (手動 / ▶) */
+.metric-inline-btn {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #cbd5e1;
+    font-size: 0.52rem;
+    font-weight: 700;
+    padding: 1px 4px;
+    border-radius: 3px;
+    cursor: pointer;
+    line-height: 1;
+    transition: all 0.15s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.metric-inline-btn:hover {
+    background: rgba(0, 240, 255, 0.2);
+    border-color: var(--accent);
+    color: #ffffff;
+}
+
+.metric-inline-btn.active {
+    background: #00f0ff;
+    color: #0b0f19;
+    border-color: #00f0ff;
+    box-shadow: 0 0 5px rgba(0, 240, 255, 0.5);
+}
+
+.metric-inline-btn.running {
+    background: #ef4444;
+    color: #ffffff;
+    border-color: #ef4444;
+}
+
+.metric-inline-btn.icon-play-btn {
+    width: 18px;
+    height: 15px;
+    padding: 0;
+    font-size: 0.6rem;
+}
+
+/* 速度行 & 負荷行 (スライド/スワイプ編集可能モード) */
+.speed-row, .ble-trainer-row {
+    transition: all 0.2s ease;
+}
+
+.speed-row.editable, .ble-trainer-row.editable {
+    background: #000000;
+    border-color: rgba(0, 240, 255, 0.6);
+    cursor: ns-resize;
+    user-select: none;
+    touch-action: none;
+}
+
+.speed-row.editable:hover, .ble-trainer-row.editable:hover {
+    box-shadow: 0 0 6px rgba(0, 240, 255, 0.4);
+}
+
+.speed-hint {
+    font-size: 0.52rem;
+    color: var(--accent);
+    margin-left: 2px;
+    font-weight: 800;
+}
+
+/* 小数点位置が揃うメトリクス数値ラッパー (下2桁 .toFixed(2) に最適化) */
 .metric-value-wrap {
     display: flex;
     align-items: baseline;
     justify-content: flex-end;
     font-family: monospace;
     line-height: 1;
+    white-space: nowrap;
 }
 
 .metric-num {
     display: inline-block;
-    width: 38px;
+    width: 44px;
     text-align: right;
-    font-size: 0.65rem;
+    font-size: 0.64rem;
     font-weight: 700;
     color: var(--text-primary);
     font-variant-numeric: tabular-nums;
@@ -661,7 +733,7 @@ input[type="range"]::-webkit-slider-thumb {
 
 .metric-unit {
     display: inline-block;
-    min-width: 34px;
+    min-width: 30px;
     margin-left: 2px;
     font-size: 0.48rem;
     color: var(--text-muted);

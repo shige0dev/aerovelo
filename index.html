@@ -20,7 +20,7 @@
             <div class="header-top">
                 <h1>AeroVelo</h1>
                 <div class="header-actions">
-                    <span class="version-badge" id="app-version">v1.4.1</span>
+                    <span class="version-badge" id="app-version">v1.4.2</span>
                     <button type="button" id="btn-modal-settings" class="icon-btn" title="設定 (GPX / トレーナー / テスト)">⚙️</button>
                     <button type="button" id="btn-fullscreen" class="icon-btn" title="全画面表示 (F11)">⛶</button>
                 </div>
@@ -31,43 +31,36 @@
             </div>
         </header>
 
-        <!-- Progress, Elevation Profile & Playback Controls (合体配置) -->
-        <section class="control-group progress-group">
-            <div class="progress-main-row">
-                <div class="progress-info-wrap">
-                    <span class="ctrl-title">進捗</span>
-                    <div class="input-wrap">
-                        <input type="number" id="progress-input" min="0" max="100" step="0.1" value="0.0">
-                        <span class="unit">%</span>
-                    </div>
-                </div>
-                <div class="inline-play-btns">
-                    <button id="btn-play" class="btn primary mini-ctrl-btn icon-play-btn" title="自動再生 (Auto Fly)">▶</button>
-                </div>
-            </div>
-
-            <!-- スライダーの真上に合体した標高プロファイルグラフ -->
-            <div class="elevation-slider-wrapper">
-                <div class="elevation-canvas-box">
-                    <canvas id="elevation-canvas" width="200" height="42"></canvas>
-                </div>
-                <input type="range" id="progress-slider" min="0" max="100" step="0.05" value="0" class="overlay-slider">
-            </div>
-        </section>
-
-        <!-- HUD Metrics (情報表示リスト) -->
+        <!-- HUD Metrics (情報表示リスト: 負荷を速度の上に配置、手動/再生ボタン直結) -->
         <section class="hud-group">
             <div class="metrics-list">
-                <!-- 速度行: スライドなし、AUTOPLAY時のみ上下スワイプ・ドラッグで速度編集可能 -->
-                <div class="metric-row speed-row" id="row-speed" title="AUTOPLAY時のみ上下スワイプで速度変更可能">
-                    <span class="metric-label">速度</span>
+                <!-- 1行目: 負荷 (旧Trainer負荷) [手動]ボタン付き・手動有効時はスライダー/スワイプで変更可能 -->
+                <div class="metric-row ble-trainer-row" id="row-trainer">
+                    <div class="metric-head">
+                        <span class="metric-label">負荷</span>
+                        <button type="button" id="btn-manual-slope" class="metric-inline-btn" title="手動負荷モード切替">手動</button>
+                    </div>
                     <span class="metric-value-wrap">
-                        <span class="metric-num" id="speed-val">25.0</span>
+                        <span class="metric-num" id="val-trainer-slope">+0.00</span>
+                        <span class="metric-unit" id="val-trainer-unit">%</span>
+                        <span id="trainer-edit-hint" class="speed-hint" style="display: none;">⇅</span>
+                    </span>
+                </div>
+
+                <!-- 2行目: 速度 [▶]ボタン付き・AUTOPLAY有効時はスライド/スワイプで変更可能 -->
+                <div class="metric-row speed-row" id="row-speed" title="AUTOPLAY時のみ上下スワイプ・ドラッグで速度変更可能">
+                    <div class="metric-head">
+                        <span class="metric-label">速度</span>
+                        <button type="button" id="btn-play" class="metric-inline-btn icon-play-btn" title="自動再生 (Auto Fly)">▶</button>
+                    </div>
+                    <span class="metric-value-wrap">
+                        <span class="metric-num" id="speed-val">25.00</span>
                         <span class="metric-unit">km/h</span>
                         <span id="speed-edit-hint" class="speed-hint" style="display: none;">⇅</span>
                     </span>
                 </div>
-                <!-- 1行目: 距離 -->
+
+                <!-- 3行目: 距離 -->
                 <div class="metric-row">
                     <span class="metric-label">距離</span>
                     <span class="metric-value-wrap">
@@ -75,23 +68,26 @@
                         <span class="metric-unit" id="val-total-distance">/ 0.00 km</span>
                     </span>
                 </div>
-                <!-- 2行目: 標高 -->
+
+                <!-- 4行目: 標高 -->
                 <div class="metric-row">
                     <span class="metric-label">標高</span>
                     <span class="metric-value-wrap">
-                        <span class="metric-num" id="val-altitude">0.0</span>
+                        <span class="metric-num" id="val-altitude">0.00</span>
                         <span class="metric-unit">m</span>
                     </span>
                 </div>
-                <!-- 3行目: 斜度 -->
+
+                <!-- 5行目: 斜度 -->
                 <div class="metric-row">
                     <span class="metric-label">斜度</span>
                     <span class="metric-value-wrap" id="val-slope-wrap">
-                        <span class="metric-num" id="val-slope">+0.0</span>
+                        <span class="metric-num" id="val-slope">+0.00</span>
                         <span class="metric-unit">%</span>
                     </span>
                 </div>
-                <!-- 4行目: Power -->
+
+                <!-- 6行目: Power -->
                 <div class="metric-row ble-metric-row" id="card-power">
                     <span class="metric-label">Power</span>
                     <span class="metric-value-wrap">
@@ -99,20 +95,13 @@
                         <span class="metric-unit">W</span>
                     </span>
                 </div>
-                <!-- 5行目: Cadence -->
+
+                <!-- 7行目: Cadence -->
                 <div class="metric-row ble-metric-row" id="card-cadence">
                     <span class="metric-label">Cadence</span>
                     <span class="metric-value-wrap">
                         <span class="metric-num" id="val-cadence">--</span>
                         <span class="metric-unit">rpm</span>
-                    </span>
-                </div>
-                <!-- 6行目: 負荷 (旧Trainer負荷) -->
-                <div class="metric-row ble-trainer-row">
-                    <span class="metric-label">負荷</span>
-                    <span class="metric-value-wrap">
-                        <span class="metric-num" id="val-trainer-slope">+0.0</span>
-                        <span class="metric-unit" id="val-trainer-unit">% [手動]</span>
                     </span>
                 </div>
             </div>
@@ -149,6 +138,27 @@
                 <input type="range" id="cam-zoom-slider" min="13.0" max="18.5" step="0.1" value="16.5">
             </div>
         </section>
+    </div>
+
+    <!-- 画面最下段 全幅バー: 進捗 ＆ 勾配 (標高プロファイル) -->
+    <div id="bottom-bar">
+        <div class="bottom-bar-header">
+            <div class="bottom-progress-info">
+                <span class="bottom-title">進捗</span>
+                <div class="input-wrap mini-wrap">
+                    <input type="number" id="progress-input" min="0" max="100" step="0.1" value="0.0">
+                    <span class="unit">%</span>
+                </div>
+            </div>
+            <div class="bottom-course-stats">
+                <span id="bottom-slope-display" class="bottom-stat-tag">斜度: +0.00%</span>
+                <span id="bottom-dist-display" class="bottom-stat-tag">0.00 / 0.00 km</span>
+            </div>
+        </div>
+        <div class="bottom-canvas-slider-container">
+            <canvas id="elevation-canvas"></canvas>
+            <input type="range" id="progress-slider" min="0" max="100" step="0.02" value="0" class="bottom-slider">
+        </div>
     </div>
 
     <!-- 統合設定モーダル (⚙️ フラット表示) -->
