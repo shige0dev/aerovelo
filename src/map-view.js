@@ -9,11 +9,9 @@ export class MapViewController {
         this.cameraMode = 'track'; // 'track' | 'free'
         this.isModeTransitioning = false;
         this.currentCamBearing = null;
-        this.camBearingVelocity = 0;
         this.orbitAngleOffset = 0;
         this.cameraParams = { pitch: 68, zoom: 16.5 };
         this.riderMarker = null;
-        this.lastCamTime = 0;
         this.initMap(initialState);
     }
 
@@ -77,8 +75,6 @@ export class MapViewController {
 
     setCourse(course, initialState) {
         this.currentCamBearing = null;
-        this.camBearingVelocity = 0;
-        this.lastCamTime = 0;
         if (!this.map) return;
 
         if (!this.map.isStyleLoaded()) {
@@ -126,8 +122,6 @@ export class MapViewController {
 
     setCameraMode(mode, currentState) {
         this.cameraMode = mode;
-        this.lastCamTime = 0;
-        this.camBearingVelocity = 0;
         if (mode !== 'free' && currentState) {
             this.currentCamBearing = null;
             this.isModeTransitioning = true;
@@ -149,41 +143,19 @@ export class MapViewController {
         if (this.cameraMode !== 'free' && currentState) this.applyCameraTarget(currentState, 0);
     }
 
-    /**
-     * 臨界減衰バネモデル（SmoothDampAngle）による慣性付き角度スムージング
-     * 初動のガクつきを抑え、smoothTime（約1.6秒）かけて滑らかに加減速旋回する
-     */
-    smoothDampAngle(current, target, dt, smoothTime = 1.6, maxSpeed = 55) {
-        let diff = ((target - current + 540) % 360) - 180;
-        const omega = 2.0 / smoothTime;
-        const x = omega * dt;
-        const exp = 1.0 / (1.0 + x + 0.48 * x * x + 0.235 * x * x * x);
-
-        let change = -diff;
-        const maxChange = maxSpeed * smoothTime;
-        change = Math.max(-maxChange, Math.min(maxChange, change));
-
-        const temp = (this.camBearingVelocity + omega * change) * dt;
-        this.camBearingVelocity = (this.camBearingVelocity - omega * temp) * exp;
-        const output = (current - change) + (change + temp) * exp;
-        return (output + 360) % 360;
-    }
-
     applyCameraTarget(state, duration = 0) {
         if (!this.map || this.cameraMode === 'free' || !state) return;
 
         let targetPitch = this.cameraParams.pitch;
         const targetBearing = (state.bearing - this.orbitAngleOffset + 360) % 360;
 
-        const now = performance.now();
-        const dt = this.lastCamTime ? Math.min((now - this.lastCamTime) / 1000, 0.1) : 0.016;
-        this.lastCamTime = now;
-
         if (this.currentCamBearing === null || duration > 0) {
             this.currentCamBearing = targetBearing;
-            this.camBearingVelocity = 0;
         } else {
-            this.currentCamBearing = this.smoothDampAngle(this.currentCamBearing, targetBearing, dt);
+            // 目標との角度差 (-180°〜+180°) に対し毎回4%ずつ近づく（急カーブでも1フレーム最大0.5°＝秒間30°に制限）
+            const diff = ((targetBearing - this.currentCamBearing + 540) % 360) - 180;
+            const step = Math.max(-0.5, Math.min(0.5, diff * 0.04));
+            this.currentCamBearing = (this.currentCamBearing + step + 360) % 360;
         }
 
         if (this.map.queryTerrainElevation) {
