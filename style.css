@@ -162,46 +162,13 @@ body {
     padding: 4px 6px;
     display: flex;
     flex-direction: column;
-    gap: 3px;
-}
-
-.gpx-compact-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 6px;
-}
-
-.drop-zone {
-    text-align: left;
-    font-size: 0.64rem;
-    color: var(--text-muted);
-}
-
-.btn-link {
-    background: none;
-    border: none;
-    color: var(--accent);
-    font-size: 0.64rem;
-    font-weight: 600;
-    text-decoration: underline;
-    cursor: pointer;
-    padding: 0;
-}
-
-.tool-link {
-    font-size: 0.62rem;
-    color: var(--accent);
-    text-decoration: none;
-    border-bottom: 1px dotted var(--accent);
-    white-space: nowrap;
+    gap: 4px;
 }
 
 /* Preset Courses Dropdown Row */
 .preset-row {
     display: flex;
     align-items: center;
-    gap: 4px;
 }
 
 .preset-select {
@@ -219,6 +186,65 @@ body {
 .preset-select option {
     background: #0f172a;
     color: #f1f5f9;
+}
+
+/* GPX Actions Row: Drop, Explorer, Editor */
+.gpx-actions-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 4px;
+}
+
+.action-item {
+    flex: 1;
+    text-align: center;
+    font-size: 0.63rem;
+    font-weight: 600;
+    padding: 3px 2px;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+    text-decoration: none;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.action-item.drop-zone {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px dashed var(--panel-border);
+    color: var(--text-muted);
+    cursor: copy;
+}
+
+.action-item.drop-zone:hover, .gpx-section.dragover .action-item.drop-zone {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(0, 240, 255, 0.1);
+}
+
+.action-item.action-btn {
+    background: rgba(0, 240, 255, 0.1);
+    border: 1px solid rgba(0, 240, 255, 0.3);
+    color: var(--accent);
+    cursor: pointer;
+}
+
+.action-item.action-btn:hover {
+    background: rgba(0, 240, 255, 0.22);
+    border-color: var(--accent);
+}
+
+.action-item.action-link {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--panel-border);
+    color: #cbd5e1;
+}
+
+.action-item.action-link:hover {
+    background: rgba(255, 255, 255, 0.12);
+    color: #ffffff;
 }
 
 /* Controls */
@@ -299,7 +325,7 @@ input[type="range"]::-webkit-slider-thumb {
 
 .btn {
     flex: 1;
-    padding: 3px 6px; /* 高さをコンパクトに削減 */
+    padding: 3px 6px;
     min-height: 22px;
     border-radius: 4px;
     font-size: 0.66rem;

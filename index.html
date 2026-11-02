@@ -19,12 +19,12 @@
         <header class="panel-header">
             <div class="header-top">
                 <h1>AeroVelo <span>3D Terrain</span></h1>
-                <span class="version-badge" id="app-version">v0.9.1</span>
+                <span class="version-badge" id="app-version">v0.9.2</span>
             </div>
             <p class="subtitle" id="course-title">実地形 3D 衛星空撮バーチャルサイクリング</p>
         </header>
 
-        <!-- GPX Importer & Preset Selector Section -->
+        <!-- GPX Course Actions: Drop, Explorer, Editor -->
         <section class="control-group gpx-section">
             <div class="preset-row">
                 <select id="preset-select" class="preset-select">
@@ -32,12 +32,13 @@
                     <option value="gpx/kashida_27.9km_D1095.gpx">🇯🇵 Kashida (27.9km D+1095m)</option>
                 </select>
             </div>
-            <div class="gpx-compact-row">
+            <div class="gpx-actions-row">
                 <input type="file" id="gpx-file-input" accept=".gpx" style="display: none;">
-                <div id="drop-zone" class="drop-zone">
-                    <span class="drop-text">📁 GPXドロップ または <button type="button" id="btn-browse" class="btn-link">選択</button></span>
+                <div id="drop-zone" class="action-item drop-zone">
+                    <span class="action-label">Drop</span>
                 </div>
-                <a href="https://gpx-edit-pro.ovh/editeur-gpx/?lang=ja" target="_blank" rel="noopener noreferrer" class="tool-link">エディタ ↗</a>
+                <button type="button" id="btn-browse" class="action-item action-btn">Explorer</button>
+                <a href="https://gpx-edit-pro.ovh/editeur-gpx/?lang=ja" target="_blank" rel="noopener noreferrer" class="action-item action-link">Editor ↗</a>
             </div>
         </section>
 
