@@ -1,4 +1,5 @@
 import { GeoCourseManager, GPXParser, DEFAULT_LAKE_ROUTE } from './course.js';
+import { BleTrainerManager } from './ble.js';
 
 class App {
     constructor() {
@@ -9,6 +10,10 @@ class App {
         this.speedKmh = 25; // 時速 (km/h)
         this.isModeTransitioning = false;
         this.lastFrameTime = 0;
+
+        // Bluetooth Smart Trainer Manager
+        this.bleManager = new BleTrainerManager();
+        this.bleData = { power: null, cadence: null, speed: null };
 
         // 滑らかな角度補間（Lerp）用の現在カメラBearing
         this.currentCamBearing = null;
@@ -315,6 +320,14 @@ class App {
         this.btnGsiDem = document.getElementById('btn-gsi-dem');
         this.gsiBtnText = document.getElementById('gsi-btn-text');
 
+        // BLE UI Elements
+        this.btnBleConnect = document.getElementById('btn-ble-connect');
+        this.btnBleDisconnect = document.getElementById('btn-ble-disconnect');
+        this.bleStatusText = document.getElementById('ble-status-text');
+        this.bleIndicator = document.getElementById('ble-indicator');
+        this.valPower = document.getElementById('val-power');
+        this.valCadence = document.getElementById('val-cadence');
+
         this.updateTotalDistanceUI();
     }
 
@@ -432,6 +445,62 @@ class App {
     }
 
     setupEvents() {
+        // BLE イベントリスナー
+        if (this.btnBleConnect) {
+            this.btnBleConnect.addEventListener('click', async () => {
+                if (this.bleManager.isConnected) return;
+                try {
+                    this.bleStatusText.textContent = 'ペアリング中...';
+                    const res = await this.bleManager.connect();
+                    this.btnBleConnect.classList.add('connected');
+                    this.bleStatusText.textContent = `🟢 ${res.deviceName}`;
+                    if (this.btnBleDisconnect) this.btnBleDisconnect.style.display = 'flex';
+                } catch (err) {
+                    console.warn('BLE connect cancelled or failed:', err);
+                    this.btnBleConnect.classList.remove('connected');
+                    this.bleStatusText.textContent = '⚡ スマートトレーナー接続';
+                    if (this.btnBleDisconnect) this.btnBleDisconnect.style.display = 'none';
+                    if (err.name !== 'NotFoundError') {
+                        alert(`Bluetooth接続エラー: ${err.message}`);
+                    }
+                }
+            });
+        }
+
+        if (this.btnBleDisconnect) {
+            this.btnBleDisconnect.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.bleManager.disconnect();
+            });
+        }
+
+        this.bleManager.on('disconnected', () => {
+            if (this.btnBleConnect) {
+                this.btnBleConnect.classList.remove('connected');
+                this.bleStatusText.textContent = '⚡ スマートトレーナー接続';
+            }
+            if (this.btnBleDisconnect) {
+                this.btnBleDisconnect.style.display = 'none';
+            }
+            if (this.valPower) this.valPower.textContent = '--';
+            if (this.valCadence) this.valCadence.textContent = '--';
+        });
+
+        this.bleManager.on('data', (data) => {
+            if (data.power !== null && this.valPower) {
+                this.valPower.textContent = data.power;
+            }
+            if (data.cadence !== null && this.valCadence) {
+                this.valCadence.textContent = data.cadence;
+            }
+            // スマートトレーナーから実測速度が送られてきた場合、自動連動
+            if (data.speed !== null && data.speed > 0) {
+                this.speedKmh = data.speed;
+                if (this.speedSlider) this.speedSlider.value = Math.min(50, Math.round(data.speed));
+                if (this.speedVal) this.speedVal.textContent = `${Math.round(data.speed)} km/h`;
+            }
+        });
+
         this.progressSlider.addEventListener('input', (e) => {
             const val = parseFloat(e.target.value) / 100;
             this.updateState(val);
@@ -573,6 +642,11 @@ class App {
             this.elSlopeWrap.style.color = 'var(--descent-color)';
         } else {
             this.elSlopeWrap.style.color = 'var(--flat-color)';
+        }
+
+        // Bluetooth スマートトレーナーへ目標斜度（上限8%ガード済）を自動送信
+        if (this.bleManager && this.bleManager.isConnected) {
+            this.bleManager.sendSlope(cappedTrainerSlope);
         }
 
         this.elCoords.textContent = `${state.lon.toFixed(4)}, ${state.lat.toFixed(4)}`;

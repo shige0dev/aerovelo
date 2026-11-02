@@ -531,6 +531,101 @@ input[type="range"]::-webkit-slider-thumb {
     font-weight: 600;
 }
 
+/* BLE Smart Trainer Widgets */
+.ble-metric-card {
+    border-color: rgba(0, 240, 255, 0.2);
+    background: rgba(0, 240, 255, 0.04);
+}
+
+.ble-metric-card .metric-value {
+    color: var(--accent);
+}
+
+.ble-section {
+    padding: 3px 0px;
+}
+
+.ble-bar {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+}
+
+.ble-btn {
+    flex: 1;
+    background: rgba(0, 240, 255, 0.12);
+    border: 1px solid rgba(0, 240, 255, 0.35);
+    color: #38bdf8;
+    font-size: 0.63rem;
+    font-weight: 700;
+    padding: 4px 6px;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ble-btn:hover {
+    background: rgba(0, 240, 255, 0.24);
+    border-color: var(--accent);
+    color: #fff;
+    box-shadow: 0 0 10px rgba(0, 240, 255, 0.3);
+}
+
+.ble-btn.connected {
+    background: rgba(16, 185, 129, 0.18);
+    border-color: #10b981;
+    color: #a7f3d0;
+}
+
+.ble-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    display: inline-block;
+    transition: all 0.2s ease;
+}
+
+.ble-btn.connected .ble-dot {
+    background: #10b981;
+    box-shadow: 0 0 8px #10b981;
+    animation: ble-pulse 1.8s infinite;
+}
+
+@keyframes ble-pulse {
+    0% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.3); opacity: 0.6; }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+.ble-disconnect-btn {
+    background: rgba(239, 68, 68, 0.15);
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    color: #ef4444;
+    font-size: 0.65rem;
+    font-weight: 700;
+    width: 22px;
+    height: 22px;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.ble-disconnect-btn:hover {
+    background: #ef4444;
+    color: #fff;
+}
+
 /* Mini Profile Chart */
 #profile-container {
     position: absolute;

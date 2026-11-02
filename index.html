@@ -19,7 +19,7 @@
         <header class="panel-header">
             <div class="header-top">
                 <h1>AeroVelo <span>3D Terrain</span></h1>
-                <span class="version-badge" id="app-version">v0.9.9</span>
+                <span class="version-badge" id="app-version">v1.0.0</span>
             </div>
             <p class="subtitle" id="course-title">実地形 3D 衛星空撮バーチャルサイクリング</p>
         </header>
@@ -98,6 +98,25 @@
                     <span class="metric-label">経度・緯度</span>
                     <span class="metric-coords" id="val-coords">0.00, 0.00</span>
                 </div>
+                <div class="metric-card ble-metric-card" id="card-power">
+                    <span class="metric-label">Power (パワー)</span>
+                    <span class="metric-value"><span id="val-power">--</span> <small>W</small></span>
+                </div>
+                <div class="metric-card ble-metric-card" id="card-cadence">
+                    <span class="metric-label">Cadence (回転数)</span>
+                    <span class="metric-value"><span id="val-cadence">--</span> <small>rpm</small></span>
+                </div>
+            </div>
+        </section>
+
+        <!-- BLE Sensor Connect (Elite NERO / FTMS) -->
+        <section class="control-group ble-section">
+            <div class="ble-bar">
+                <button type="button" id="btn-ble-connect" class="ble-btn">
+                    <span class="ble-dot" id="ble-indicator"></span>
+                    <span id="ble-status-text">⚡ スマートトレーナー接続</span>
+                </button>
+                <button type="button" id="btn-ble-disconnect" class="ble-disconnect-btn" style="display: none;" title="切断">✕</button>
             </div>
         </section>
 
