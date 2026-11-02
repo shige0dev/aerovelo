@@ -247,6 +247,59 @@ body {
     color: #ffffff;
 }
 
+/* GSI 5m DEM Button */
+.gsi-row {
+    margin-top: 2px;
+}
+
+.gsi-btn {
+    width: 100%;
+    background: rgba(16, 185, 129, 0.12);
+    border: 1px solid rgba(16, 185, 129, 0.35);
+    color: #6ee7b7;
+    font-size: 0.63rem;
+    font-weight: 600;
+    padding: 3px 4px;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    transition: all 0.2s ease;
+}
+
+.gsi-btn:hover {
+    background: rgba(16, 185, 129, 0.22);
+    border-color: #34d399;
+    color: #a7f3d0;
+}
+
+.gsi-btn.loading {
+    opacity: 0.75;
+    cursor: wait;
+}
+
+.gsi-btn.active {
+    background: rgba(16, 185, 129, 0.28);
+    border-color: #10b981;
+    color: #fff;
+}
+
+.gsi-indicator {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #6ee7b7;
+    display: inline-block;
+    box-shadow: 0 0 6px rgba(110, 231, 183, 0.6);
+}
+
+.gsi-btn.active .gsi-indicator {
+    background: #10b981;
+    box-shadow: 0 0 8px #10b981;
+}
+
 /* Controls */
 .control-group {
     display: flex;

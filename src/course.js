@@ -62,7 +62,108 @@ export class GeoCourseManager {
         this.interpolatedPoints = [];
         this.totalDistance = 0;
         this.cumDistances = [];
+        this.isGsiCorrected = false;
         this.initInterpolation();
+    }
+
+    /**
+     * 日本国内判定 (国土地理院DEMのカバー範囲: 緯度20〜46, 経度122〜154)
+     */
+    isWithinJapan() {
+        if (!this.rawWaypoints || this.rawWaypoints.length === 0) return false;
+        const p0 = this.rawWaypoints[0];
+        return p0.lat >= 20 && p0.lat <= 46 && p0.lon >= 122 && p0.lon <= 154;
+    }
+
+    /**
+     * 国土地理院 標高API（DEM5A 5mレーザーメッシュ最優先）を用いた精密標高再計算
+     * @param {Function} onProgress (percent, current, total) コールバック
+     */
+    async recalculateWithGSI5m(onProgress = null) {
+        if (!this.isWithinJapan()) {
+            throw new Error('国土地理院の標高メッシュは日本国内のコースのみ対応しています。');
+        }
+
+        const totalPts = this.rawWaypoints.length;
+        // コース点数に応じて適切なサンプリング間隔を決定（約60〜70mピッチで最大180点、数秒で高速完了）
+        const targetCount = Math.min(180, Math.max(60, Math.round(this.totalDistance / 70)));
+        const step = Math.max(1, Math.floor(totalPts / targetCount));
+
+        const sampledIndices = [];
+        for (let i = 0; i < totalPts; i += step) {
+            sampledIndices.push(i);
+        }
+        if (sampledIndices[sampledIndices.length - 1] !== totalPts - 1) {
+            sampledIndices.push(totalPts - 1);
+        }
+
+        const newAltitudes = new Array(sampledIndices.length);
+        const concurrency = 6;
+        let completed = 0;
+
+        const fetchElevation = async (idxInSampled, ptIdx) => {
+            const pt = this.rawWaypoints[ptIdx];
+            const url = `https://cyberjapandata2.gsi.go.jp/general/dem/scripts/getelevation.php?lon=${pt.lon.toFixed(6)}&lat=${pt.lat.toFixed(6)}&outtype=JSON`;
+            try {
+                const res = await fetch(url);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data && typeof data.elevation === 'number') {
+                        newAltitudes[idxInSampled] = data.elevation;
+                        return;
+                    }
+                }
+            } catch (err) {
+                // 通信エラー時は元の標高値をフォールバック保持
+            }
+            newAltitudes[idxInSampled] = pt.alt;
+        };
+
+        for (let i = 0; i < sampledIndices.length; i += concurrency) {
+            const batch = [];
+            for (let c = 0; c < concurrency && (i + c) < sampledIndices.length; c++) {
+                const sIdx = i + c;
+                batch.push(
+                    fetchElevation(sIdx, sampledIndices[sIdx]).then(() => {
+                        completed++;
+                        if (onProgress) {
+                            const pct = Math.round((completed / sampledIndices.length) * 100);
+                            onProgress(pct, completed, sampledIndices.length);
+                        }
+                    })
+                );
+            }
+            await Promise.all(batch);
+        }
+
+        // 標高値をコース全点へ線形補間マッピング
+        const updatedWaypoints = this.rawWaypoints.map((pt, origIdx) => {
+            let lowerSample = 0;
+            for (let s = 0; s < sampledIndices.length - 1; s++) {
+                if (origIdx >= sampledIndices[s] && origIdx <= sampledIndices[s + 1]) {
+                    lowerSample = s;
+                    break;
+                }
+            }
+            const idx0 = sampledIndices[lowerSample];
+            const idx1 = sampledIndices[lowerSample + 1];
+            const alt0 = newAltitudes[lowerSample];
+            const alt1 = newAltitudes[lowerSample + 1];
+
+            const ratio = (idx1 - idx0) > 0 ? (origIdx - idx0) / (idx1 - idx0) : 0;
+            const interpolatedAlt = alt0 + (alt1 - alt0) * ratio;
+
+            return {
+                lon: pt.lon,
+                lat: pt.lat,
+                alt: Math.round(interpolatedAlt * 10) / 10
+            };
+        });
+
+        this.rawWaypoints = updatedWaypoints;
+        this.isGsiCorrected = true;
+        this.initInterpolation();
+        return true;
     }
 
     static haversineDistance(lon1, lat1, lon2, lat2) {

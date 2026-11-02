@@ -19,12 +19,12 @@
         <header class="panel-header">
             <div class="header-top">
                 <h1>AeroVelo <span>3D Terrain</span></h1>
-                <span class="version-badge" id="app-version">v0.9.7</span>
+                <span class="version-badge" id="app-version">v0.9.8</span>
             </div>
             <p class="subtitle" id="course-title">実地形 3D 衛星空撮バーチャルサイクリング</p>
         </header>
 
-        <!-- GPX Course Actions: Drop, Explorer, Editor -->
+        <!-- GPX Course Actions: Drop, Explorer, Editor + GSI 5m DEM -->
         <section class="control-group gpx-section">
             <div class="preset-row">
                 <select id="preset-select" class="preset-select">
@@ -40,6 +40,12 @@
                 </div>
                 <button type="button" id="btn-browse" class="action-item action-btn">Explorer</button>
                 <a href="https://gpx-edit-pro.ovh/editeur-gpx/?lang=ja" target="_blank" rel="noopener noreferrer" class="action-item action-link">Editor ↗</a>
+            </div>
+            <div class="gsi-row">
+                <button type="button" id="btn-gsi-dem" class="gsi-btn" title="国土地理院 5mメッシュ(DEM5A)レーザー測量データで標高と斜度を精密再計算">
+                    <span class="gsi-indicator"></span>
+                    <span id="gsi-btn-text">5mメッシュ標高で補正</span>
+                </button>
             </div>
         </section>
 

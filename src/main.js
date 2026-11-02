@@ -308,6 +308,10 @@ class App {
         this.camOrbitSlider = document.getElementById('cam-orbit-slider');
         this.camOrbitVal = document.getElementById('cam-orbit-val');
 
+        // GSI 5m DEM 補正ボタン
+        this.btnGsiDem = document.getElementById('btn-gsi-dem');
+        this.gsiBtnText = document.getElementById('gsi-btn-text');
+
         this.updateTotalDistanceUI();
     }
 
@@ -315,7 +319,20 @@ class App {
         const totalKm = (this.course.totalDistance / 1000).toFixed(2);
         this.elTotalDist.textContent = `/ ${totalKm} km`;
         if (this.elProfileChartTitle) {
-            this.elProfileChartTitle.textContent = `${this.course.name} 標高プロファイル`;
+            const statusTag = this.course.isGsiCorrected ? ' [DEM5A補正済]' : '';
+            this.elProfileChartTitle.textContent = `${this.course.name} 標高プロファイル${statusTag}`;
+        }
+        if (this.btnGsiDem) {
+            const isJapan = this.course.isWithinJapan();
+            this.btnGsiDem.style.display = isJapan ? 'flex' : 'none';
+            if (this.course.isGsiCorrected) {
+                this.btnGsiDem.classList.add('active');
+                this.btnGsiDem.classList.remove('loading');
+                this.gsiBtnText.textContent = '5mメッシュ補正済 (DEM5A)';
+            } else {
+                this.btnGsiDem.classList.remove('active', 'loading');
+                this.gsiBtnText.textContent = '5mメッシュ標高で補正';
+            }
         }
     }
 
@@ -326,6 +343,27 @@ class App {
         const btnBrowse = document.getElementById('btn-browse');
 
         if (!dropZone || !fileInput) return;
+
+        // GSI 5m DEM 補正ボタンイベント
+        if (this.btnGsiDem) {
+            this.btnGsiDem.addEventListener('click', async () => {
+                if (this.course.isGsiCorrected || this.btnGsiDem.classList.contains('loading')) return;
+                try {
+                    this.btnGsiDem.classList.add('loading');
+                    this.gsiBtnText.textContent = 'DEM取得中 0%...';
+                    await this.course.recalculateWithGSI5m((pct) => {
+                        this.gsiBtnText.textContent = `DEM取得中 ${pct}%...`;
+                    });
+                    this.updateTotalDistanceUI();
+                    this.drawElevationChart();
+                    this.updateState(this.currentProgress);
+                } catch (err) {
+                    console.error('GSI DEM error:', err);
+                    alert(`5mメッシュ標高の取得に失敗しました: ${err.message}`);
+                    this.updateTotalDistanceUI();
+                }
+            });
+        }
 
         // プリセット切替プルダウン
         if (this.presetSelect) {
