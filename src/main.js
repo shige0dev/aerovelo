@@ -898,9 +898,6 @@ class App {
         if (this.elSlopeCard) {
             this.elSlopeCard.classList.toggle('capped', isCapped);
         }
-        if (this.slopeCapBadge) {
-            this.slopeCapBadge.style.display = isCapped ? 'inline-block' : 'none';
-        }
 
         if (state.slope > 7) {
             this.elSlopeWrap.style.color = 'var(--climb-color)';

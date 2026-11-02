@@ -149,7 +149,7 @@ body {
 
 .version-badge {
     font-size: 0.58rem;
-    color: var(--text-muted);
+    color: #ffffff;
     font-family: monospace;
     letter-spacing: 0.02em;
     padding: 0 2px;
@@ -601,7 +601,7 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 .metric-row {
-    background: rgba(0, 0, 0, 0.4);
+    background: #000000;
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 4px;
     padding: 2px 6px;
@@ -618,15 +618,15 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 .speed-row.editable {
-    background: rgba(0, 240, 255, 0.12);
-    border-color: rgba(0, 240, 255, 0.4);
+    background: #000000;
+    border-color: rgba(0, 240, 255, 0.5);
     cursor: ns-resize;
     user-select: none;
     touch-action: none;
 }
 
 .speed-row.editable:hover {
-    background: rgba(0, 240, 255, 0.2);
+    background: #000000;
     box-shadow: 0 0 8px rgba(0, 240, 255, 0.3);
 }
 
@@ -675,7 +675,7 @@ input[type="range"]::-webkit-slider-thumb {
 
 .ble-metric-row {
     border-color: rgba(0, 240, 255, 0.2);
-    background: rgba(0, 240, 255, 0.04);
+    background: #000000;
 }
 
 .ble-metric-row .metric-num {
@@ -684,7 +684,7 @@ input[type="range"]::-webkit-slider-thumb {
 
 .ble-trainer-row {
     border-color: rgba(56, 189, 248, 0.25);
-    background: rgba(56, 189, 248, 0.06);
+    background: #000000;
 }
 
 .ble-trainer-row .metric-num {
@@ -695,37 +695,10 @@ input[type="range"]::-webkit-slider-thumb {
     color: #38bdf8;
 }
 
-/* Slope Capping & Warning Alert */
-.metric-row.capped {
-    background: rgba(239, 68, 68, 0.18);
-    border-color: rgba(239, 68, 68, 0.5);
-    box-shadow: 0 0 8px rgba(239, 68, 68, 0.25);
-    transition: all 0.25s ease;
-}
-
+/* 勾配8%超えアラート: 背景やバッジは付けず文字が赤色になるのみ */
 .metric-row.capped .metric-num,
 .metric-row.capped #val-slope {
     color: #ef4444 !important;
-    text-shadow: 0 0 6px rgba(239, 68, 68, 0.6);
-}
-
-.cap-badge {
-    display: inline-block;
-    font-size: 0.50rem;
-    font-weight: 800;
-    color: #fff;
-    background: #ef4444;
-    border-radius: 3px;
-    padding: 0px 3px;
-    margin-left: 3px;
-    vertical-align: middle;
-    letter-spacing: 0.02em;
-    animation: cap-pulse 1s infinite alternate;
-}
-
-@keyframes cap-pulse {
-    from { opacity: 0.8; }
-    to { opacity: 1; transform: scale(1.05); }
 }
 
 .metric-sub.alert {
