@@ -518,14 +518,14 @@ class App {
 
         this.progressSlider.addEventListener('input', (e) => {
             const val = parseFloat(e.target.value) / 100;
-            this.updateState(val);
+            this.setManualProgress(val);
         });
 
         this.progressInput.addEventListener('change', (e) => {
             let val = parseFloat(e.target.value);
             if (isNaN(val)) val = 0;
             val = Math.max(0, Math.min(100, val)) / 100;
-            this.updateState(val);
+            this.setManualProgress(val);
         });
 
         this.btnPlay.addEventListener('click', () => {
@@ -605,7 +605,7 @@ class App {
             const rect = this.chartCanvas.getBoundingClientRect();
             const clickX = e.clientX - rect.left;
             const progress = Math.max(0, Math.min(1, clickX / rect.width));
-            this.updateState(progress);
+            this.setManualProgress(progress);
         });
 
         window.addEventListener('resize', () => {
@@ -614,6 +614,19 @@ class App {
                 this.applyCameraTarget(0);
             }
         });
+    }
+
+    /**
+     * ユーザーによる現在地（スライダー / 入力値 / 標高グラフクリック）の手動調整
+     * BLE接続中であっても、この調整位置を新しい基準点（baseProgressAtBleStart）としてリセットし、
+     * ここからトレーナーのペダリングが前進するように同期する
+     */
+    setManualProgress(progress) {
+        if (this.bleManager && this.bleManager.isConnected) {
+            this.bleManager.resetDistance();
+        }
+        this.baseProgressAtBleStart = progress;
+        this.updateState(progress);
     }
 
     updateState(progress) {
