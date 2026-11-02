@@ -315,7 +315,7 @@ class App {
         this.elAltitude = document.getElementById('val-altitude');
         this.elSlope = document.getElementById('val-slope');
         this.elSlopeWrap = document.getElementById('val-slope-wrap');
-        this.elSlopeCard = this.elSlopeWrap ? this.elSlopeWrap.closest('.metric-card') : null;
+        this.elSlopeCard = this.elSlopeWrap ? (this.elSlopeWrap.closest('.metric-row') || this.elSlopeWrap.closest('.metric-card')) : null;
         this.slopeCapBadge = document.getElementById('slope-cap-badge');
         this.elTrainerSlope = document.getElementById('val-trainer-slope');
         this.elCoords = document.getElementById('val-coords');

@@ -573,78 +573,100 @@ input[type="range"]::-webkit-slider-thumb {
     gap: 3px;
 }
 
-/* HUD Metrics (Compact) */
+/* HUD Metrics (7行リスト表示) */
 .hud-group {
     padding: 0;
 }
 
-.metrics-grid.compact-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 3px;
+.metrics-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
 }
 
-.metrics-grid.compact-grid .metric-card {
+.metric-row {
     background: rgba(0, 0, 0, 0.4);
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 4px;
-    padding: 2px 4px;
-    height: 40px;
+    padding: 2px 6px;
+    height: 22px;
     box-sizing: border-box;
     display: flex;
-    flex-direction: column;
-    justify-content: center;
+    align-items: center;
+    justify-content: space-between;
 }
 
-.metrics-grid.compact-grid .metric-label {
-    font-size: 0.52rem;
+.metric-row .metric-label {
+    font-size: 0.58rem;
+    color: var(--text-muted);
+    font-weight: 600;
     line-height: 1;
 }
 
-.metrics-grid.compact-grid .metric-value {
-    font-size: 0.76rem;
+.metric-row .metric-value {
+    font-size: 0.68rem;
     font-weight: 700;
-    line-height: 1.1;
-    margin-top: 1px;
-}
-
-.metrics-grid.compact-grid .metric-value small {
-    font-size: 0.50rem;
-}
-
-.metrics-grid.compact-grid .metric-sub {
-    font-size: 0.48rem;
+    color: var(--text-primary);
     line-height: 1;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    font-family: monospace;
 }
 
-.metrics-grid.compact-grid .metric-coords {
-    font-size: 0.50rem;
-    line-height: 1.1;
+.metric-row .metric-value small {
+    font-size: 0.52rem;
+    color: var(--text-muted);
+    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.metric-row .metric-sub {
+    font-size: 0.54rem;
+    color: var(--text-muted);
+    font-weight: normal;
+}
+
+.metric-row .metric-coords {
+    font-size: 0.56rem;
     color: #cbd5e1;
     font-family: monospace;
-    margin-top: 2px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+}
+
+.ble-metric-row {
+    border-color: rgba(0, 240, 255, 0.2);
+    background: rgba(0, 240, 255, 0.04);
+}
+
+.ble-metric-row .metric-value {
+    color: var(--accent);
+}
+
+.ble-trainer-row {
+    border-color: rgba(56, 189, 248, 0.25);
+    background: rgba(56, 189, 248, 0.06);
+}
+
+.ble-trainer-row .metric-value {
+    color: #38bdf8;
 }
 
 /* Slope Capping & Warning Alert */
-.metric-card.capped {
+.metric-row.capped {
     background: rgba(239, 68, 68, 0.18);
     border-color: rgba(239, 68, 68, 0.5);
-    box-shadow: 0 0 10px rgba(239, 68, 68, 0.25);
+    box-shadow: 0 0 8px rgba(239, 68, 68, 0.25);
     transition: all 0.25s ease;
 }
 
-.metric-card.capped .metric-value,
-.metric-card.capped #val-slope {
+.metric-row.capped .metric-value,
+.metric-row.capped #val-slope {
     color: #ef4444 !important;
-    text-shadow: 0 0 8px rgba(239, 68, 68, 0.6);
+    text-shadow: 0 0 6px rgba(239, 68, 68, 0.6);
 }
 
 .cap-badge {
     display: inline-block;
-    font-size: 0.52rem;
+    font-size: 0.50rem;
     font-weight: 800;
     color: #fff;
     background: #ef4444;
