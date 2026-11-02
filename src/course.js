@@ -1,6 +1,6 @@
 /**
  * GPX Parser & GeoCourseManager
- * Reads any standard GPX XML and creates smooth Catmull-Rom interpolated routes.
+ * Reads any standard GPX XML and creates smooth Catmull-Rom spline curves.
  */
 
 export class GPXParser {
@@ -85,51 +85,98 @@ export class GeoCourseManager {
         return (bearing + 360) % 360;
     }
 
+    /**
+     * Catmull-Rom 3D スプライン補間関数
+     * 4点 (p0, p1, p2, p3) の間を t (0.0〜1.0) で滑らかに曲線補間
+     */
+    static catmullRom(p0, p1, p2, p3, t) {
+        const t2 = t * t;
+        const t3 = t2 * t;
+        return 0.5 * (
+            (2 * p1) +
+            (-p0 + p2) * t +
+            (2 * p0 - 5 * p1 + 4 * p2 - p3) * t2 +
+            (-p0 + 3 * p1 - 3 * p2 + p3) * t3
+        );
+    }
+
     initInterpolation() {
-        this.interpolatedPoints = [];
+        const wps = this.rawWaypoints;
+        const n = wps.length;
+
+        // 1. 各区間を Catmull-Rom スプライン曲線で高密度サンプリング
+        const splinePoints = [];
+        const isClosed = (GeoCourseManager.haversineDistance(wps[0].lon, wps[0].lat, wps[n - 1].lon, wps[n - 1].lat) < 50);
+
+        for (let i = 0; i < n - 1; i++) {
+            // 前後の制御点
+            let p0, p1 = wps[i], p2 = wps[i + 1], p3;
+
+            if (i === 0) {
+                p0 = isClosed ? wps[n - 2] : {
+                    lon: p1.lon - (p2.lon - p1.lon),
+                    lat: p1.lat - (p2.lat - p1.lat),
+                    alt: p1.alt - (p2.alt - p1.alt)
+                };
+            } else {
+                p0 = wps[i - 1];
+            }
+
+            if (i === n - 2) {
+                p3 = isClosed ? wps[1] : {
+                    lon: p2.lon + (p2.lon - p1.lon),
+                    lat: p2.lat + (p2.lat - p1.lat),
+                    alt: p2.alt + (p2.alt - p1.alt)
+                };
+            } else {
+                p3 = wps[i + 2];
+            }
+
+            // 区間長に応じたサンプリング分割数（最低15分割、長ければ増やす）
+            const segDist = GeoCourseManager.haversineDistance(p1.lon, p1.lat, p2.lon, p2.lat);
+            const steps = Math.max(15, Math.round(segDist / 5)); // 5mピッチで美しいスプライン曲線を生成
+
+            for (let step = 0; step < steps; step++) {
+                const t = step / steps;
+                const lon = GeoCourseManager.catmullRom(p0.lon, p1.lon, p2.lon, p3.lon, t);
+                const lat = GeoCourseManager.catmullRom(p0.lat, p1.lat, p2.lat, p3.lat, t);
+                const alt = GeoCourseManager.catmullRom(p0.alt, p1.alt, p2.alt, p3.alt, t);
+                splinePoints.push({ lon, lat, alt });
+            }
+        }
+        // 最終点追加
+        splinePoints.push({ ...wps[n - 1] });
+
+        // 2. スプライン曲線に沿った累積距離を計算
         this.cumDistances = [0];
         let total = 0;
-
-        for (let i = 0; i < this.rawWaypoints.length - 1; i++) {
-            const p1 = this.rawWaypoints[i];
-            const p2 = this.rawWaypoints[i + 1];
-            const d = GeoCourseManager.haversineDistance(p1.lon, p1.lat, p2.lon, p2.lat);
+        for (let i = 0; i < splinePoints.length - 1; i++) {
+            const d = GeoCourseManager.haversineDistance(
+                splinePoints[i].lon, splinePoints[i].lat,
+                splinePoints[i + 1].lon, splinePoints[i + 1].lat
+            );
             total += d;
             this.cumDistances.push(total);
         }
         this.totalDistance = total;
 
-        // 1. まず全ポイントを高密度にサンプリング
-        const SAMPLES = Math.min(3000, Math.max(1000, Math.round(this.totalDistance / 8)));
-        const rawSamples = [];
-        for (let i = 0; i <= SAMPLES; i++) {
-            const targetDist = (i / SAMPLES) * this.totalDistance;
-            rawSamples.push({
-                dist: targetDist,
-                ...this.getRawPointByDistance(targetDist)
-            });
-        }
+        // 3. 標高のガウシアン空間移動平均（~80m区間）で道路の自然な勾配に平滑化
+        const SAMPLES = splinePoints.length;
+        const windowHalfCount = Math.max(3, Math.round(40 / (total / SAMPLES)));
 
-        // 2. 移動平均フィルター（Gaussian-weighted Moving Average）で標高ノイズを平滑化
-        // 道路勾配として自然な波形（~100m区間の平均トレンド）を形成
-        const SMOOTH_WINDOW_METERS = 80; // 前後80mの窓で標高を平滑化
-        const stepDist = this.totalDistance / SAMPLES;
-        const windowHalfCount = Math.max(2, Math.round((SMOOTH_WINDOW_METERS / 2) / stepDist));
-
-        this.interpolatedPoints = rawSamples.map((sample, idx) => {
+        this.interpolatedPoints = splinePoints.map((sample, idx) => {
             let sumAlt = 0;
             let sumWeight = 0;
 
             for (let offset = -windowHalfCount; offset <= windowHalfCount; offset++) {
-                const targetIdx = Math.max(0, Math.min(SAMPLES, idx + offset));
-                // ガウシアン風の距離減衰重み
+                const targetIdx = Math.max(0, Math.min(SAMPLES - 1, idx + offset));
                 const weight = Math.exp(-Math.pow(offset / (windowHalfCount * 0.6), 2));
-                sumAlt += rawSamples[targetIdx].alt * weight;
+                sumAlt += splinePoints[targetIdx].alt * weight;
                 sumWeight += weight;
             }
 
             return {
-                dist: sample.dist,
+                dist: this.cumDistances[idx],
                 lon: sample.lon,
                 lat: sample.lat,
                 alt: sumWeight > 0 ? (sumAlt / sumWeight) : sample.alt
@@ -137,36 +184,6 @@ export class GeoCourseManager {
         });
     }
 
-    getRawPointByDistance(targetDist) {
-        if (targetDist <= 0) return { ...this.rawWaypoints[0] };
-        if (targetDist >= this.totalDistance) return { ...this.rawWaypoints[this.rawWaypoints.length - 1] };
-
-        let segIdx = 0;
-        for (let i = 0; i < this.cumDistances.length - 1; i++) {
-            if (targetDist >= this.cumDistances[i] && targetDist <= this.cumDistances[i + 1]) {
-                segIdx = i;
-                break;
-            }
-        }
-
-        const d0 = this.cumDistances[segIdx];
-        const d1 = this.cumDistances[segIdx + 1];
-        const ratio = (d1 - d0) > 0 ? (targetDist - d0) / (d1 - d0) : 0;
-
-        const p0 = this.rawWaypoints[segIdx];
-        const p1 = this.rawWaypoints[segIdx + 1];
-
-        return {
-            lon: p0.lon + (p1.lon - p0.lon) * ratio,
-            lat: p0.lat + (p1.lat - p0.lat) * ratio,
-            alt: p0.alt + (p1.alt - p0.alt) * ratio
-        };
-    }
-
-    /**
-     * 高精度・平滑化されたステート取得
-     * 平滑化された標高プロファイルから真の物理勾配（Slope）と接線Bearingを算出
-     */
     getStateAtProgress(progress) {
         const u = Math.max(0, Math.min(1, progress));
         const dist = u * this.totalDistance;
@@ -175,7 +192,6 @@ export class GeoCourseManager {
             this.initInterpolation();
         }
 
-        // 補間済みテーブルからの高速二分探索/インデックス参照
         const sampleCount = this.interpolatedPoints.length - 1;
         const approxIdx = Math.min(sampleCount - 1, Math.max(0, Math.floor(u * sampleCount)));
         const pA = this.interpolatedPoints[approxIdx];
@@ -199,11 +215,9 @@ export class GeoCourseManager {
 
         const bearing = GeoCourseManager.calcBearing(bwdPt.lon, bwdPt.lat, fwdPt.lon, fwdPt.lat);
 
-        // 斜度計算: 平滑化された前後区間の標高差から自然な勾配を算出
+        // 斜度計算
         const horizDist = GeoCourseManager.haversineDistance(bwdPt.lon, bwdPt.lat, fwdPt.lon, fwdPt.lat);
         let slope = horizDist > 0 ? ((fwdPt.alt - bwdPt.alt) / horizDist) * 100 : 0;
-        
-        // 小数点第1位に丸め
         slope = Math.round(slope * 10) / 10;
 
         return {
@@ -217,6 +231,7 @@ export class GeoCourseManager {
         };
     }
 
+    // スプライン補間された高精度な全3D座標配列を返す（画面上のネオンコースライン用）
     toGeoJSONCoordinates() {
         return this.interpolatedPoints.map(p => [p.lon, p.lat, p.alt]);
     }

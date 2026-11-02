@@ -9,11 +9,18 @@ class App {
         this.speedKmh = 25; // 時速 (km/h)
         this.isModeTransitioning = false;
         this.lastFrameTime = 0;
+        this.lastHudUpdateTime = 0;
 
-        // 滑らかな角度補間（Lerp）用の現在カメラBearing
+        // 標高チャートの背景静的キャッシュ Canvas
+        this.bgChartCanvas = document.createElement('canvas');
+        this.bgChartCanvas.width = 340;
+        this.bgChartCanvas.height = 70;
+        this.cachedMinAlt = 0;
+        this.cachedAltSpan = 10;
+
         this.currentCamBearing = null;
 
-        // カメラパラメータ（Chase / Drone ごとの調整値: Zoom 15.0〜20.0）
+        // カメラパラメータ（Chase / Drone: Zoom 15.0〜20.0）
         this.cameraParams = {
             chase: { pitch: 68, zoom: 17.5 },
             drone: { pitch: 48, zoom: 15.8 }
@@ -27,7 +34,7 @@ class App {
     }
 
     getCameraOffset() {
-        const panelWidth = 240; // パネル幅230pxに合わせてオフセットを調整
+        const panelWidth = 240;
         const screenWidth = window.innerWidth;
         if (screenWidth > 600) {
             return [panelWidth / 2, 0];
@@ -40,6 +47,8 @@ class App {
 
         this.map = new maplibregl.Map({
             container: 'map',
+            fadeDuration: 0, // タイル切り替えの無駄なフェードを無効化して高速化
+            trackResize: false,
             style: {
                 version: 8,
                 sources: {
@@ -80,8 +89,8 @@ class App {
                 }
             },
             center: [startState.lon, startState.lat],
-            zoom: 15.6,
-            pitch: 70,
+            zoom: 17.5,
+            pitch: 68,
             bearing: startState.bearing,
             maxPitch: 85
         });
@@ -104,7 +113,7 @@ class App {
                 .setLngLat([startState.lon, startState.lat])
                 .addTo(this.map);
 
-            this.updateState(0.0);
+            this.updateState(0.0, true);
             this.animate = this.animate.bind(this);
             requestAnimationFrame(this.animate);
         });
@@ -164,17 +173,21 @@ class App {
     initElevationProfile() {
         this.chartCanvas = document.getElementById('elevation-canvas');
         this.chartCtx = this.chartCanvas.getContext('2d');
-        this.drawElevationChart();
+        this.cacheElevationProfileBackground();
+        this.drawElevationChartDotOnly();
     }
 
-    drawElevationChart() {
-        const ctx = this.chartCtx;
-        const w = this.chartCanvas.width;
-        const h = this.chartCanvas.height;
+    /**
+     * コース読み込み時に1回だけ背景波形をキャッシュ描画（CPU負荷激減）
+     */
+    cacheElevationProfileBackground() {
+        const ctx = this.bgChartCanvas.getContext('2d');
+        const w = this.bgChartCanvas.width;
+        const h = this.bgChartCanvas.height;
 
         ctx.clearRect(0, 0, w, h);
 
-        const samples = 200;
+        const samples = 150;
         const elevations = [];
         let minAlt = Infinity, maxAlt = -Infinity;
 
@@ -186,10 +199,12 @@ class App {
             if (state.alt > maxAlt) maxAlt = state.alt;
         }
 
-        const altSpan = Math.max(maxAlt - minAlt, 10);
+        this.cachedMinAlt = minAlt;
+        this.cachedAltSpan = Math.max(maxAlt - minAlt, 10);
         const padY = 8;
-        const getY = (alt) => h - padY - ((alt - minAlt) / altSpan) * (h - padY * 2);
+        const getY = (alt) => h - padY - ((alt - this.cachedMinAlt) / this.cachedAltSpan) * (h - padY * 2);
 
+        // グラデーション塗りつぶし
         const gradient = ctx.createLinearGradient(0, 0, 0, h);
         gradient.addColorStop(0, 'rgba(0, 240, 255, 0.45)');
         gradient.addColorStop(1, 'rgba(0, 240, 255, 0.05)');
@@ -206,6 +221,7 @@ class App {
         ctx.fillStyle = gradient;
         ctx.fill();
 
+        // コースライン
         ctx.beginPath();
         for (let i = 0; i <= samples; i++) {
             const x = (i / samples) * w;
@@ -216,13 +232,26 @@ class App {
         ctx.strokeStyle = '#00f0ff';
         ctx.lineWidth = 2;
         ctx.stroke();
+    }
 
+    /**
+     * 毎フレームはキャッシュ背景を転写して現在地ドットのみ描画（60fps超高速）
+     */
+    drawElevationChartDotOnly() {
+        const ctx = this.chartCtx;
+        const w = this.chartCanvas.width;
+        const h = this.chartCanvas.height;
+
+        ctx.clearRect(0, 0, w, h);
+        ctx.drawImage(this.bgChartCanvas, 0, 0);
+
+        const padY = 8;
         const riderX = this.currentProgress * w;
         const riderState = this.course.getStateAtProgress(this.currentProgress);
-        const riderY = getY(riderState.alt);
+        const riderY = h - padY - ((riderState.alt - this.cachedMinAlt) / this.cachedAltSpan) * (h - padY * 2);
 
         ctx.beginPath();
-        ctx.arc(riderX, riderY, 4.5, 0, Math.PI * 2);
+        ctx.arc(riderX, riderY, 4, 0, Math.PI * 2);
         ctx.fillStyle = '#ffffff';
         ctx.fill();
         ctx.strokeStyle = '#00f0ff';
@@ -249,11 +278,9 @@ class App {
         this.elActiveCourseName = document.getElementById('active-course-name');
         this.elProfileChartTitle = document.getElementById('profile-chart-title');
 
-        // Speed UI
         this.speedSlider = document.getElementById('speed-slider');
         this.speedVal = document.getElementById('speed-val');
 
-        // Camera Sliders UI
         this.camPitchSlider = document.getElementById('cam-pitch-slider');
         this.camPitchVal = document.getElementById('cam-pitch-val');
         this.camZoomSlider = document.getElementById('cam-zoom-slider');
@@ -292,7 +319,6 @@ class App {
             if (file) this.loadGPXFile(file);
         });
 
-        // Drag & Drop
         ['dragenter', 'dragover'].forEach(name => {
             gpxSection.addEventListener(name, (e) => {
                 e.preventDefault();
@@ -330,25 +356,23 @@ class App {
                 const { courseName, waypoints } = GPXParser.parse(gpxText);
                 const finalName = courseName !== 'カスタムコース' ? courseName : file.name.replace(/\.gpx$/i, '');
                 
-                // Replace course
                 this.course = new GeoCourseManager(waypoints, finalName);
                 this.updateTotalDistanceUI();
 
-                // Stop playback and reset to 0%
                 this.isPlaying = false;
                 this.btnPlay.textContent = '再生 (Auto Fly)';
                 this.btnPlay.classList.remove('running');
                 this.currentProgress = 0.0;
+                this.currentCamBearing = null;
 
-                // Update 3D Map Route
                 this.updateMapCourseLayers();
-                this.drawElevationChart();
+                this.cacheElevationProfileBackground();
+                this.drawElevationChartDotOnly();
 
-                // Jump Camera to Start of new Course
-                this.updateState(0.0);
+                this.updateState(0.0, true);
                 this.applyCameraTarget(1500);
 
-                console.log(`GPX Loaded successfully: ${finalName} (${waypoints.length} points, ${(this.course.totalDistance / 1000).toFixed(2)} km)`);
+                console.log(`GPX Loaded: ${finalName} (${waypoints.length} points)`);
             } catch (err) {
                 console.error(err);
                 alert(`GPX読み込みエラー: ${err.message}`);
@@ -360,14 +384,14 @@ class App {
     setupEvents() {
         this.progressSlider.addEventListener('input', (e) => {
             const val = parseFloat(e.target.value) / 100;
-            this.updateState(val);
+            this.updateState(val, true);
         });
 
         this.progressInput.addEventListener('change', (e) => {
             let val = parseFloat(e.target.value);
             if (isNaN(val)) val = 0;
             val = Math.max(0, Math.min(100, val)) / 100;
-            this.updateState(val);
+            this.updateState(val, true);
         });
 
         this.btnPlay.addEventListener('click', () => {
@@ -380,16 +404,14 @@ class App {
             this.isPlaying = false;
             this.btnPlay.textContent = '再生 (Auto Fly)';
             this.btnPlay.classList.remove('running');
-            this.updateState(0.0);
+            this.updateState(0.0, true);
         });
 
-        // 走行速度スライダー (1〜50 km/h)
         this.speedSlider.addEventListener('input', (e) => {
             this.speedKmh = parseFloat(e.target.value);
             this.speedVal.textContent = `${Math.round(this.speedKmh)} km/h`;
         });
 
-        // カメラ仰角スライダー
         this.camPitchSlider.addEventListener('input', (e) => {
             const pitch = parseFloat(e.target.value);
             this.camPitchVal.textContent = `${Math.round(pitch)}°`;
@@ -399,7 +421,6 @@ class App {
             }
         });
 
-        // カメラ距離 (ズーム) スライダー
         this.camZoomSlider.addEventListener('input', (e) => {
             const zoom = parseFloat(e.target.value);
             this.camZoomVal.textContent = zoom.toFixed(1);
@@ -446,20 +467,22 @@ class App {
             const rect = this.chartCanvas.getBoundingClientRect();
             const clickX = e.clientX - rect.left;
             const progress = Math.max(0, Math.min(1, clickX / rect.width));
-            this.updateState(progress);
+            this.updateState(progress, true);
         });
 
         window.addEventListener('resize', () => {
+            this.map.resize();
             if (this.cameraMode !== 'free') {
                 this.applyCameraTarget(0);
             }
         });
     }
 
-    updateState(progress) {
+    updateState(progress, forceHudUpdate = false) {
         this.currentProgress = ((progress % 1.0) + 1.0) % 1.0;
         const state = this.course.getStateAtProgress(this.currentProgress);
 
+        // ライダーマーカー位置・角度
         if (this.riderMarker) {
             this.riderMarker.setLngLat([state.lon, state.lat]);
             const arrow = this.riderMarker.getElement().querySelector('.rider-arrow');
@@ -468,38 +491,42 @@ class App {
             }
         }
 
-        const pct100 = (this.currentProgress * 100).toFixed(1);
-        if (document.activeElement !== this.progressInput) {
-            this.progressInput.value = pct100;
-        }
-        this.progressSlider.value = (this.currentProgress * 100).toFixed(2);
-
-        this.elDistance.textContent = (state.distance / 1000).toFixed(2);
-        this.elAltitude.textContent = state.alt.toFixed(1);
-
-        const sign = state.slope >= 0 ? '+' : '';
-        this.elSlope.textContent = `${sign}${state.slope.toFixed(1)}`;
-        if (state.slope > 7) {
-            this.elSlopeWrap.style.color = 'var(--climb-color)';
-        } else if (state.slope < 0) {
-            this.elSlopeWrap.style.color = 'var(--descent-color)';
-        } else {
-            this.elSlopeWrap.style.color = 'var(--flat-color)';
-        }
-
-        this.elCoords.textContent = `${state.lon.toFixed(4)}, ${state.lat.toFixed(4)}`;
-
-        this.drawElevationChart();
-
+        // カメラ同期（60fps最高速同期）
         if (!this.isModeTransitioning && this.cameraMode !== 'free') {
             this.applyCameraTarget(0);
         }
+
+        // チャートの点描画（キャッシュ転写方式）
+        this.drawElevationChartDotOnly();
+
+        // HUD文字更新のスロットリング（10fps/100ms周期でDOMリフロー負荷を90%削減）
+        const now = performance.now();
+        if (forceHudUpdate || now - this.lastHudUpdateTime > 100) {
+            this.lastHudUpdateTime = now;
+
+            const pct100 = (this.currentProgress * 100).toFixed(1);
+            if (document.activeElement !== this.progressInput) {
+                this.progressInput.value = pct100;
+            }
+            this.progressSlider.value = (this.currentProgress * 100).toFixed(2);
+
+            this.elDistance.textContent = (state.distance / 1000).toFixed(2);
+            this.elAltitude.textContent = state.alt.toFixed(1);
+
+            const sign = state.slope >= 0 ? '+' : '';
+            this.elSlope.textContent = `${sign}${state.slope.toFixed(1)}`;
+            if (state.slope > 7) {
+                this.elSlopeWrap.style.color = 'var(--climb-color)';
+            } else if (state.slope < 0) {
+                this.elSlopeWrap.style.color = 'var(--descent-color)';
+            } else {
+                this.elSlopeWrap.style.color = 'var(--flat-color)';
+            }
+
+            this.elCoords.textContent = `${state.lon.toFixed(4)}, ${state.lat.toFixed(4)}`;
+        }
     }
 
-    /**
-     * 最短角度差分を考慮した角度の線形補間（Angle Lerp）
-     * 359度と1度の間で逆回転したりジャンプするのを防ぎます
-     */
     static lerpAngle(fromAngle, toAngle, t) {
         let diff = (toAngle - fromAngle) % 360;
         if (diff < -180) diff += 360;
@@ -513,7 +540,7 @@ class App {
         const state = this.course.getStateAtProgress(this.currentProgress);
         const offset = this.getCameraOffset();
 
-        const currentParams = this.cameraParams[this.cameraMode] || { pitch: 68, zoom: 15.6 };
+        const currentParams = this.cameraParams[this.cameraMode] || { pitch: 68, zoom: 17.5 };
         let targetPitch = currentParams.pitch;
         let targetZoom = currentParams.zoom;
         let targetBearing = state.bearing;
@@ -522,11 +549,9 @@ class App {
             targetBearing = (state.bearing + 35) % 360;
         }
 
-        // カメラ角度の線形補間（急激な首振りを防ぐダンピング・スムージング）
         if (this.currentCamBearing === null || duration > 0) {
             this.currentCamBearing = targetBearing;
         } else {
-            // スムーズな補間係数 (t = 0.08: 約12フレームで滑らかに追従)
             this.currentCamBearing = App.lerpAngle(this.currentCamBearing, targetBearing, 0.08);
         }
 
@@ -555,9 +580,6 @@ class App {
             const deltaSeconds = Math.min((timestamp - this.lastFrameTime) / 1000, 0.1);
             this.lastFrameTime = timestamp;
 
-            // 時速(km/h)から1秒あたりの進捗率を計算:
-            // 速度(m/s) = speedKmh / 3.6
-            // 進捗増加量 = (速度[m/s] * 経過時間[s]) / 総距離[m]
             const metersPerSecond = (this.speedKmh * 1000) / 3600;
             const distanceMoved = metersPerSecond * deltaSeconds;
             const progressDelta = this.course.totalDistance > 0 ? (distanceMoved / this.course.totalDistance) : 0;
