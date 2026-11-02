@@ -31,6 +31,7 @@ export class UIController {
             btnFullscreen: $('btn-fullscreen'),
             camFreeBtn: $('cam-free'),
             btnCamVectorMode: $('btn-cam-vector-mode'),
+            btnCamSmoothMode: $('btn-cam-smooth-mode'),
             camAdjustBox: $('camera-adjust-box'),
             btnGsiDem: $('btn-gsi-dem'),
             gsiBtnText: $('gsi-btn-text'),
@@ -128,6 +129,7 @@ export class UIController {
         this.bindDialog('btn-modal-settings', 'btn-close-settings', 'modal-settings');
         on(el.camFreeBtn, 'click', () => cb.onToggleCameraFree?.());
         on(el.btnCamVectorMode, 'click', () => cb.onToggleVectorMode?.());
+        on(el.btnCamSmoothMode, 'click', () => cb.onToggleSmoothMode?.());
 
         [
             ['cam-pitch-slider', 'cam-pitch-val', 'pitch', (v) => `${Math.round(v)}°`],
@@ -300,5 +302,26 @@ export class UIController {
         btnCamVectorMode.textContent = isBwdFwd ? 'Bwd+Fwd' : 'Fwd Only';
         btnCamVectorMode.title = isBwdFwd ? '後方0.5V〜前方Vベクトル（車体姿勢＋先読み）' : '現在地〜前方Vベクトル（先読みのみ）';
         btnCamVectorMode.classList.toggle('active', isBwdFwd);
+    }
+
+    updateCamSmoothMode(enabled) {
+        const { btnCamSmoothMode } = this.el;
+        if (!btnCamSmoothMode) return;
+        btnCamSmoothMode.textContent = enabled ? 'Smooth ON' : 'Smooth OFF';
+        btnCamSmoothMode.title = enabled ? 'カメラ旋回スムージング有効' : 'カメラ旋回スムージング無効（目標方向へダイレクト追従）';
+        btnCamSmoothMode.classList.toggle('active', enabled);
+    }
+
+    syncCameraParams({ pitch, orbitAngleOffset }) {
+        if (typeof pitch === 'number') {
+            const slider = $('cam-pitch-slider'), val = $('cam-pitch-val');
+            if (slider) slider.value = pitch;
+            if (val) val.textContent = `${Math.round(pitch)}°`;
+        }
+        if (typeof orbitAngleOffset === 'number') {
+            const slider = $('cam-orbit-slider'), val = $('cam-orbit-val');
+            if (slider) slider.value = orbitAngleOffset;
+            if (val) val.textContent = orbitAngleOffset === 0 ? '0°' : `${orbitAngleOffset > 0 ? '+' : ''}${Math.round(orbitAngleOffset)}°`;
+        }
     }
 }

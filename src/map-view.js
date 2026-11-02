@@ -4,17 +4,21 @@
  */
 
 export class MapViewController {
-    constructor(containerId = 'map', initialState = { lon: 138.583, lat: 35.474, bearing: 0 }) {
+    constructor(containerId = 'map', initialState = { lon: 138.583, lat: 35.474, bearing: 0 }, onCameraParamChange = null) {
         this.containerId = containerId;
+        this.onCameraParamChange = onCameraParamChange;
         this.cameraMode = 'track'; // 'track' | 'free'
         this.isModeTransitioning = false;
+        this.isSmoothingEnabled = true;
         this.currentCamBearing = null;
         this.orbitAngleOffset = 0;
         this.cameraParams = { pitch: 68, zoom: 16.5 };
+        this.lastState = initialState;
         this.riderMarker = null;
         this.fwdMarker = null;
         this.bwdMarker = null;
         this.initMap(initialState);
+        this.setupMainScreenSwipe();
     }
 
     initMap(startState) {
@@ -84,6 +88,12 @@ export class MapViewController {
                 this.setCourse(this.pendingCourse, this.pendingState);
                 this.pendingCourse = null;
             }
+
+            // 追従モード（track）時はMapLibre既定のパン操作を無効化（スワイプでのカメラ操作を優先）
+            if (this.cameraMode === 'track') {
+                this.map.dragPan.disable();
+                this.map.dragRotate.disable();
+            }
         });
     }
 
@@ -132,6 +142,7 @@ export class MapViewController {
     }
 
     updateRiderAndCamera(state, duration = 0) {
+        this.lastState = state;
         this.riderMarker?.setLngLat([state.lon, state.lat]);
 
         // 注視点マーカー更新 (前方: 赤, 後方: 紫)
@@ -156,12 +167,77 @@ export class MapViewController {
 
     setCameraMode(mode, currentState) {
         this.cameraMode = mode;
+        if (this.map) {
+            if (mode === 'free') {
+                this.map.dragPan.enable();
+                this.map.dragRotate.enable();
+            } else {
+                this.map.dragPan.disable();
+                this.map.dragRotate.disable();
+            }
+        }
         if (mode !== 'free' && currentState) {
             this.currentCamBearing = null;
             this.isModeTransitioning = true;
             this.applyCameraTarget(currentState, 2000);
             setTimeout(() => { this.isModeTransitioning = false; }, 2000);
         }
+    }
+
+    setSmoothing(enabled) {
+        this.isSmoothingEnabled = !!enabled;
+    }
+
+    /**
+     * メイン画面スワイプによるカメラアングル（横）＆ピッチ（縦）調整
+     */
+    setupMainScreenSwipe() {
+        const container = document.getElementById(this.containerId);
+        if (!container) return;
+
+        let isDragging = false;
+        let startX = 0, startY = 0;
+        let startOrbit = 0, startPitch = 0;
+
+        container.addEventListener('pointerdown', (e) => {
+            if (this.cameraMode !== 'track') return;
+            if (e.target.closest('#top-bar, #hud-metrics, #bottom-bar, .floating-cam-dialog, .floating-settings-dialog')) return;
+
+            isDragging = true;
+            startX = e.clientX;
+            startY = e.clientY;
+            startOrbit = this.orbitAngleOffset;
+            startPitch = this.cameraParams.pitch;
+            container.setPointerCapture?.(e.pointerId);
+        });
+
+        container.addEventListener('pointermove', (e) => {
+            if (!isDragging || this.cameraMode !== 'track') return;
+            const dx = e.clientX - startX;
+            const dy = e.clientY - startY;
+
+            // 横スワイプ: アングル調整 (-180° 〜 +180°)
+            const nextOrbit = Math.max(-180, Math.min(180, Math.round(startOrbit + dx * 0.45)));
+            // 縦スワイプ: ピッチ調整 (20° 〜 75°)
+            const nextPitch = Math.max(20, Math.min(75, Math.round(startPitch - dy * 0.25)));
+
+            this.orbitAngleOffset = nextOrbit;
+            this.cameraParams.pitch = nextPitch;
+            this.onCameraParamChange?.({ orbitAngleOffset: nextOrbit, pitch: nextPitch });
+
+            if (this.lastState) {
+                this.applyCameraTarget(this.lastState, 0);
+            }
+        });
+
+        const endDrag = (e) => {
+            if (isDragging) {
+                isDragging = false;
+                container.releasePointerCapture?.(e.pointerId);
+            }
+        };
+        container.addEventListener('pointerup', endDrag);
+        container.addEventListener('pointercancel', endDrag);
     }
 
     setCameraParams({ pitch, zoom, orbitAngleOffset }, currentState) {
@@ -183,7 +259,7 @@ export class MapViewController {
         let targetPitch = this.cameraParams.pitch;
         const targetBearing = (state.bearing - this.orbitAngleOffset + 360) % 360;
 
-        if (this.currentCamBearing === null || duration > 0) {
+        if (!this.isSmoothingEnabled || this.currentCamBearing === null || duration > 0) {
             this.currentCamBearing = targetBearing;
         } else {
             // 目標との角度差 (-180°〜+180°) に対し毎回4%ずつ近づく（急カーブでも1フレーム最大0.5°＝秒間30°に制限）

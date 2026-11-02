@@ -21,6 +21,7 @@ class App {
         this.lfoPeriodSeconds = 60;
         this.lfoStartTime = 0;
         this.camVectorMode = 'fwd'; // 'fwd' (現在地→前方V) | 'bwdfwd' (後方0.5V→前方V)
+        this.isCamSmoothEnabled = true;
 
         // Bluetooth Smart Trainer
         this.bleManager = new BleTrainerManager();
@@ -43,6 +44,7 @@ class App {
             },
             onToggleCameraFree: () => this.toggleCameraFree(),
             onToggleVectorMode: () => this.toggleCamVectorMode(),
+            onToggleSmoothMode: () => this.toggleCamSmoothMode(),
             onCameraParamChange: (params) => this.mapView.setCameraParams(params, this.currentState()),
             onFullscreenChange: () => setTimeout(() => this.handleResize(), 100),
             onBleConnect: () => this.connectBle(),
@@ -57,7 +59,9 @@ class App {
         this.chart.setCourse(this.course);
 
         const startState = this.currentState();
-        this.mapView = new MapViewController('map', startState);
+        this.mapView = new MapViewController('map', startState, (params) => {
+            this.ui.syncCameraParams(params);
+        });
         this.mapView.setCourse(this.course, startState);
 
         // 3. イベント配線 & メインループ開始
@@ -152,6 +156,12 @@ class App {
         this.camVectorMode = (this.camVectorMode === 'fwd') ? 'bwdfwd' : 'fwd';
         this.ui.updateCamVectorMode(this.camVectorMode);
         this.updateState(this.currentProgress);
+    }
+
+    toggleCamSmoothMode() {
+        this.isCamSmoothEnabled = !this.isCamSmoothEnabled;
+        this.mapView.setSmoothing(this.isCamSmoothEnabled);
+        this.ui.updateCamSmoothMode(this.isCamSmoothEnabled);
     }
 
     setLoadMode(mode) {
