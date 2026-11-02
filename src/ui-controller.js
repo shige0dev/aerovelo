@@ -3,370 +3,177 @@
  * Encapsulates all DOM queries, HUD/Bottom-bar updates, modals, sliders, and GPX drag-and-drop.
  */
 
+const $ = (id) => document.getElementById(id);
+const on = (elOrId, type, fn, opts) => {
+    const el = typeof elOrId === 'string' ? $(elOrId) : elOrId;
+    el?.addEventListener(type, fn, opts);
+    return el;
+};
+
 export class UIController {
     constructor(callbacks = {}) {
         this.cb = callbacks;
-        this.initElements();
+        this.el = {
+            btnPlay: $('btn-play'),
+            speedVal: $('speed-val'),
+            canvasSpeedVal: $('canvas-speed-val'),
+            autorunSpeedBox: $('autorun-speed-box'),
+            altVal: $('bottom-alt-display'),
+            slopeVal: $('bottom-slope-display'),
+            distVal: $('bottom-dist-display'),
+            totalDistTag: $('bottom-total-dist-tag'),
+            valPower: $('val-power'),
+            valCadence: $('val-cadence'),
+            vSlopeVal: $('v-slope-val'),
+            rowSlopeCtrl: $('row-slope-ctrl'),
+            btnManualMode: $('btn-manual-mode'),
+            courseName: $('course-name-display'),
+            btnFullscreen: $('btn-fullscreen'),
+            camFreeBtn: $('cam-free'),
+            camAdjustBox: $('camera-adjust-box'),
+            btnGsiDem: $('btn-gsi-dem'),
+            gsiBtnText: $('gsi-btn-text'),
+            btnBleConnect: $('btn-ble-connect'),
+            btnBleDisconnect: $('btn-ble-disconnect'),
+            bleStatusText: $('ble-status-text'),
+            testSlopeSlider: $('test-slope-slider'),
+            testSlopeVal: $('test-slope-val'),
+            btnLfoToggle: $('btn-lfo-toggle')
+        };
         this.bindEvents();
     }
 
-    initElements() {
-        // Bottom Bar Elements
-        this.btnPlay = document.getElementById('btn-play');
-        this.rowSpeed = document.getElementById('row-speed');
-        this.speedVal = document.getElementById('speed-val');
-        this.speedEditHint = document.getElementById('speed-edit-hint');
-
-        this.valPower = document.getElementById('val-power');
-        this.valCadence = document.getElementById('val-cadence');
-
-        this.elCourseNameDisplay = document.getElementById('course-name-display');
-        this.btnModalSettings = document.getElementById('btn-modal-settings');
-        this.btnFullscreen = document.getElementById('btn-fullscreen');
-        this.btnToggleCamDialog = document.getElementById('btn-toggle-cam-dialog');
-
-        this.bottomAltDisplay = document.getElementById('bottom-alt-display');
-        this.bottomSlopeDisplay = document.getElementById('bottom-slope-display');
-        this.bottomDistDisplay = document.getElementById('bottom-dist-display');
-        this.bottomTotalDistTag = document.getElementById('bottom-total-dist-tag');
-
-        this.vSlopeVal = document.getElementById('v-slope-val');
-        this.rowSlopeCtrl = document.getElementById('row-slope-ctrl');
-        this.btnManualMode = document.getElementById('btn-manual-mode');
-        this.autorunSpeedBox = document.getElementById('autorun-speed-box');
-        this.canvasSpeedVal = document.getElementById('canvas-speed-val');
-
-        // Camera Dialog
-        this.cameraDialog = document.getElementById('camera-dialog');
-        this.btnCloseCamDialog = document.getElementById('btn-close-cam-dialog');
-        this.camFreeBtn = document.getElementById('cam-free');
-        this.camAdjustBox = document.getElementById('camera-adjust-box');
-        this.camOrbitSlider = document.getElementById('cam-orbit-slider');
-        this.camOrbitVal = document.getElementById('cam-orbit-val');
-        this.camPitchSlider = document.getElementById('cam-pitch-slider');
-        this.camPitchVal = document.getElementById('cam-pitch-val');
-        this.camZoomSlider = document.getElementById('cam-zoom-slider');
-        this.camZoomVal = document.getElementById('cam-zoom-val');
-
-        // Settings Floating Dialog
-        this.modalSettings = document.getElementById('modal-settings');
-        this.btnCloseSettings = document.getElementById('btn-close-settings');
-        this.presetSelect = document.getElementById('preset-select');
-        this.dropZone = document.getElementById('drop-zone');
-        this.fileInput = document.getElementById('gpx-file-input');
-        this.btnBrowse = document.getElementById('btn-browse');
-        this.btnGsiDem = document.getElementById('btn-gsi-dem');
-        this.gsiBtnText = document.getElementById('gsi-btn-text');
-
-        this.btnBleConnect = document.getElementById('btn-ble-connect');
-        this.btnBleDisconnect = document.getElementById('btn-ble-disconnect');
-        this.bleStatusText = document.getElementById('ble-status-text');
-
-        this.testSlopeSlider = document.getElementById('test-slope-slider');
-        this.testSlopeVal = document.getElementById('test-slope-val');
-        this.btnLfoToggle = document.getElementById('btn-lfo-toggle');
-        this.lfoPeriodSelect = document.getElementById('lfo-period-select');
-    }
-
     /**
-     * 行要素の上下ドラッグ＆ホイール操作を汎用登録するヘルパー
+     * 要素の上下ドラッグ（Pointer Events統合）＆ホイール操作を登録
      */
-    setupVerticalDrag(element, { isEnabled, getInitialValue, onDragChange, onWheelDelta, ignoreTarget }) {
+    setupVerticalDrag(element, { isEnabled, getInitialValue, onDragChange, onWheelDelta }) {
         if (!element) return;
-        let isDragging = false;
-        let startY = 0;
-        let startVal = 0;
+        let isDragging = false, startY = 0, startVal = 0;
 
-        const onPointerDown = (clientY) => {
-            if (!isEnabled()) return;
+        on(element, 'pointerdown', (e) => {
+            if (!isEnabled() || e.target.closest('button')) return;
             isDragging = true;
-            startY = clientY;
+            startY = e.clientY;
             startVal = getInitialValue();
+            element.setPointerCapture?.(e.pointerId);
             document.body.style.userSelect = 'none';
-        };
+        });
 
-        const onPointerMove = (clientY) => {
-            if (!isDragging || !isEnabled()) return;
-            const deltaY = startY - clientY;
-            onDragChange(startVal, deltaY);
-        };
+        on(element, 'pointermove', (e) => {
+            if (isDragging && isEnabled()) onDragChange(startVal, startY - e.clientY);
+        });
 
-        const onPointerUp = () => {
+        const endDrag = () => {
             if (isDragging) {
                 isDragging = false;
                 document.body.style.userSelect = '';
             }
         };
+        on(element, 'pointerup', endDrag);
+        on(element, 'pointercancel', endDrag);
 
-        element.addEventListener('mousedown', (e) => {
-            if (ignoreTarget && e.target === ignoreTarget) return;
-            onPointerDown(e.clientY);
-            const moveHandler = (moveEvent) => onPointerMove(moveEvent.clientY);
-            const upHandler = () => {
-                onPointerUp();
-                window.removeEventListener('mousemove', moveHandler);
-                window.removeEventListener('mouseup', upHandler);
-            };
-            window.addEventListener('mousemove', moveHandler);
-            window.addEventListener('mouseup', upHandler);
-        });
-
-        element.addEventListener('touchstart', (e) => {
-            if (e.touches.length > 0 && (!ignoreTarget || e.target !== ignoreTarget)) {
-                onPointerDown(e.touches[0].clientY);
-            }
-        }, { passive: true });
-
-        element.addEventListener('touchmove', (e) => {
-            if (isDragging && e.touches.length > 0) {
-                onPointerMove(e.touches[0].clientY);
-            }
-        }, { passive: true });
-
-        element.addEventListener('touchend', onPointerUp);
-        element.addEventListener('touchcancel', onPointerUp);
-
-        element.addEventListener('wheel', (e) => {
+        on(element, 'wheel', (e) => {
             if (!isEnabled()) return;
             e.preventDefault();
             onWheelDelta(e.deltaY < 0 ? 1 : -1);
         }, { passive: false });
     }
 
+    /**
+     * フローティングダイアログの開閉バインド共通ヘルパー
+     */
+    bindDialog(toggleBtnId, closeBtnId, dialogId) {
+        const btnToggle = $(toggleBtnId), dialog = $(dialogId);
+        if (!btnToggle || !dialog) return;
+        on(btnToggle, 'click', () => {
+            const show = dialog.style.display === 'none' || !dialog.style.display;
+            dialog.style.display = show ? 'flex' : 'none';
+            btnToggle.classList.toggle('active', show);
+        });
+        on(closeBtnId, 'click', () => {
+            dialog.style.display = 'none';
+            btnToggle.classList.remove('active');
+        });
+    }
+
     bindEvents() {
-        // Play / Pause
-        if (this.btnPlay) {
-            this.btnPlay.addEventListener('click', () => {
-                if (this.cb.onTogglePlay) this.cb.onTogglePlay();
-            });
-        }
+        const { cb, el } = this;
 
-        if (this.testSlopeSlider) {
-            this.testSlopeSlider.addEventListener('input', (e) => {
-                if (this.cb.onManualSlopeInput) {
-                    this.cb.onManualSlopeInput(parseFloat(e.target.value), true);
-                }
-            });
-        }
+        // Play / Pause & Manual Mode & LFO
+        on(el.btnPlay, 'click', () => cb.onTogglePlay?.());
+        on(el.btnManualMode, 'click', () => cb.onToggleManualMode?.());
+        on(el.testSlopeSlider, 'input', (e) => cb.onManualSlopeInput?.(parseFloat(e.target.value), true));
+        on(el.btnLfoToggle, 'click', () => cb.onToggleLfo?.());
+        on('lfo-period-select', 'change', (e) => cb.onLfoPeriodChange?.(parseFloat(e.target.value) || 60));
 
-        // LFO Scan Controls
-        if (this.btnLfoToggle) {
-            this.btnLfoToggle.addEventListener('click', () => {
-                if (this.cb.onToggleLfo) this.cb.onToggleLfo();
-            });
-        }
-
-        if (this.lfoPeriodSelect) {
-            this.lfoPeriodSelect.addEventListener('change', (e) => {
-                if (this.cb.onLfoPeriodChange) {
-                    this.cb.onLfoPeriodChange(parseFloat(e.target.value) || 60);
-                }
-            });
-        }
-
-        // Vertical Drag on Speed item (AUTOPLAY時のみ有効)
-        this.setupVerticalDrag(this.rowSpeed, {
-            isEnabled: () => this.cb.isPlaying ? this.cb.isPlaying() : false,
-            getInitialValue: () => this.cb.getSpeed ? this.cb.getSpeed() : 25,
-            onDragChange: (startSpeed, deltaY) => {
-                const nextSpeed = Math.max(1, Math.min(80, startSpeed + Math.round(deltaY / 4)));
-                if (this.cb.onSpeedChange) this.cb.onSpeedChange(nextSpeed);
-            },
-            onWheelDelta: (dir) => {
-                const cur = this.cb.getSpeed ? this.cb.getSpeed() : 25;
-                const nextSpeed = Math.max(1, Math.min(80, cur + dir));
-                if (this.cb.onSpeedChange) this.cb.onSpeedChange(nextSpeed);
-            }
+        // 1. 下部Canvas AutoRun横の再生速度スライド (AUTORUN時のみ有効)
+        this.setupVerticalDrag(el.autorunSpeedBox, {
+            isEnabled: () => !!cb.isPlaying?.(),
+            getInitialValue: () => cb.getSpeed ? cb.getSpeed() : 25,
+            onDragChange: (start, dy) => cb.onSpeedChange?.(Math.max(1, Math.min(80, start + Math.round(dy / 4)))),
+            onWheelDelta: (dir) => cb.onSpeedChange?.(Math.max(1, Math.min(80, (cb.getSpeed?.() ?? 25) + dir)))
         });
 
-        // Vertical Drag & Wheel on Canvas AutoRun Speed Box
-        if (this.autorunSpeedBox) {
-            this.setupVerticalDrag(this.autorunSpeedBox, {
-                isEnabled: () => this.cb.isPlaying ? this.cb.isPlaying() : false,
-                getInitialValue: () => this.cb.getSpeed ? this.cb.getSpeed() : 25,
-                onDragChange: (startSpeed, deltaY) => {
-                    const nextSpeed = Math.max(1, Math.min(80, startSpeed + Math.round(deltaY / 4)));
-                    if (this.cb.onSpeedChange) this.cb.onSpeedChange(nextSpeed);
-                },
-                onWheelDelta: (dir) => {
-                    const cur = this.cb.getSpeed ? this.cb.getSpeed() : 25;
-                    const nextSpeed = Math.max(1, Math.min(80, cur + dir));
-                    if (this.cb.onSpeedChange) this.cb.onSpeedChange(nextSpeed);
-                }
-            });
-        }
+        // 2. 上部HUD Load (負荷) スライド (常時有効・操作時にManualへ自動切替)
+        this.setupVerticalDrag(el.rowSlopeCtrl, {
+            isEnabled: () => true,
+            getInitialValue: () => cb.getManualSlope ? cb.getManualSlope() : 0.0,
+            onDragChange: (start, dy) => cb.onManualSlopeInput?.(Math.max(0, Math.min(7, Math.round((start + dy / 25) * 10) / 10)), true),
+            onWheelDelta: (dir) => cb.onManualSlopeInput?.(Math.max(0, Math.min(7, Math.round(((cb.getManualSlope?.() ?? 0) + dir * 0.1) * 10) / 10)), true)
+        });
 
-        // Manual Load Mode Toggle Button
-        if (this.btnManualMode) {
-            this.btnManualMode.addEventListener('click', () => {
-                if (this.cb.onToggleManualMode) this.cb.onToggleManualMode();
-            });
-        }
+        // 3. フローティングダイアログ (カメラ / 設定) & カメラスライダー
+        this.bindDialog('btn-toggle-cam-dialog', 'btn-close-cam-dialog', 'camera-dialog');
+        this.bindDialog('btn-modal-settings', 'btn-close-settings', 'modal-settings');
+        on(el.camFreeBtn, 'click', () => cb.onToggleCameraFree?.());
 
-        // Vertical Drag & Wheel on Slope (負荷) item (いつでもスライドで変更可能)
-        if (this.rowSlopeCtrl) {
-            this.setupVerticalDrag(this.rowSlopeCtrl, {
-                isEnabled: () => true,
-                getInitialValue: () => this.cb.getManualSlope ? this.cb.getManualSlope() : 0.0,
-                onDragChange: (startSlope, deltaY) => {
-                    const nextSlope = Math.max(0.0, Math.min(7.0, Math.round((startSlope + (deltaY / 25)) * 10) / 10));
-                    if (this.cb.onManualSlopeInput) this.cb.onManualSlopeInput(nextSlope, true);
-                },
-                onWheelDelta: (dir) => {
-                    const cur = this.cb.getManualSlope ? this.cb.getManualSlope() : 0.0;
-                    const nextSlope = Math.max(0.0, Math.min(7.0, Math.round((cur + dir * 0.1) * 10) / 10));
-                    if (this.cb.onManualSlopeInput) this.cb.onManualSlopeInput(nextSlope, true);
-                }
+        [
+            ['cam-pitch-slider', 'cam-pitch-val', 'pitch', (v) => `${Math.round(v)}°`],
+            ['cam-zoom-slider', 'cam-zoom-val', 'zoom', (v) => v.toFixed(1)],
+            ['cam-orbit-slider', 'cam-orbit-val', 'orbitAngleOffset', (v) => v === 0 ? '0°' : `${v > 0 ? '+' : ''}${Math.round(v)}°`]
+        ].forEach(([sliderId, valId, key, fmt]) => {
+            const valEl = $(valId);
+            on(sliderId, 'input', (e) => {
+                const v = parseFloat(e.target.value);
+                if (valEl) valEl.textContent = fmt(v);
+                cb.onCameraParamChange?.({ [key]: v });
             });
-        }
+        });
 
-        // Camera Dialog & Sliders
-        if (this.btnToggleCamDialog && this.cameraDialog) {
-            this.btnToggleCamDialog.addEventListener('click', () => {
-                const isHidden = (this.cameraDialog.style.display === 'none' || !this.cameraDialog.style.display);
-                this.cameraDialog.style.display = isHidden ? 'flex' : 'none';
-                this.btnToggleCamDialog.classList.toggle('active', isHidden);
+        // 4. フルスクリーン
+        if (el.btnFullscreen) {
+            on(el.btnFullscreen, 'click', () => {
+                if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(() => {});
+                else document.exitFullscreen().catch(() => {});
             });
-        }
-
-        if (this.btnCloseCamDialog && this.cameraDialog) {
-            this.btnCloseCamDialog.addEventListener('click', () => {
-                this.cameraDialog.style.display = 'none';
-                if (this.btnToggleCamDialog) this.btnToggleCamDialog.classList.remove('active');
-            });
-        }
-
-        if (this.camFreeBtn) {
-            this.camFreeBtn.addEventListener('click', () => {
-                if (this.cb.onToggleCameraFree) this.cb.onToggleCameraFree();
-            });
-        }
-
-        if (this.camPitchSlider) {
-            this.camPitchSlider.addEventListener('input', (e) => {
-                const pitch = parseFloat(e.target.value);
-                if (this.camPitchVal) this.camPitchVal.textContent = `${Math.round(pitch)}°`;
-                if (this.cb.onCameraParamChange) this.cb.onCameraParamChange({ pitch });
-            });
-        }
-
-        if (this.camZoomSlider) {
-            this.camZoomSlider.addEventListener('input', (e) => {
-                const zoom = parseFloat(e.target.value);
-                if (this.camZoomVal) this.camZoomVal.textContent = zoom.toFixed(1);
-                if (this.cb.onCameraParamChange) this.cb.onCameraParamChange({ zoom });
-            });
-        }
-
-        if (this.camOrbitSlider) {
-            this.camOrbitSlider.addEventListener('input', (e) => {
-                const orbitAngleOffset = parseFloat(e.target.value);
-                if (this.camOrbitVal) {
-                    const sign = orbitAngleOffset > 0 ? '+' : '';
-                    this.camOrbitVal.textContent = orbitAngleOffset === 0 ? '0°' : `${sign}${Math.round(orbitAngleOffset)}°`;
-                }
-                if (this.cb.onCameraParamChange) this.cb.onCameraParamChange({ orbitAngleOffset });
-            });
-        }
-
-        // Settings Floating Dialog
-        if (this.btnModalSettings && this.modalSettings) {
-            this.btnModalSettings.addEventListener('click', () => {
-                const isHidden = (this.modalSettings.style.display === 'none' || !this.modalSettings.style.display);
-                this.modalSettings.style.display = isHidden ? 'flex' : 'none';
-                this.btnModalSettings.classList.toggle('active', isHidden);
-            });
-        }
-
-        if (this.btnCloseSettings && this.modalSettings) {
-            this.btnCloseSettings.addEventListener('click', () => {
-                this.modalSettings.style.display = 'none';
-                if (this.btnModalSettings) this.btnModalSettings.classList.remove('active');
-            });
-        }
-
-        if (this.btnFullscreen) {
-            this.btnFullscreen.addEventListener('click', () => {
-                if (!document.fullscreenElement) {
-                    document.documentElement.requestFullscreen().catch(err => console.warn('Fullscreen error:', err));
-                } else {
-                    document.exitFullscreen().catch(err => console.warn('Exit fullscreen error:', err));
-                }
-            });
-
-            document.addEventListener('fullscreenchange', () => {
+            on(document, 'fullscreenchange', () => {
                 const isFs = !!document.fullscreenElement;
-                this.btnFullscreen.textContent = isFs ? '⤓' : '⛶';
-                this.btnFullscreen.title = isFs ? '全画面解除 (Esc)' : '全画面表示 (F11)';
-                if (this.cb.onFullscreenChange) this.cb.onFullscreenChange();
+                el.btnFullscreen.textContent = isFs ? '⤓' : '⛶';
+                el.btnFullscreen.title = isFs ? '全画面解除 (Esc)' : '全画面表示 (F11)';
+                cb.onFullscreenChange?.();
             });
         }
 
-        // BLE Connect / Disconnect
-        if (this.btnBleConnect) {
-            this.btnBleConnect.addEventListener('click', () => {
-                if (this.cb.onBleConnect) this.cb.onBleConnect();
-            });
-        }
+        // 5. BLE & GPX / DEM
+        on(el.btnBleConnect, 'click', () => cb.onBleConnect?.());
+        on(el.btnBleDisconnect, 'click', (e) => { e.stopPropagation(); cb.onBleDisconnect?.(); });
+        on('preset-select', 'change', (e) => cb.onSelectPreset?.(e.target.value));
+        on(el.btnGsiDem, 'click', () => cb.onRequestGsiDem?.());
 
-        if (this.btnBleDisconnect) {
-            this.btnBleDisconnect.addEventListener('click', (e) => {
-                e.stopPropagation();
-                if (this.cb.onBleDisconnect) this.cb.onBleDisconnect();
-            });
-        }
+        const fileInput = $('gpx-file-input');
+        on('btn-browse', 'click', (e) => { e.stopPropagation(); fileInput?.click(); });
+        on(fileInput, 'change', (e) => { if (e.target.files[0]) cb.onLoadGpxFile?.(e.target.files[0]); });
 
-        // GPX Importer & GSI 5m DEM
-        if (this.presetSelect) {
-            this.presetSelect.addEventListener('change', (e) => {
-                if (this.cb.onSelectPreset) this.cb.onSelectPreset(e.target.value);
-            });
-        }
-
-        if (this.btnBrowse && this.fileInput) {
-            this.btnBrowse.addEventListener('click', (e) => {
-                e.stopPropagation();
-                this.fileInput.click();
-            });
-            this.fileInput.addEventListener('change', (e) => {
-                const file = e.target.files[0];
-                if (file && this.cb.onLoadGpxFile) this.cb.onLoadGpxFile(file);
-            });
-        }
-
-        const gpxSection = this.dropZone ? this.dropZone.closest('.gpx-section-frameless') : null;
+        const gpxSection = $('drop-zone')?.closest('.gpx-section-frameless');
         if (gpxSection) {
-            ['dragenter', 'dragover'].forEach(name => {
-                gpxSection.addEventListener(name, (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    gpxSection.classList.add('dragover');
-                });
-            });
-
-            ['dragleave', 'drop'].forEach(name => {
-                gpxSection.addEventListener(name, (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    gpxSection.classList.remove('dragover');
-                });
-            });
-
-            gpxSection.addEventListener('drop', (e) => {
+            const setDrag = (active) => (e) => { e.preventDefault(); e.stopPropagation(); gpxSection.classList.toggle('dragover', active); };
+            ['dragenter', 'dragover'].forEach((t) => on(gpxSection, t, setDrag(true)));
+            ['dragleave', 'drop'].forEach((t) => on(gpxSection, t, setDrag(false)));
+            on(gpxSection, 'drop', (e) => {
                 const file = e.dataTransfer?.files?.[0];
-                if (file) {
-                    if (file.name.toLowerCase().endsWith('.gpx')) {
-                        if (this.cb.onLoadGpxFile) this.cb.onLoadGpxFile(file);
-                    } else {
-                        alert('.gpx 拡張子のファイルを選択してください。');
-                    }
-                }
-            });
-        }
-
-        if (this.btnGsiDem) {
-            this.btnGsiDem.addEventListener('click', () => {
-                if (this.cb.onRequestGsiDem) this.cb.onRequestGsiDem();
+                if (!file) return;
+                if (file.name.toLowerCase().endsWith('.gpx')) cb.onLoadGpxFile?.(file);
+                else alert('.gpx 拡張子のファイルを選択してください。');
             });
         }
     }
@@ -374,153 +181,113 @@ export class UIController {
     // --- UI Rendering / State Update Methods ---
 
     updateCourseMeta(course, currentProgress) {
+        const { el } = this;
         const totalKm = (course.totalDistance / 1000).toFixed(2);
-        if (this.bottomTotalDistTag) {
+        if (el.totalDistTag) {
             const [intPart, decPart] = totalKm.split('.');
-            const paddedTotal = `${intPart.padStart(3, '0')}.${decPart}`;
-            this.bottomTotalDistTag.textContent = `Total ${paddedTotal}Km`;
+            el.totalDistTag.textContent = `Total ${intPart.padStart(3, '0')}.${decPart}Km`;
         }
-        if (this.bottomDistDisplay) {
-            const curDistKm = ((currentProgress * course.totalDistance) / 1000).toFixed(2);
-            this.bottomDistDisplay.textContent = curDistKm;
+        if (el.distVal) el.distVal.textContent = ((currentProgress * course.totalDistance) / 1000).toFixed(2);
+        if (el.courseName) {
+            const title = `${course.name}${course.isGsiCorrected ? ' [DEM5A]' : ''}`;
+            el.courseName.textContent = title;
+            el.courseName.title = `${title} (${totalKm} km)`;
         }
-        if (this.elCourseNameDisplay) {
-            const statusTag = course.isGsiCorrected ? ' [DEM5A]' : '';
-            this.elCourseNameDisplay.textContent = `${course.name}${statusTag}`;
-            this.elCourseNameDisplay.title = `${course.name}${statusTag} (${totalKm} km)`;
-        }
-        if (this.btnGsiDem) {
-            const isJapan = course.isWithinJapan();
-            this.btnGsiDem.style.display = isJapan ? 'flex' : 'none';
-            if (course.isGsiCorrected) {
-                this.btnGsiDem.classList.add('active');
-                this.btnGsiDem.classList.remove('loading');
-                this.gsiBtnText.textContent = '5mメッシュ補正済 (DEM5A)';
-            } else {
-                this.btnGsiDem.classList.remove('active', 'loading');
-                this.gsiBtnText.textContent = '5mメッシュ標高で補正';
+        if (el.btnGsiDem) {
+            el.btnGsiDem.style.display = course.isWithinJapan() ? 'flex' : 'none';
+            el.btnGsiDem.classList.toggle('active', course.isGsiCorrected);
+            el.btnGsiDem.classList.remove('loading');
+            if (el.gsiBtnText) {
+                el.gsiBtnText.textContent = course.isGsiCorrected ? '5mメッシュ補正済 (DEM5A)' : '5mメッシュ標高で補正';
             }
         }
     }
 
     setGsiLoading(isLoading, pct = 0) {
-        if (!this.btnGsiDem || !this.gsiBtnText) return;
-        this.btnGsiDem.classList.toggle('loading', isLoading);
-        if (isLoading) {
-            this.gsiBtnText.textContent = `DEM取得中 ${pct}%...`;
-        }
+        const { btnGsiDem, gsiBtnText } = this.el;
+        if (!btnGsiDem || !gsiBtnText) return;
+        btnGsiDem.classList.toggle('loading', isLoading);
+        if (isLoading) gsiBtnText.textContent = `DEM取得中 ${pct}%...`;
     }
 
     updatePlayState(isPlaying) {
-        if (this.btnPlay) {
-            this.btnPlay.textContent = isPlaying ? 'Pause' : 'AutoRun';
-            this.btnPlay.title = isPlaying ? '一時停止 (Pause)' : '自動走行 (AutoRun)';
-            this.btnPlay.classList.toggle('running', isPlaying);
+        const { btnPlay, autorunSpeedBox } = this.el;
+        if (btnPlay) {
+            btnPlay.textContent = isPlaying ? 'Pause' : 'AutoRun';
+            btnPlay.title = isPlaying ? '一時停止 (Pause)' : '自動走行 (AutoRun)';
+            btnPlay.classList.toggle('running', isPlaying);
         }
-        if (this.autorunSpeedBox) {
-            this.autorunSpeedBox.classList.toggle('active', isPlaying);
-        }
-        if (this.rowSpeed) {
-            this.rowSpeed.classList.toggle('editable', isPlaying);
-            if (this.speedEditHint) {
-                this.speedEditHint.style.display = isPlaying ? 'inline' : 'none';
-            }
-        }
+        autorunSpeedBox?.classList.toggle('active', isPlaying);
     }
 
     updateManualModeState(isManual) {
-        if (this.btnManualMode) {
-            this.btnManualMode.classList.toggle('active', isManual);
-        }
-        if (this.rowSlopeCtrl) {
-            this.rowSlopeCtrl.classList.toggle('editable', isManual);
-        }
+        this.el.btnManualMode?.classList.toggle('active', isManual);
+        this.el.rowSlopeCtrl?.classList.toggle('editable', isManual);
     }
 
     updateLfoState(isRunning) {
-        if (this.btnLfoToggle) {
-            this.btnLfoToggle.textContent = isRunning ? 'スキャン停止' : '連続スキャン';
-            this.btnLfoToggle.classList.toggle('running', isRunning);
-        }
+        const { btnLfoToggle } = this.el;
+        if (!btnLfoToggle) return;
+        btnLfoToggle.textContent = isRunning ? 'スキャン停止' : '連続スキャン';
+        btnLfoToggle.classList.toggle('running', isRunning);
     }
 
     updateTrainerSlopeDisplay(clampedSlope) {
-        if (this.vSlopeVal) this.vSlopeVal.textContent = clampedSlope.toFixed(2);
-        if (this.testSlopeSlider) this.testSlopeSlider.value = clampedSlope;
-        if (this.testSlopeVal) {
-            const s = clampedSlope > 0 ? '+' : '';
-            this.testSlopeVal.textContent = `${s}${clampedSlope.toFixed(2)} %`;
-        }
+        const { vSlopeVal, testSlopeSlider, testSlopeVal } = this.el;
+        const formatted = clampedSlope.toFixed(2);
+        if (vSlopeVal) vSlopeVal.textContent = formatted;
+        if (testSlopeSlider) testSlopeSlider.value = clampedSlope;
+        if (testSlopeVal) testSlopeVal.textContent = `${clampedSlope > 0 ? '+' : ''}${formatted} %`;
     }
 
     updateMetrics(state, speedKmh) {
-        const distKm = (state.distance / 1000).toFixed(2);
-        const sign = state.slope >= 0 ? '+' : '';
-        const slopeFormatted = `${sign}${state.slope.toFixed(2)}`;
-
-        if (this.bottomAltDisplay) {
-            this.bottomAltDisplay.textContent = `${state.alt.toFixed(2)}`;
+        const { altVal, slopeVal, distVal, speedVal, canvasSpeedVal } = this.el;
+        if (altVal) altVal.textContent = state.alt.toFixed(2);
+        if (slopeVal) {
+            slopeVal.textContent = `${state.slope >= 0 ? '+' : ''}${state.slope.toFixed(2)}`;
+            slopeVal.style.color = state.slope > 7 ? 'var(--climb)' : state.slope < 0 ? 'var(--descent)' : '#f1f5f9';
         }
-        if (this.bottomSlopeDisplay) {
-            this.bottomSlopeDisplay.textContent = slopeFormatted;
-            if (state.slope > 7) {
-                this.bottomSlopeDisplay.style.color = 'var(--climb-color)';
-            } else if (state.slope < 0) {
-                this.bottomSlopeDisplay.style.color = 'var(--descent-color)';
-            } else {
-                this.bottomSlopeDisplay.style.color = '#cbd5e1';
-            }
-        }
-        if (this.bottomDistDisplay) {
-            this.bottomDistDisplay.textContent = distKm;
-        }
-        if (this.speedVal) {
-            this.speedVal.textContent = `${speedKmh.toFixed(2)}`;
-        }
-        if (this.canvasSpeedVal) {
-            this.canvasSpeedVal.textContent = `${speedKmh.toFixed(2)}`;
-        }
+        if (distVal) distVal.textContent = (state.distance / 1000).toFixed(2);
+        const spdStr = speedKmh.toFixed(2);
+        if (speedVal) speedVal.textContent = spdStr;
+        if (canvasSpeedVal) canvasSpeedVal.textContent = spdStr;
     }
 
     updateBleMetrics({ power, cadence, speed }) {
-        if (power !== null && power !== undefined && this.valPower) {
-            this.valPower.textContent = `${Number(power).toFixed(2)}`;
-        }
-        if (cadence !== null && cadence !== undefined && this.valCadence) {
-            this.valCadence.textContent = `${Number(cadence).toFixed(2)}`;
-        }
-        if (speed !== null && speed !== undefined) {
-            if (this.speedVal) this.speedVal.textContent = `${Number(speed).toFixed(2)}`;
-            if (this.canvasSpeedVal) this.canvasSpeedVal.textContent = `${Number(speed).toFixed(2)}`;
+        const { valPower, valCadence, speedVal, canvasSpeedVal } = this.el;
+        if (power != null && valPower) valPower.textContent = Number(power).toFixed(2);
+        if (cadence != null && valCadence) valCadence.textContent = Number(cadence).toFixed(2);
+        if (speed != null) {
+            const spdStr = Number(speed).toFixed(2);
+            if (speedVal) speedVal.textContent = spdStr;
+            if (canvasSpeedVal) canvasSpeedVal.textContent = spdStr;
         }
     }
 
     updateBleConnectionState(state, deviceName = '') {
-        if (!this.btnBleConnect || !this.bleStatusText) return;
+        const { btnBleConnect, bleStatusText, btnBleDisconnect, valPower, valCadence } = this.el;
+        if (!btnBleConnect || !bleStatusText) return;
+        const isConnected = state === 'connected';
+        btnBleConnect.classList.toggle('connected', isConnected);
+        if (btnBleDisconnect) btnBleDisconnect.style.display = isConnected ? 'flex' : 'none';
+
         if (state === 'connecting') {
-            this.bleStatusText.textContent = 'ペアリング中...';
-        } else if (state === 'connected') {
-            this.btnBleConnect.classList.add('connected');
-            this.bleStatusText.textContent = `🟢 ${deviceName}`;
-            if (this.btnBleDisconnect) this.btnBleDisconnect.style.display = 'flex';
+            bleStatusText.textContent = 'ペアリング中...';
+        } else if (isConnected) {
+            bleStatusText.textContent = `🟢 ${deviceName}`;
         } else {
-            this.btnBleConnect.classList.remove('connected');
-            this.bleStatusText.textContent = '⚡ スマートトレーナー接続';
-            if (this.btnBleDisconnect) this.btnBleDisconnect.style.display = 'none';
-            if (this.valPower) this.valPower.textContent = '--.--';
-            if (this.valCadence) this.valCadence.textContent = '--.--';
+            bleStatusText.textContent = '⚡ スマートトレーナー接続';
+            if (valPower) valPower.textContent = '--.--';
+            if (valCadence) valCadence.textContent = '--.--';
         }
     }
 
     updateCameraModeUI(isFree) {
-        if (this.camFreeBtn) {
-            this.camFreeBtn.classList.toggle('active', isFree);
-        }
-        if (this.camAdjustBox) {
-            this.camAdjustBox.classList.toggle('disabled', isFree);
-            this.camAdjustBox.querySelectorAll('input').forEach(input => {
-                input.disabled = isFree;
-            });
+        const { camFreeBtn, camAdjustBox } = this.el;
+        camFreeBtn?.classList.toggle('active', isFree);
+        if (camAdjustBox) {
+            camAdjustBox.classList.toggle('disabled', isFree);
+            camAdjustBox.querySelectorAll('input').forEach((input) => { input.disabled = isFree; });
         }
     }
 }
