@@ -26,8 +26,8 @@ class App {
         this.setupEvents();
         this.setupGPXImporter();
 
-        // デフォルトで Hiyoshi GPX を最優先自動ロード
-        this.loadDefaultGPX('gpx/hiyoshi_27.9km_D1095.gpx');
+        // デフォルトで更新された Hiyoshi GPX を最優先自動ロード
+        this.loadDefaultGPX('gpx/hiyoshi_12.5km_D738.gpx');
     }
 
     getCameraOffset() {
