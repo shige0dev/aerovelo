@@ -139,6 +139,66 @@ body {
     margin-top: 3px;
 }
 
+/* GPX Importer Drop Zone */
+.gpx-section {
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px dashed var(--panel-border);
+    border-radius: 8px;
+    padding: 10px;
+    transition: all 0.2s ease;
+}
+
+.gpx-section.dragover {
+    border-color: var(--accent);
+    background: rgba(0, 240, 255, 0.08);
+}
+
+.drop-zone {
+    text-align: center;
+    font-size: 0.76rem;
+    color: var(--text-muted);
+    padding: 6px 0;
+}
+
+.btn-link {
+    background: none;
+    border: none;
+    color: var(--accent);
+    font-size: 0.76rem;
+    font-weight: 600;
+    text-decoration: underline;
+    cursor: pointer;
+    padding: 0;
+}
+
+.btn-link:hover {
+    color: var(--accent-hover);
+}
+
+.course-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.75rem;
+    color: #e2e8f0;
+    margin-top: 4px;
+    background: rgba(0, 0, 0, 0.35);
+    padding: 4px 8px;
+    border-radius: 4px;
+}
+
+.badge-active {
+    color: var(--accent);
+    font-weight: 700;
+}
+
+#active-course-name {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 250px;
+}
+
 /* Controls */
 .control-group {
     display: flex;

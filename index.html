@@ -19,10 +19,23 @@
         <header class="panel-header">
             <div class="header-top">
                 <h1>AeroVelo <span>3D Terrain</span></h1>
-                <span class="version-badge" id="app-version">v0.2.1</span>
+                <span class="version-badge" id="app-version">v0.3.0</span>
             </div>
-            <p class="subtitle">実地形 3D 衛星空撮バーチャルサイクリング</p>
+            <p class="subtitle" id="course-title">実地形 3D 衛星空撮バーチャルサイクリング</p>
         </header>
+
+        <!-- GPX Importer Section -->
+        <section class="control-group gpx-section">
+            <label>コース読み込み (GPX)</label>
+            <div id="drop-zone" class="drop-zone">
+                <input type="file" id="gpx-file-input" accept=".gpx" style="display: none;">
+                <span class="drop-text">ここに GPX をドラッグ＆ドロップ<br>または <button type="button" id="btn-browse" class="btn-link">ファイルを選択</button></span>
+            </div>
+            <div id="course-meta" class="course-meta">
+                <span class="badge-active">現在: </span>
+                <span id="active-course-name">ヤビツ峠 (プリセット)</span>
+            </div>
+        </section>
 
         <section class="control-group">
             <div class="label-row">
@@ -75,7 +88,7 @@
 
     <!-- Mini Profile Elevation Chart Overlay -->
     <div id="profile-container">
-        <div class="profile-header">ヤビツ峠 標高プロファイル</div>
+        <div class="profile-header" id="profile-chart-title">標高プロファイル</div>
         <canvas id="elevation-canvas" width="340" height="70"></canvas>
     </div>
 

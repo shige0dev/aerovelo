@@ -1,12 +1,12 @@
-import { GeoCourseManager, YABITSU_PASS_ROUTE } from './course.js';
+import { GeoCourseManager, GPXParser, DEFAULT_YABITSU_ROUTE } from './course.js';
 
 class App {
     constructor() {
-        this.course = new GeoCourseManager(YABITSU_PASS_ROUTE);
+        this.course = new GeoCourseManager(DEFAULT_YABITSU_ROUTE, 'ヤビツ峠 (プリセット)');
         this.currentProgress = 0.0;
         this.cameraMode = 'chase'; // 'chase' | 'drone' | 'free'
         this.isPlaying = false;
-        this.playSpeed = 0.0006; // progress step per frame
+        this.playSpeed = 0.0006;
         this.isModeTransitioning = false;
         this.lastFrameTime = 0;
 
@@ -14,9 +14,9 @@ class App {
         this.initElevationProfile();
         this.initMap();
         this.setupEvents();
+        this.setupGPXImporter();
     }
 
-    // 左パネル(380px)を避けて、ユーザーの目線の中央（右側エリアの中心）にライダーを置くピクセルオフセット
     getCameraOffset() {
         const panelWidth = 380;
         const screenWidth = window.innerWidth;
@@ -34,7 +34,6 @@ class App {
             style: {
                 version: 8,
                 sources: {
-                    // 高精細 衛星写真タイル (ESRI World Imagery)
                     'satellite': {
                         type: 'raster',
                         tiles: [
@@ -43,7 +42,6 @@ class App {
                         tileSize: 256,
                         attribution: 'Tiles &copy; Esri, Maxar, Earthstar Geographics'
                     },
-                    // 標高 DEM 3D地形 (AWS Open Terrain RGB)
                     'terrain-dem': {
                         type: 'raster-dem',
                         tiles: [
@@ -80,27 +78,48 @@ class App {
         });
 
         this.map.on('load', () => {
-            // 3D 地形有効化 (起伏の強調倍率を自然な 1.15 に調整)
             this.map.setTerrain({
                 source: 'terrain-dem',
                 exaggeration: 1.15
             });
 
-            // コース全体の高精度3Dライン
-            const coordinates = this.course.toGeoJSONCoordinates();
+            this.updateMapCourseLayers();
+
+            const el = document.createElement('div');
+            el.className = 'rider-marker';
+            el.innerHTML = `
+                <div class="rider-beacon"></div>
+                <div class="rider-arrow">▲</div>
+            `;
+            this.riderMarker = new maplibregl.Marker({ element: el })
+                .setLngLat([startState.lon, startState.lat])
+                .addTo(this.map);
+
+            this.updateState(0.0);
+            this.animate = this.animate.bind(this);
+            requestAnimationFrame(this.animate);
+        });
+    }
+
+    updateMapCourseLayers() {
+        const coordinates = this.course.toGeoJSONCoordinates();
+        const geojsonData = {
+            type: 'Feature',
+            properties: {},
+            geometry: {
+                type: 'LineString',
+                coordinates: coordinates
+            }
+        };
+
+        if (this.map.getSource('route')) {
+            this.map.getSource('route').setData(geojsonData);
+        } else {
             this.map.addSource('route', {
                 type: 'geojson',
-                data: {
-                    type: 'Feature',
-                    properties: {},
-                    geometry: {
-                        type: 'LineString',
-                        coordinates: coordinates
-                    }
-                }
+                data: geojsonData
             });
 
-            // コース発光ライン
             this.map.addLayer({
                 id: 'route-glow',
                 type: 'line',
@@ -117,7 +136,6 @@ class App {
                 }
             });
 
-            // コース実線
             this.map.addLayer({
                 id: 'route-line',
                 type: 'line',
@@ -131,22 +149,7 @@ class App {
                     'line-width': 4
                 }
             });
-
-            // ライダーマーカー
-            const el = document.createElement('div');
-            el.className = 'rider-marker';
-            el.innerHTML = `
-                <div class="rider-beacon"></div>
-                <div class="rider-arrow">▲</div>
-            `;
-            this.riderMarker = new maplibregl.Marker({ element: el })
-                .setLngLat([startState.lon, startState.lat])
-                .addTo(this.map);
-
-            this.updateState(0.0);
-            this.animate = this.animate.bind(this);
-            requestAnimationFrame(this.animate);
-        });
+        }
     }
 
     initElevationProfile() {
@@ -178,7 +181,6 @@ class App {
         const padY = 8;
         const getY = (alt) => h - padY - ((alt - minAlt) / altSpan) * (h - padY * 2);
 
-        // グラデーション塗りつぶし
         const gradient = ctx.createLinearGradient(0, 0, 0, h);
         gradient.addColorStop(0, 'rgba(0, 240, 255, 0.45)');
         gradient.addColorStop(1, 'rgba(0, 240, 255, 0.05)');
@@ -195,7 +197,6 @@ class App {
         ctx.fillStyle = gradient;
         ctx.fill();
 
-        // コースライン
         ctx.beginPath();
         for (let i = 0; i <= samples; i++) {
             const x = (i / samples) * w;
@@ -207,7 +208,6 @@ class App {
         ctx.lineWidth = 2;
         ctx.stroke();
 
-        // ライダー現在地インジケータ
         const riderX = this.currentProgress * w;
         const riderState = this.course.getStateAtProgress(this.currentProgress);
         const riderY = getY(riderState.alt);
@@ -237,9 +237,104 @@ class App {
         this.elSlope = document.getElementById('val-slope');
         this.elSlopeWrap = document.getElementById('val-slope-wrap');
         this.elCoords = document.getElementById('val-coords');
+        this.elActiveCourseName = document.getElementById('active-course-name');
+        this.elProfileChartTitle = document.getElementById('profile-chart-title');
 
+        this.updateTotalDistanceUI();
+    }
+
+    updateTotalDistanceUI() {
         const totalKm = (this.course.totalDistance / 1000).toFixed(2);
         this.elTotalDist.textContent = `/ ${totalKm} km`;
+        if (this.elActiveCourseName) {
+            this.elActiveCourseName.textContent = this.course.name;
+        }
+        if (this.elProfileChartTitle) {
+            this.elProfileChartTitle.textContent = `${this.course.name} 標高プロファイル`;
+        }
+    }
+
+    setupGPXImporter() {
+        const dropZone = document.getElementById('drop-zone');
+        const gpxSection = dropZone ? dropZone.closest('.gpx-section') : null;
+        const fileInput = document.getElementById('gpx-file-input');
+        const btnBrowse = document.getElementById('btn-browse');
+
+        if (!dropZone || !fileInput) return;
+
+        btnBrowse.addEventListener('click', (e) => {
+            e.stopPropagation();
+            fileInput.click();
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) this.loadGPXFile(file);
+        });
+
+        // Drag & Drop
+        ['dragenter', 'dragover'].forEach(name => {
+            gpxSection.addEventListener(name, (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                gpxSection.classList.add('dragover');
+            });
+        });
+
+        ['dragleave', 'drop'].forEach(name => {
+            gpxSection.addEventListener(name, (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                gpxSection.classList.remove('dragover');
+            });
+        });
+
+        gpxSection.addEventListener('drop', (e) => {
+            const dt = e.dataTransfer;
+            const file = dt.files[0];
+            if (file) {
+                if (file.name.toLowerCase().endsWith('.gpx')) {
+                    this.loadGPXFile(file);
+                } else {
+                    alert('.gpx 拡張子のファイルを選択してください。');
+                }
+            }
+        });
+    }
+
+    loadGPXFile(file) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const gpxText = e.target.result;
+                const { courseName, waypoints } = GPXParser.parse(gpxText);
+                const finalName = courseName !== 'カスタムコース' ? courseName : file.name.replace(/\.gpx$/i, '');
+                
+                // Replace course
+                this.course = new GeoCourseManager(waypoints, finalName);
+                this.updateTotalDistanceUI();
+
+                // Stop playback and reset to 0%
+                this.isPlaying = false;
+                this.btnPlay.textContent = '再生 (Auto Fly)';
+                this.btnPlay.classList.remove('running');
+                this.currentProgress = 0.0;
+
+                // Update 3D Map Route
+                this.updateMapCourseLayers();
+                this.drawElevationChart();
+
+                // Jump Camera to Start of new Course
+                this.updateState(0.0);
+                this.applyCameraTarget(1500);
+
+                console.log(`GPX Loaded successfully: ${finalName} (${waypoints.length} points, ${(this.course.totalDistance / 1000).toFixed(2)} km)`);
+            } catch (err) {
+                console.error(err);
+                alert(`GPX読み込みエラー: ${err.message}`);
+            }
+        };
+        reader.readAsText(file);
     }
 
     setupEvents() {
@@ -268,7 +363,6 @@ class App {
             this.updateState(0.0);
         });
 
-        // カメラモード切り替え（2秒間のスムーズ飛行）
         const setCamMode = (mode) => {
             this.cameraMode = mode;
             this.camChaseBtn.classList.toggle('active', mode === 'chase');
@@ -306,7 +400,6 @@ class App {
         this.currentProgress = ((progress % 1.0) + 1.0) % 1.0;
         const state = this.course.getStateAtProgress(this.currentProgress);
 
-        // ライダーマーカーの位置・方位角
         if (this.riderMarker) {
             this.riderMarker.setLngLat([state.lon, state.lat]);
             const arrow = this.riderMarker.getElement().querySelector('.rider-arrow');
@@ -315,7 +408,6 @@ class App {
             }
         }
 
-        // 数値・スライダー更新
         const pct100 = (this.currentProgress * 100).toFixed(1);
         if (document.activeElement !== this.progressInput) {
             this.progressInput.value = pct100;
@@ -337,10 +429,8 @@ class App {
 
         this.elCoords.textContent = `${state.lon.toFixed(4)}, ${state.lat.toFixed(4)}`;
 
-        // 標高チャートの現在地ポインタ更新
         this.drawElevationChart();
 
-        // カメラ同期（モード切り替えアニメーション中以外）
         if (!this.isModeTransitioning && this.cameraMode !== 'free') {
             this.applyCameraTarget(0);
         }
@@ -352,7 +442,7 @@ class App {
         const state = this.course.getStateAtProgress(this.currentProgress);
         const offset = this.getCameraOffset();
 
-        let targetPitch = 68; // 適度な仰角（負荷軽減 & 視界確保）
+        let targetPitch = 68;
         let targetBearing = state.bearing;
         let targetZoom = 15.6;
 
@@ -383,7 +473,6 @@ class App {
         requestAnimationFrame(this.animate);
 
         if (this.isPlaying) {
-            // 前フレームからの経過時間によるスムーズな進捗（30/60/120Hzモニタ対応）
             if (!this.lastFrameTime) this.lastFrameTime = timestamp;
             const delta = Math.min((timestamp - this.lastFrameTime) / 1000, 0.1);
             this.lastFrameTime = timestamp;

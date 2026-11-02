@@ -1,9 +1,53 @@
-// ヤビツ峠（名古木交差点 〜 蓑毛 〜 浅間平 〜 菜の花台展望台 〜 ヤビツ峠頂上）
-// 神奈川県道70号秦野清川線の実道路形状（WGS84世界測地系）
-// 名古木(標高96m)からヤビツ峠(標高761m)まで、実際の県道に沿ってひたすら登り続ける実走トレースデータ
+/**
+ * GPX Parser & GeoCourseManager
+ * Reads any standard GPX XML and creates high-precision interpolated routes.
+ */
 
-export const YABITSU_PASS_ROUTE = [
-    { lon: 139.2410, lat: 35.3817, alt: 96 },   // 0.0km: 名古木交差点（スタート）
+export class GPXParser {
+    /**
+     * Parse raw GPX text into an array of waypoints: { lon, lat, alt }
+     */
+    static parse(gpxText) {
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(gpxText, 'application/xml');
+
+        // Look for track points (<trkpt>) first, fallback to route points (<rtept>)
+        let points = Array.from(xmlDoc.querySelectorAll('trkpt'));
+        if (points.length === 0) {
+            points = Array.from(xmlDoc.querySelectorAll('rtept'));
+        }
+
+        if (points.length === 0) {
+            throw new Error('GPXファイル内に有効なポイント (<trkpt> または <rtept>) が見つかりませんでした。');
+        }
+
+        const waypoints = [];
+        for (const pt of points) {
+            const lat = parseFloat(pt.getAttribute('lat'));
+            const lon = parseFloat(pt.getAttribute('lon'));
+            const eleNode = pt.querySelector('ele');
+            const alt = eleNode ? parseFloat(eleNode.textContent) : 0;
+
+            if (!isNaN(lat) && !isNaN(lon)) {
+                waypoints.push({ lon, lat, alt: isNaN(alt) ? 0 : alt });
+            }
+        }
+
+        if (waypoints.length < 2) {
+            throw new Error('コース作成には最低2点以上の座標が必要です。');
+        }
+
+        // Try extracting course name from <name>
+        const nameNode = xmlDoc.querySelector('trk > name') || xmlDoc.querySelector('gpx > metadata > name');
+        const courseName = nameNode ? nameNode.textContent.trim() : 'カスタムコース';
+
+        return { courseName, waypoints };
+    }
+}
+
+// デフォルトプリセット: ヤビツ峠（名古木〜蓑毛〜菜の花台〜頂上）
+export const DEFAULT_YABITSU_ROUTE = [
+    { lon: 139.2410, lat: 35.3817, alt: 96 },   // 名古木交差点
     { lon: 139.2395, lat: 35.3848, alt: 110 },
     { lon: 139.2382, lat: 35.3880, alt: 125 },
     { lon: 139.2370, lat: 35.3912, alt: 142 },  // 落合交差点
@@ -12,7 +56,7 @@ export const YABITSU_PASS_ROUTE = [
     { lon: 139.2320, lat: 35.4015, alt: 215 },
     { lon: 139.2305, lat: 35.4050, alt: 245 },
     { lon: 139.2295, lat: 35.4090, alt: 275 },
-    { lon: 139.2286, lat: 35.4125, alt: 310 },  // 蓑毛バス停（ここから本格的な山道・急勾配へ）
+    { lon: 139.2286, lat: 35.4125, alt: 310 },  // 蓑毛バス停
     { lon: 139.2270, lat: 35.4140, alt: 335 },
     { lon: 139.2245, lat: 35.4145, alt: 365 },
     { lon: 139.2220, lat: 35.4138, alt: 395 },
@@ -20,18 +64,19 @@ export const YABITSU_PASS_ROUTE = [
     { lon: 139.2170, lat: 35.4110, alt: 450 },
     { lon: 139.2140, lat: 35.4102, alt: 480 },
     { lon: 139.2110, lat: 35.4098, alt: 510 },
-    { lon: 139.2086, lat: 35.4100, alt: 550 },  // 菜の花台展望台（夜景・相模湾の絶景スポット）
+    { lon: 139.2086, lat: 35.4100, alt: 550 },  // 菜の花台展望台
     { lon: 139.2080, lat: 35.4125, alt: 580 },
     { lon: 139.2092, lat: 35.4155, alt: 615 },
     { lon: 139.2115, lat: 35.4180, alt: 645 },
     { lon: 139.2138, lat: 35.4208, alt: 675 },
     { lon: 139.2155, lat: 35.4235, alt: 705 },
     { lon: 139.2175, lat: 35.4260, alt: 735 },
-    { lon: 139.2194, lat: 35.4280, alt: 761 }   // 11.6km: ヤビツ峠頂上（ゴール）
+    { lon: 139.2194, lat: 35.4280, alt: 761 }   // ヤビツ峠頂上
 ];
 
 export class GeoCourseManager {
-    constructor(waypoints = YABITSU_PASS_ROUTE) {
+    constructor(waypoints = DEFAULT_YABITSU_ROUTE, name = 'ヤビツ峠 (プリセット)') {
+        this.name = name;
         this.rawWaypoints = waypoints;
         this.interpolatedPoints = [];
         this.totalDistance = 0;
@@ -39,7 +84,6 @@ export class GeoCourseManager {
         this.initInterpolation();
     }
 
-    // 2点間の球面距離計算（Haversine式: メートル単位）
     static haversineDistance(lon1, lat1, lon2, lat2) {
         const R = 6371000;
         const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -65,8 +109,8 @@ export class GeoCourseManager {
         }
         this.totalDistance = total;
 
-        // 1200サンプルの高密度補間
-        const SAMPLES = 1200;
+        // コース長に応じた適切な高密度サンプリング (最小800〜最大3000点)
+        const SAMPLES = Math.min(3000, Math.max(800, Math.round(this.totalDistance / 10)));
         for (let i = 0; i <= SAMPLES; i++) {
             const targetDist = (i / SAMPLES) * this.totalDistance;
             this.interpolatedPoints.push(this.getPointByDistance(targetDist));
@@ -74,10 +118,10 @@ export class GeoCourseManager {
     }
 
     getPointByDistance(targetDist) {
-        if (targetDist <= 0) return { ...this.rawWaypoints[0], bearing: 0, slope: 4.5 };
+        if (targetDist <= 0) return { ...this.rawWaypoints[0], bearing: 0, slope: 0 };
         if (targetDist >= this.totalDistance) {
             const last = this.rawWaypoints[this.rawWaypoints.length - 1];
-            return { ...last, bearing: 0, slope: 3.0 };
+            return { ...last, bearing: 0, slope: 0 };
         }
 
         let segIdx = 0;
@@ -90,7 +134,7 @@ export class GeoCourseManager {
 
         const d0 = this.cumDistances[segIdx];
         const d1 = this.cumDistances[segIdx + 1];
-        const ratio = (targetDist - d0) / (d1 - d0);
+        const ratio = (d1 - d0) > 0 ? (targetDist - d0) / (d1 - d0) : 0;
 
         const p0 = this.rawWaypoints[segIdx];
         const p1 = this.rawWaypoints[segIdx + 1];
@@ -106,9 +150,9 @@ export class GeoCourseManager {
         let bearing = Math.atan2(y, x) * 180 / Math.PI;
         bearing = (bearing + 360) % 360;
 
-        // 登り斜度計算（常にプラス勾配）
+        // 斜度計算
         const segDist = d1 - d0;
-        const slope = segDist > 0 ? ((p1.alt - p0.alt) / segDist) * 100 : 5.0;
+        const slope = segDist > 0 ? ((p1.alt - p0.alt) / segDist) * 100 : 0;
 
         return { lon, lat, alt, bearing, slope };
     }
