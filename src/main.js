@@ -30,16 +30,25 @@ class App {
         this.loadDefaultGPX('gpx/hiyoshi_12.5km_D738.gpx');
     }
 
-    getCameraOffset() {
-        const panelWidth = 240;
+    /**
+     * MapLibre の padding を用いて注視点の位置を決定
+     * - top を増やすことで、注視点（ライダー）が確実に画面の下方へ移動します
+     * - left: 左側UIパネル(240px)を避ける
+     * - top: 画面高さの約35%の余白を設けることで、ライダーが画面下部（下から約18〜20%）にピタリと配置されます
+     */
+    getCameraPadding() {
         const screenWidth = window.innerWidth;
         const screenHeight = window.innerHeight;
 
-        const offsetX = (screenWidth > 600) ? (panelWidth / 2) : 0;
-        // 垂直方向: さらに画面高さの15%下方向へシフト (1/6 + 0.15 = 0.3167)
-        const offsetY = screenHeight * (1 / 6 + 0.15);
+        const padLeft = (screenWidth > 600) ? 240 : 0;
+        const padTop = Math.round(screenHeight * 0.35); // 画面高さの35%下に押し下げ
 
-        return [offsetX, offsetY];
+        return {
+            left: padLeft,
+            top: padTop,
+            right: 0,
+            bottom: 0
+        };
     }
 
     initMap() {
@@ -525,7 +534,7 @@ class App {
         if (!this.map || this.cameraMode === 'free') return;
 
         const state = this.course.getStateAtProgress(this.currentProgress);
-        const offset = this.getCameraOffset();
+        const padding = this.getCameraPadding();
 
         let targetPitch = this.cameraParams.pitch;
         let targetZoom = this.cameraParams.zoom;
@@ -557,7 +566,7 @@ class App {
             pitch: targetPitch,
             bearing: this.currentCamBearing,
             zoom: targetZoom,
-            offset: offset,
+            padding: padding,
             duration: duration,
             essential: true
         };
