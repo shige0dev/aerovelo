@@ -34,6 +34,9 @@ export class UIController {
         this.vSlopeVal = document.getElementById('v-slope-val');
         this.rowSlopeCtrl = document.getElementById('row-slope-ctrl');
         this.slopeEditHint = document.getElementById('slope-edit-hint');
+        this.btnManualMode = document.getElementById('btn-manual-mode');
+        this.autorunSpeedBox = document.getElementById('autorun-speed-box');
+        this.canvasSpeedVal = document.getElementById('canvas-speed-val');
 
         // Camera Dialog
         this.cameraDialog = document.getElementById('camera-dialog');
@@ -185,6 +188,30 @@ export class UIController {
                 if (this.cb.onSpeedChange) this.cb.onSpeedChange(nextSpeed);
             }
         });
+
+        // Vertical Drag & Wheel on Canvas AutoRun Speed Box
+        if (this.autorunSpeedBox) {
+            this.setupVerticalDrag(this.autorunSpeedBox, {
+                isEnabled: () => this.cb.isPlaying ? this.cb.isPlaying() : false,
+                getInitialValue: () => this.cb.getSpeed ? this.cb.getSpeed() : 25,
+                onDragChange: (startSpeed, deltaY) => {
+                    const nextSpeed = Math.max(1, Math.min(80, startSpeed + Math.round(deltaY / 4)));
+                    if (this.cb.onSpeedChange) this.cb.onSpeedChange(nextSpeed);
+                },
+                onWheelDelta: (dir) => {
+                    const cur = this.cb.getSpeed ? this.cb.getSpeed() : 25;
+                    const nextSpeed = Math.max(1, Math.min(80, cur + dir));
+                    if (this.cb.onSpeedChange) this.cb.onSpeedChange(nextSpeed);
+                }
+            });
+        }
+
+        // Manual Load Mode Toggle Button
+        if (this.btnManualMode) {
+            this.btnManualMode.addEventListener('click', () => {
+                if (this.cb.onToggleManualMode) this.cb.onToggleManualMode();
+            });
+        }
 
         // Vertical Drag & Wheel on Slope (負荷) item (いつでもスライドで変更可能)
         if (this.rowSlopeCtrl) {
@@ -361,7 +388,7 @@ export class UIController {
         if (this.bottomTotalDistTag) {
             const [intPart, decPart] = totalKm.split('.');
             const paddedTotal = `${intPart.padStart(3, '0')}.${decPart}`;
-            this.bottomTotalDistTag.textContent = `Total${paddedTotal}Km`;
+            this.bottomTotalDistTag.textContent = `Total ${paddedTotal}Km`;
         }
         if (this.bottomDistDisplay) {
             const curDistKm = ((currentProgress * course.totalDistance) / 1000).toFixed(2);
@@ -400,6 +427,9 @@ export class UIController {
             this.btnPlay.title = isPlaying ? '一時停止 (Pause)' : '自動走行 (AutoRun)';
             this.btnPlay.classList.toggle('running', isPlaying);
         }
+        if (this.autorunSpeedBox) {
+            this.autorunSpeedBox.classList.toggle('active', isPlaying);
+        }
         if (this.rowSpeed) {
             this.rowSpeed.classList.toggle('editable', isPlaying);
             if (this.speedEditHint) {
@@ -409,7 +439,12 @@ export class UIController {
     }
 
     updateManualModeState(isManual) {
-        // メインメニューからの負荷行は消去済み
+        if (this.btnManualMode) {
+            this.btnManualMode.classList.toggle('active', isManual);
+        }
+        if (this.rowSlopeCtrl) {
+            this.rowSlopeCtrl.classList.toggle('editable', isManual);
+        }
     }
 
     updateManualSlopeControls(slope) {
@@ -463,6 +498,9 @@ export class UIController {
         if (this.speedVal) {
             this.speedVal.textContent = `${speedKmh.toFixed(2)}`;
         }
+        if (this.canvasSpeedVal) {
+            this.canvasSpeedVal.textContent = `${speedKmh.toFixed(2)}`;
+        }
     }
 
     updateBleMetrics({ power, cadence, speed }) {
@@ -472,8 +510,9 @@ export class UIController {
         if (cadence !== null && cadence !== undefined && this.valCadence) {
             this.valCadence.textContent = `${Number(cadence).toFixed(2)}`;
         }
-        if (speed !== null && speed !== undefined && this.speedVal) {
-            this.speedVal.textContent = `${Number(speed).toFixed(2)}`;
+        if (speed !== null && speed !== undefined) {
+            if (this.speedVal) this.speedVal.textContent = `${Number(speed).toFixed(2)}`;
+            if (this.canvasSpeedVal) this.canvasSpeedVal.textContent = `${Number(speed).toFixed(2)}`;
         }
     }
 

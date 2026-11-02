@@ -18,7 +18,7 @@
     <div id="top-bar">
         <div class="top-title-group">
             <h1 class="top-app-title">AeroVelo</h1>
-            <span class="version-badge" id="app-version">v1.6.9</span>
+            <span class="version-badge" id="app-version">v1.7.0</span>
         </div>
         <div class="top-course-group">
             <span id="course-name-display" class="top-course-title">読み込み中...</span>
@@ -30,7 +30,7 @@
         </div>
     </div>
 
-    <!-- 画面上部 HUDメトリクス (スピード〜負荷: 1行表示×7行縦並び、ベースなし個別配置) -->
+    <!-- 画面上部 HUDメトリクス (英語表示×7行縦並び、ベースなし個別配置) -->
     <div id="hud-metrics">
         <div class="hud-item speed-hud-item" id="row-speed" title="AUTOPLAY時のみ上下スワイプ・ホイールで速度変更可能">
             <span class="hud-label">Speed<span id="speed-edit-hint" class="speed-hint" style="display: none;">⇅</span></span>
@@ -40,21 +40,21 @@
             </div>
         </div>
         <div class="hud-item alt-hud-item">
-            <span class="hud-label">標高</span>
+            <span class="hud-label">Altitude</span>
             <div class="hud-value-box">
                 <span id="bottom-alt-display" class="hud-val">0.00</span>
                 <span class="hud-unit">m</span>
             </div>
         </div>
         <div class="hud-item slope-hud-item">
-            <span class="hud-label">斜度</span>
+            <span class="hud-label">Slope</span>
             <div class="hud-value-box">
                 <span id="bottom-slope-display" class="hud-val">+0.00</span>
                 <span class="hud-unit">%</span>
             </div>
         </div>
         <div class="hud-item dist-hud-item">
-            <span class="hud-label">距離</span>
+            <span class="hud-label">Distance</span>
             <div class="hud-value-box">
                 <span id="bottom-dist-display" class="hud-val">0.00</span>
                 <span class="hud-unit">km</span>
@@ -75,7 +75,10 @@
             </div>
         </div>
         <div class="hud-item slope-hud-item editable" id="row-slope-ctrl" title="上下スワイプ・ホイールで負荷変更可能">
-            <span class="hud-label">負荷<span id="slope-edit-hint" class="speed-hint" style="display: none;">⇅</span></span>
+            <div class="hud-label-group">
+                <span class="hud-label">Load</span>
+                <button type="button" id="btn-manual-mode" class="hud-manual-btn" title="手動固定負荷モード切替 (Auto/Manual)">Manual</button>
+            </div>
             <div class="hud-value-box">
                 <span id="v-slope-val" class="hud-val">0.00</span>
                 <span class="hud-unit">%</span>
@@ -116,10 +119,17 @@
     <!-- 画面最下段 全幅バー: 標高プロファイルCanvas (全幅) -->
     <div id="bottom-bar">
         <canvas id="elevation-canvas"></canvas>
-        <!-- AutoRun ボタン (勾配表示範囲・左上に配置) -->
-        <button type="button" id="btn-play" class="canvas-autorun-btn" title="自動走行 (AutoRun)">AutoRun</button>
+        <!-- AutoRun ボタン ＆ 再生速度スライドボックス (勾配表示範囲・左上に配置) -->
+        <div class="canvas-autorun-group">
+            <button type="button" id="btn-play" class="canvas-autorun-btn" title="自動走行 (AutoRun)">AutoRun</button>
+            <div id="autorun-speed-box" class="canvas-autorun-speed-box" title="AUTORUN再生速度: 上下スワイプ・ホイールで変更可能">
+                <span id="canvas-speed-val" class="canvas-speed-val">25.00</span>
+                <span class="canvas-speed-unit">km/h</span>
+                <span class="canvas-speed-hint">⇅</span>
+            </div>
+        </div>
         <!-- 全長表示（標高表示の右上・枠なし） -->
-        <span id="bottom-total-dist-tag" class="canvas-total-dist-tag">Total000.00Km</span>
+        <span id="bottom-total-dist-tag" class="canvas-total-dist-tag">Total 000.00Km</span>
     </div>
 
     <!-- 統合設定フローティングダイアログ (⚙️ ボタン直上に展開、他操作を遮らないモードレスダイアログ) -->
