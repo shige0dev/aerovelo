@@ -1,6 +1,6 @@
 /**
  * GPX Parser & GeoCourseManager
- * Reads any standard GPX XML and creates smooth Catmull-Rom interpolated routes.
+ * Reads standard GPX XML and creates smooth routes with robust grade calculation.
  */
 
 export class GPXParser {
@@ -40,8 +40,6 @@ export class GPXParser {
     }
 }
 
-// デフォルトのサンプルコース: 富士山麓・本栖湖パノラマレイクサイドループ（緩やかなカーブと美しい湖畔・富士山の絶景）
-// 周回ループで始点・終点が自然につながり、離散的な角のない滑らかなコース
 export const DEFAULT_LAKE_ROUTE = [
     { lon: 138.5830, lat: 35.4740, alt: 902 },
     { lon: 138.5885, lat: 35.4785, alt: 905 },
@@ -58,7 +56,7 @@ export const DEFAULT_LAKE_ROUTE = [
 ];
 
 export class GeoCourseManager {
-    constructor(waypoints = DEFAULT_LAKE_ROUTE, name = '本栖湖レイクサイド (サンプル)') {
+    constructor(waypoints = DEFAULT_LAKE_ROUTE, name = 'コース') {
         this.name = name;
         this.rawWaypoints = waypoints;
         this.interpolatedPoints = [];
@@ -100,12 +98,40 @@ export class GeoCourseManager {
         }
         this.totalDistance = total;
 
-        // 密集サンプリング (1500サンプル)
-        const SAMPLES = Math.min(3000, Math.max(1000, Math.round(this.totalDistance / 8)));
+        // サンプリング（約5m間隔、最小1000点）
+        const SAMPLES = Math.min(4000, Math.max(1000, Math.round(this.totalDistance / 5)));
+        const rawSamples = [];
         for (let i = 0; i <= SAMPLES; i++) {
             const targetDist = (i / SAMPLES) * this.totalDistance;
-            this.interpolatedPoints.push(this.getRawPointByDistance(targetDist));
+            rawSamples.push({
+                dist: targetDist,
+                ...this.getRawPointByDistance(targetDist)
+            });
         }
+
+        // 標高のロバストな移動平均フィルター（約60m区間）
+        // GPSの標高スパイクノイズを除去し、実際の道路の設計縦断勾配を抽出
+        const SMOOTH_WINDOW_METERS = 60;
+        const stepDist = this.totalDistance / SAMPLES;
+        const windowHalfCount = Math.max(3, Math.round((SMOOTH_WINDOW_METERS / 2) / stepDist));
+
+        this.interpolatedPoints = rawSamples.map((sample, idx) => {
+            let sumAlt = 0;
+            let count = 0;
+            for (let offset = -windowHalfCount; offset <= windowHalfCount; offset++) {
+                const targetIdx = idx + offset;
+                if (targetIdx >= 0 && targetIdx <= SAMPLES) {
+                    sumAlt += rawSamples[targetIdx].alt;
+                    count++;
+                }
+            }
+            return {
+                dist: sample.dist,
+                lon: sample.lon,
+                lat: sample.lat,
+                alt: count > 0 ? (sumAlt / count) : sample.alt
+            };
+        });
     }
 
     getRawPointByDistance(targetDist) {
@@ -135,34 +161,58 @@ export class GeoCourseManager {
     }
 
     /**
-     * 高精度・平滑化されたステート取得
-     * 前後一定距離（Lookahead & Lookbehind）に基づく接線ベクトルから滑らかな方位角（Bearing）を算出
+     * 高精度ステート取得
+     * - 方位角（Bearing）: 前後 25m の接線から算出
+     * - 斜度（Slope %）: 道路沿い（走行距離基準）の標高差（Δh / Δd * 100）で算出
+     *   ※ヘアピンカーブでも直線距離で割らないため、山岳地で斜度が急上昇するバグを根本解決
      */
     getStateAtProgress(progress) {
         const u = Math.max(0, Math.min(1, progress));
         const dist = u * this.totalDistance;
-        const currentPt = this.getRawPointByDistance(dist);
 
-        // 前後 15m 〜 25m の窓で接線ベクトルを計算（離散値の角折れジャンプを完全解消）
-        const windowDist = Math.min(25, Math.max(10, this.totalDistance * 0.003));
+        if (this.interpolatedPoints.length === 0) {
+            this.initInterpolation();
+        }
+
+        const sampleCount = this.interpolatedPoints.length - 1;
+        const approxIdx = Math.min(sampleCount - 1, Math.max(0, Math.floor(u * sampleCount)));
+        const pA = this.interpolatedPoints[approxIdx];
+        const pB = this.interpolatedPoints[approxIdx + 1];
+        const segRatio = (pB.dist - pA.dist) > 0 ? (dist - pA.dist) / (pB.dist - pA.dist) : 0;
+
+        const currentLon = pA.lon + (pB.lon - pA.lon) * segRatio;
+        const currentLat = pA.lat + (pB.lat - pA.lat) * segRatio;
+        const currentAlt = pA.alt + (pB.alt - pA.alt) * segRatio;
+
+        // 接線 Bearing 計算用の前後インデックス
+        const windowDist = Math.min(30, Math.max(15, this.totalDistance * 0.003));
         const forwardDist = Math.min(this.totalDistance, dist + windowDist);
         const backwardDist = Math.max(0, dist - windowDist);
 
-        const fwdPt = this.getRawPointByDistance(forwardDist);
-        const bwdPt = this.getRawPointByDistance(backwardDist);
+        const fwdIdx = Math.min(sampleCount, Math.round((forwardDist / this.totalDistance) * sampleCount));
+        const bwdIdx = Math.max(0, Math.round((backwardDist / this.totalDistance) * sampleCount));
+
+        const fwdPt = this.interpolatedPoints[fwdIdx];
+        const bwdPt = this.interpolatedPoints[bwdIdx];
 
         const bearing = GeoCourseManager.calcBearing(bwdPt.lon, bwdPt.lat, fwdPt.lon, fwdPt.lat);
 
-        // 斜度計算
-        const horizDist = GeoCourseManager.haversineDistance(bwdPt.lon, bwdPt.lat, fwdPt.lon, fwdPt.lat);
-        const slope = horizDist > 0 ? ((fwdPt.alt - bwdPt.alt) / horizDist) * 100 : 0;
+        // 斜度計算（道路に沿った走行距離基準 Δd）
+        const roadDistance = fwdPt.dist - bwdPt.dist;
+        let slope = 0;
+        if (roadDistance > 5) {
+            slope = ((fwdPt.alt - bwdPt.alt) / roadDistance) * 100;
+        }
+
+        // 小数点第1位に丸め
+        slope = Math.round(slope * 10) / 10;
 
         return {
             u,
             distance: dist,
-            lon: currentPt.lon,
-            lat: currentPt.lat,
-            alt: currentPt.alt,
+            lon: currentLon,
+            lat: currentLat,
+            alt: currentAlt,
             bearing,
             slope
         };
