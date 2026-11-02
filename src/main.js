@@ -92,7 +92,7 @@ class App {
             zoom: 17.5,
             pitch: 68,
             bearing: startState.bearing,
-            maxPitch: 85
+            maxPitch: 75 // 視界が広がりすぎて負荷・カクつきが出るのを防ぐため最大75度に制限
         });
 
         this.map.on('load', () => {
