@@ -12,11 +12,12 @@ class App {
 
         // 滑らかな角度補間（Lerp）用の現在カメラBearing
         this.currentCamBearing = null;
+        this.aerialOrbitOffset = 35; // Aerialモードでのユーザー調整角度 (-180°〜+180°)
 
-        // カメラパラメータ（Chase / Drone ごとの調整値）
+        // カメラパラメータ（Chase / Drone）
         this.cameraParams = {
-            chase: { pitch: 68, zoom: 15.6 },
-            drone: { pitch: 45, zoom: 14.5 }
+            chase: { pitch: 68, zoom: 16.5 },
+            drone: { pitch: 48, zoom: 15.0 }
         };
 
         this.initUI();
@@ -27,7 +28,7 @@ class App {
     }
 
     getCameraOffset() {
-        const panelWidth = 240; // パネル幅230pxに合わせてオフセットを調整
+        const panelWidth = 240;
         const screenWidth = window.innerWidth;
         if (screenWidth > 600) {
             return [panelWidth / 2, 0];
@@ -40,6 +41,7 @@ class App {
 
         this.map = new maplibregl.Map({
             container: 'map',
+            fadeDuration: 0,
             style: {
                 version: 8,
                 sources: {
@@ -80,10 +82,10 @@ class App {
                 }
             },
             center: [startState.lon, startState.lat],
-            zoom: 15.6,
-            pitch: 70,
+            zoom: 16.5,
+            pitch: 68,
             bearing: startState.bearing,
-            maxPitch: 85
+            maxPitch: 75
         });
 
         this.map.on('load', () => {
@@ -174,7 +176,7 @@ class App {
 
         ctx.clearRect(0, 0, w, h);
 
-        const samples = 200;
+        const samples = 150;
         const elevations = [];
         let minAlt = Infinity, maxAlt = -Infinity;
 
@@ -222,7 +224,7 @@ class App {
         const riderY = getY(riderState.alt);
 
         ctx.beginPath();
-        ctx.arc(riderX, riderY, 4.5, 0, Math.PI * 2);
+        ctx.arc(riderX, riderY, 4, 0, Math.PI * 2);
         ctx.fillStyle = '#ffffff';
         ctx.fill();
         ctx.strokeStyle = '#00f0ff';
@@ -249,16 +251,18 @@ class App {
         this.elActiveCourseName = document.getElementById('active-course-name');
         this.elProfileChartTitle = document.getElementById('profile-chart-title');
 
-        // Speed UI
         this.speedSlider = document.getElementById('speed-slider');
         this.speedVal = document.getElementById('speed-val');
 
-        // Camera Sliders UI
         this.camPitchSlider = document.getElementById('cam-pitch-slider');
         this.camPitchVal = document.getElementById('cam-pitch-val');
         this.camZoomSlider = document.getElementById('cam-zoom-slider');
         this.camZoomVal = document.getElementById('cam-zoom-val');
         this.camAdjustBox = document.getElementById('camera-adjust-box');
+
+        this.aerialOrbitGroup = document.getElementById('aerial-orbit-group');
+        this.camOrbitSlider = document.getElementById('cam-orbit-slider');
+        this.camOrbitVal = document.getElementById('cam-orbit-val');
 
         this.updateTotalDistanceUI();
     }
@@ -292,7 +296,6 @@ class App {
             if (file) this.loadGPXFile(file);
         });
 
-        // Drag & Drop
         ['dragenter', 'dragover'].forEach(name => {
             gpxSection.addEventListener(name, (e) => {
                 e.preventDefault();
@@ -330,25 +333,22 @@ class App {
                 const { courseName, waypoints } = GPXParser.parse(gpxText);
                 const finalName = courseName !== 'カスタムコース' ? courseName : file.name.replace(/\.gpx$/i, '');
                 
-                // Replace course
                 this.course = new GeoCourseManager(waypoints, finalName);
                 this.updateTotalDistanceUI();
 
-                // Stop playback and reset to 0%
                 this.isPlaying = false;
                 this.btnPlay.textContent = '再生 (Auto Fly)';
                 this.btnPlay.classList.remove('running');
                 this.currentProgress = 0.0;
+                this.currentCamBearing = null;
 
-                // Update 3D Map Route
                 this.updateMapCourseLayers();
                 this.drawElevationChart();
 
-                // Jump Camera to Start of new Course
                 this.updateState(0.0);
                 this.applyCameraTarget(1500);
 
-                console.log(`GPX Loaded successfully: ${finalName} (${waypoints.length} points, ${(this.course.totalDistance / 1000).toFixed(2)} km)`);
+                console.log(`GPX Loaded: ${finalName} (${waypoints.length} points)`);
             } catch (err) {
                 console.error(err);
                 alert(`GPX読み込みエラー: ${err.message}`);
@@ -383,13 +383,11 @@ class App {
             this.updateState(0.0);
         });
 
-        // 走行速度スライダー (1〜50 km/h)
         this.speedSlider.addEventListener('input', (e) => {
             this.speedKmh = parseFloat(e.target.value);
             this.speedVal.textContent = `${Math.round(this.speedKmh)} km/h`;
         });
 
-        // カメラ仰角スライダー
         this.camPitchSlider.addEventListener('input', (e) => {
             const pitch = parseFloat(e.target.value);
             this.camPitchVal.textContent = `${Math.round(pitch)}°`;
@@ -399,7 +397,6 @@ class App {
             }
         });
 
-        // カメラ距離 (ズーム) スライダー
         this.camZoomSlider.addEventListener('input', (e) => {
             const zoom = parseFloat(e.target.value);
             this.camZoomVal.textContent = zoom.toFixed(1);
@@ -409,9 +406,20 @@ class App {
             }
         });
 
+        // Aerial 相対視点アングルスライダー
+        this.camOrbitSlider.addEventListener('input', (e) => {
+            this.aerialOrbitOffset = parseFloat(e.target.value);
+            const sign = this.aerialOrbitOffset > 0 ? '+' : '';
+            this.camOrbitVal.textContent = `${sign}${Math.round(this.aerialOrbitOffset)}°`;
+            if (this.cameraMode === 'drone') {
+                this.applyCameraTarget(0);
+            }
+        });
+
         const syncCameraSlidersToMode = (mode) => {
             if (mode === 'free') {
                 if (this.camAdjustBox) this.camAdjustBox.style.opacity = '0.35';
+                if (this.aerialOrbitGroup) this.aerialOrbitGroup.style.display = 'none';
                 return;
             }
             if (this.camAdjustBox) this.camAdjustBox.style.opacity = '1';
@@ -420,6 +428,11 @@ class App {
             this.camPitchVal.textContent = `${Math.round(params.pitch)}°`;
             this.camZoomSlider.value = params.zoom;
             this.camZoomVal.textContent = params.zoom.toFixed(1);
+
+            // Aerial モード時のみ視点方向（Orbit）スライダーを表示
+            if (this.aerialOrbitGroup) {
+                this.aerialOrbitGroup.style.display = (mode === 'drone') ? 'block' : 'none';
+            }
         };
 
         const setCamMode = (mode) => {
@@ -450,6 +463,7 @@ class App {
         });
 
         window.addEventListener('resize', () => {
+            this.map.resize();
             if (this.cameraMode !== 'free') {
                 this.applyCameraTarget(0);
             }
@@ -496,10 +510,6 @@ class App {
         }
     }
 
-    /**
-     * 最短角度差分を考慮した角度の線形補間（Angle Lerp）
-     * 359度と1度の間で逆回転したりジャンプするのを防ぎます
-     */
     static lerpAngle(fromAngle, toAngle, t) {
         let diff = (toAngle - fromAngle) % 360;
         if (diff < -180) diff += 360;
@@ -507,27 +517,51 @@ class App {
         return (fromAngle + diff * t + 360) % 360;
     }
 
+    /**
+     * カメラ位置・山との衝突判定
+     * - 注視点（Center）は常にライダーの位置をキープ
+     * - Aerial時はライダーの進行方向 + aerialOrbitOffset の角度から撮影
+     * - カメラ位置の標高が山の地表面に接近（衝突）しそうになった場合、Pitch（仰角）を自動で引き上げて激突を防止
+     */
     applyCameraTarget(duration = 0) {
         if (!this.map || this.cameraMode === 'free') return;
 
         const state = this.course.getStateAtProgress(this.currentProgress);
         const offset = this.getCameraOffset();
 
-        const currentParams = this.cameraParams[this.cameraMode] || { pitch: 68, zoom: 15.6 };
+        const currentParams = this.cameraParams[this.cameraMode] || { pitch: 68, zoom: 16.5 };
         let targetPitch = currentParams.pitch;
         let targetZoom = currentParams.zoom;
         let targetBearing = state.bearing;
 
         if (this.cameraMode === 'drone') {
-            targetBearing = (state.bearing + 35) % 360;
+            // Aerial: 注視点はライダーのまま、指定されたカメラアングルから追従
+            targetBearing = (state.bearing + this.aerialOrbitOffset + 360) % 360;
         }
 
-        // カメラ角度の線形補間（急激な首振りを防ぐダンピング・スムージング）
+        // カメラ角度の線形補間（滑らかな首振り）
         if (this.currentCamBearing === null || duration > 0) {
             this.currentCamBearing = targetBearing;
         } else {
-            // スムーズな補間係数 (t = 0.08: 約12フレームで滑らかに追従)
             this.currentCamBearing = App.lerpAngle(this.currentCamBearing, targetBearing, 0.08);
+        }
+
+        // --- 山岳衝突防止ガード（Collision Avoidance） ---
+        // カメラはライダーの後方上空に位置するため、背後に迫る山肌の標高をDEMからサンプリング
+        // 接近している場合はピッチを安全角度（最大60°以下）に制限して地形への突入を防止
+        if (this.map.queryTerrainElevation) {
+            const riderAlt = state.alt;
+            // カメラの概算バックワードオフセット（約60m後方）
+            const rad = (this.currentCamBearing + 180) * (Math.PI / 180);
+            const distMeters = 60;
+            const camLon = state.lon + (distMeters * Math.sin(rad)) / (111320 * Math.cos(state.lat * Math.PI / 180));
+            const camLat = state.lat + (distMeters * Math.cos(rad)) / 110574;
+            const terrainAlt = this.map.queryTerrainElevation([camLon, camLat]);
+
+            if (terrainAlt !== null && terrainAlt > riderAlt + 15) {
+                // 背後に山肌が盛り上がっている場合はアングルを自動チルトアップ（衝突防止）
+                targetPitch = Math.min(targetPitch, 45);
+            }
         }
 
         const cameraOptions = {
@@ -555,9 +589,6 @@ class App {
             const deltaSeconds = Math.min((timestamp - this.lastFrameTime) / 1000, 0.1);
             this.lastFrameTime = timestamp;
 
-            // 時速(km/h)から1秒あたりの進捗率を計算:
-            // 速度(m/s) = speedKmh / 3.6
-            // 進捗増加量 = (速度[m/s] * 経過時間[s]) / 総距離[m]
             const metersPerSecond = (this.speedKmh * 1000) / 3600;
             const distanceMoved = metersPerSecond * deltaSeconds;
             const progressDelta = this.course.totalDistance > 0 ? (distanceMoved / this.course.totalDistance) : 0;
