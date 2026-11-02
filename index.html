@@ -19,7 +19,7 @@
         <header class="panel-header">
             <div class="header-top">
                 <h1>AeroVelo <span>3D Terrain</span></h1>
-                <span class="version-badge" id="app-version">v0.9.8</span>
+                <span class="version-badge" id="app-version">v0.9.9</span>
             </div>
             <p class="subtitle" id="course-title">実地形 3D 衛星空撮バーチャルサイクリング</p>
         </header>
@@ -88,7 +88,11 @@
                 </div>
                 <div class="metric-card">
                     <span class="metric-label">斜度 (Slope)</span>
-                    <span class="metric-value" id="val-slope-wrap"><span id="val-slope">+0.0</span> <small>%</small></span>
+                    <span class="metric-value" id="val-slope-wrap">
+                        <span id="val-slope">+0.0</span> <small>%</small>
+                        <span id="slope-cap-badge" class="cap-badge" style="display: none;">MAX 8%</span>
+                    </span>
+                    <span class="metric-sub" id="val-trainer-slope">Trainer: +0.0%</span>
                 </div>
                 <div class="metric-card">
                     <span class="metric-label">経度・緯度</span>

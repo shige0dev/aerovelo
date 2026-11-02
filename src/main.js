@@ -292,6 +292,9 @@ class App {
         this.elAltitude = document.getElementById('val-altitude');
         this.elSlope = document.getElementById('val-slope');
         this.elSlopeWrap = document.getElementById('val-slope-wrap');
+        this.elSlopeCard = this.elSlopeWrap ? this.elSlopeWrap.closest('.metric-card') : null;
+        this.slopeCapBadge = document.getElementById('slope-cap-badge');
+        this.elTrainerSlope = document.getElementById('val-trainer-slope');
         this.elCoords = document.getElementById('val-coords');
         this.elProfileChartTitle = document.getElementById('profile-chart-title');
         this.presetSelect = document.getElementById('preset-select');
@@ -544,6 +547,26 @@ class App {
 
         const sign = state.slope >= 0 ? '+' : '';
         this.elSlope.textContent = `${sign}${state.slope.toFixed(1)}`;
+
+        // スマートトレーナー上限ガード（8%で頭打ち・下限は急降下防止で-8%）
+        const MAX_TRAINER_SLOPE = 8.0;
+        const MIN_TRAINER_SLOPE = -8.0;
+        const rawSlope = state.slope;
+        const cappedTrainerSlope = Math.max(MIN_TRAINER_SLOPE, Math.min(MAX_TRAINER_SLOPE, rawSlope));
+        const isCapped = rawSlope > MAX_TRAINER_SLOPE;
+
+        if (this.elSlopeCard) {
+            this.elSlopeCard.classList.toggle('capped', isCapped);
+        }
+        if (this.slopeCapBadge) {
+            this.slopeCapBadge.style.display = isCapped ? 'inline-block' : 'none';
+        }
+        if (this.elTrainerSlope) {
+            const trSign = cappedTrainerSlope >= 0 ? '+' : '';
+            this.elTrainerSlope.textContent = `Trainer: ${trSign}${cappedTrainerSlope.toFixed(1)}%`;
+            this.elTrainerSlope.classList.toggle('alert', isCapped);
+        }
+
         if (state.slope > 7) {
             this.elSlopeWrap.style.color = 'var(--climb-color)';
         } else if (state.slope < 0) {
