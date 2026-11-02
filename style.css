@@ -81,13 +81,13 @@ body {
 }
 
 /* ========================================================
-   UI Panel (横幅を20px戻して135pxに設定、横スクロール完全防止)
+   UI Panel (メイン操作パネル: 140px固定・横スクロール完全防止)
    ======================================================== */
 #ui-panel {
     position: absolute;
     top: 10px;
     left: 10px;
-    width: 140px; /* スマホの太め等幅フォントでも折り返さないよう 135px -> 140px に微調整 */
+    width: 140px;
     max-height: calc(100vh - 100px);
     overflow-y: auto;
     overflow-x: hidden;
@@ -104,25 +104,12 @@ body {
     gap: 5px;
 }
 
-/* Custom Slim Scrollbar */
 #ui-panel::-webkit-scrollbar {
     width: 4px;
 }
 #ui-panel::-webkit-scrollbar-thumb {
     background: rgba(255, 255, 255, 0.25);
     border-radius: 2px;
-}
-
-.header-top {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.header-actions {
-    display: flex;
-    align-items: center;
-    gap: 4px;
 }
 
 .icon-btn {
@@ -141,66 +128,12 @@ body {
     line-height: 1;
 }
 
-.icon-btn:hover {
+.icon-btn:hover,
+.icon-btn.active {
     background: rgba(0, 240, 255, 0.2);
     border-color: var(--accent);
     color: #fff;
     box-shadow: 0 0 6px var(--accent-glow);
-}
-
-.version-badge {
-    font-size: 0.58rem;
-    color: #ffffff;
-    font-family: monospace;
-    letter-spacing: 0.02em;
-    padding: 0 2px;
-}
-
-.panel-header h1 {
-    font-size: 0.88rem;
-    font-weight: 700;
-    letter-spacing: 0.02em;
-    display: flex;
-    align-items: center;
-    gap: 5px;
-}
-
-.panel-header h1 span {
-    font-size: 0.58rem;
-    background: linear-gradient(135deg, #00f0ff, #3b82f6);
-    color: #0b0f19;
-    padding: 1px 4px;
-    border-radius: 3px;
-    font-weight: 800;
-}
-
-/* コースタイトル独立行 */
-.course-title-row {
-    margin-top: 3px;
-    width: 100%;
-}
-
-.course-name-badge {
-    display: block;
-    width: 100%;
-    box-sizing: border-box;
-    font-size: 0.65rem;
-    font-weight: 700;
-    color: #38bdf8;
-    background: rgba(56, 189, 248, 0.1);
-    border: 1px solid rgba(56, 189, 248, 0.25);
-    border-radius: 4px;
-    padding: 2px 6px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    text-align: center;
-}
-
-.subtitle {
-    font-size: 0.64rem;
-    color: var(--text-muted);
-    margin-top: 1px;
 }
 
 /* GPX Importer Section (枠線なし) */
@@ -210,7 +143,6 @@ body {
     gap: 4px;
 }
 
-/* Preset Courses Dropdown Row */
 .preset-row {
     display: flex;
     align-items: center;
@@ -263,7 +195,8 @@ body {
     cursor: copy;
 }
 
-.action-item.drop-zone:hover, .gpx-section.dragover .action-item.drop-zone {
+.action-item.drop-zone:hover,
+.gpx-section-frameless.dragover .action-item.drop-zone {
     border-color: var(--accent);
     color: var(--accent);
     background: rgba(0, 240, 255, 0.1);
@@ -345,7 +278,7 @@ body {
     box-shadow: 0 0 8px #10b981;
 }
 
-/* Controls */
+/* Common Controls */
 .control-group {
     display: flex;
     flex-direction: column;
@@ -358,32 +291,6 @@ body {
     align-items: center;
     font-size: 0.66rem;
     color: var(--text-muted);
-}
-
-.input-wrap {
-    display: flex;
-    align-items: center;
-    background: rgba(0, 0, 0, 0.4);
-    border: 1px solid var(--panel-border);
-    border-radius: 4px;
-    padding: 1px 4px;
-}
-
-#progress-input {
-    width: 42px;
-    background: transparent;
-    border: none;
-    color: var(--accent);
-    font-size: 0.76rem;
-    font-weight: 700;
-    text-align: right;
-    outline: none;
-}
-
-.unit {
-    color: var(--text-muted);
-    font-size: 0.62rem;
-    margin-left: 2px;
 }
 
 .sub-val {
@@ -446,7 +353,7 @@ input[type="range"]::-webkit-slider-thumb {
 
 .bottom-title-group {
     display: flex;
-    align-items: baseline; /* 下合わせ */
+    align-items: baseline;
     gap: 3px;
     flex-shrink: 0;
 }
@@ -461,13 +368,13 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 .version-badge {
-    font-size: 0.44rem !important; /* 70% に縮小 (0.64rem * 0.7 ≒ 0.44rem) */
+    font-size: 0.44rem; /* 70% に縮小 */
     color: rgba(255, 255, 255, 0.75);
     font-family: monospace;
     letter-spacing: 0.02em;
     padding: 0 1px;
     line-height: 1;
-    align-self: flex-end; /* 下合わせ */
+    align-self: flex-end;
 }
 
 .bottom-course-group {
@@ -501,7 +408,7 @@ input[type="range"]::-webkit-slider-thumb {
     flex-shrink: 0;
 }
 
-/* 2行目: 標高, 斜度, 距離, カメラ展開ボタン (余白を詰めたコンパクト配置) */
+/* 2行目: 再生ボタン ＆ 標高, 斜度, 距離 (2行スタック配置) */
 .bottom-row-2 {
     display: flex;
     justify-content: space-between;
@@ -518,7 +425,6 @@ input[type="range"]::-webkit-slider-thumb {
     overflow-x: auto;
 }
 
-/* 2行表示のスタック型メトリクス（タイトル50%、数値下段で幅圧縮） */
 .stacked-stat-item {
     display: flex;
     flex-direction: column;
@@ -532,7 +438,7 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 .stacked-stat-item .stat-label {
-    font-size: 0.36rem; /* 標高などのタイトルは50%に縮小 */
+    font-size: 0.36rem; /* タイトル50%縮小 */
     color: var(--text-muted);
     font-weight: 700;
     line-height: 1;
@@ -541,7 +447,7 @@ input[type="range"]::-webkit-slider-thumb {
 
 .stacked-stat-item .stat-value {
     font-size: 0.62rem;
-    font-family: monospace;
+    font-family: "SF Mono", Monaco, Consolas, "Courier New", monospace;
     font-weight: 700;
     color: #cbd5e1;
     line-height: 1;
@@ -577,7 +483,7 @@ input[type="range"]::-webkit-slider-thumb {
     color: #ffffff;
 }
 
-/* 標高プロファイル ＆ 右側縦スライダーのレイアウト */
+/* 3行目: 標高プロファイル ＆ 右側縦スライダーのレイアウト */
 .bottom-main-row {
     display: flex;
     align-items: stretch;
@@ -587,7 +493,7 @@ input[type="range"]::-webkit-slider-thumb {
 
 .bottom-canvas-slider-container {
     position: relative;
-    flex: 1; /* 幅を縮めて縦スライダーのスペースを確保 */
+    flex: 1;
     min-width: 0;
     background: rgba(0, 0, 0, 0.5);
     border: 1px solid rgba(255, 255, 255, 0.12);
@@ -603,7 +509,7 @@ input[type="range"]::-webkit-slider-thumb {
     top: 4px;
     right: 8px;
     font-size: 0.56rem;
-    font-family: monospace;
+    font-family: "SF Mono", Monaco, Consolas, "Courier New", monospace;
     font-weight: 700;
     color: rgba(255, 255, 255, 0.85);
     background: rgba(0, 0, 0, 0.6);
@@ -667,7 +573,7 @@ input[type="range"]::-webkit-slider-thumb {
 
 .v-slope-value {
     font-size: 0.50rem;
-    font-family: monospace;
+    font-family: "SF Mono", Monaco, Consolas, "Courier New", monospace;
     font-weight: 700;
     color: #38bdf8;
     line-height: 1;
@@ -733,17 +639,7 @@ input[type="range"]::-webkit-slider-thumb {
     color: #ef4444;
 }
 
-.speed-group {
-    padding: 2px 0 3px;
-}
-
-/* Buttons (極小・省スペース化: 高さ削減) */
-.buttons-row {
-    display: flex;
-    flex-direction: row;
-    gap: 5px;
-}
-
+/* Buttons */
 .btn {
     flex: 1;
     padding: 3px 6px;
@@ -760,25 +656,10 @@ input[type="range"]::-webkit-slider-thumb {
     justify-content: center;
 }
 
-.btn.primary {
-    background: var(--accent);
-    color: #0b0f19;
-}
-
-.btn.primary.running {
-    background: #ef4444;
-    color: #ffffff;
-}
-
 .btn.secondary {
     background: rgba(255, 255, 255, 0.08);
     color: var(--text-primary);
     border-color: var(--panel-border);
-}
-
-.btn-group {
-    display: flex;
-    gap: 4px;
 }
 
 .btn.toggle {
@@ -793,32 +674,6 @@ input[type="range"]::-webkit-slider-thumb {
     background: rgba(0, 240, 255, 0.15);
     color: var(--accent);
     border-color: var(--accent);
-}
-
-.camera-header-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 2px;
-}
-
-.camera-title {
-    font-size: 0.43rem !important; /* 70% に縮小 */
-    letter-spacing: 0.05em;
-    font-weight: 700;
-}
-
-.inline-cam-btns {
-    display: flex;
-    gap: 3px;
-}
-
-.inline-cam-btns .btn.toggle {
-    min-height: 18px;
-    padding: 1px 6px;
-    font-size: 0.58rem;
-    font-weight: 700;
-    border-radius: 3px;
 }
 
 /* Camera Adjust Box */
@@ -840,7 +695,7 @@ input[type="range"]::-webkit-slider-thumb {
     pointer-events: none;
 }
 
-/* HUD Metrics (7行リスト表示: 負荷・速度・距離・標高・斜度・Power・Cadence) */
+/* HUD Metrics (4行リスト表示: 負荷・Speed・Power・Cadence) */
 .hud-group {
     padding: 0;
 }
@@ -878,7 +733,7 @@ input[type="range"]::-webkit-slider-thumb {
     line-height: 1;
 }
 
-/* インライン操作ボタン (手動 / ▶) */
+/* インライン操作ボタン (手動) */
 .metric-inline-btn {
     background: rgba(255, 255, 255, 0.1);
     border: 1px solid rgba(255, 255, 255, 0.2);
@@ -906,19 +761,6 @@ input[type="range"]::-webkit-slider-thumb {
     color: #0b0f19;
     border-color: #00f0ff;
     box-shadow: 0 0 5px rgba(0, 240, 255, 0.5);
-}
-
-.metric-inline-btn.running {
-    background: #ef4444;
-    color: #ffffff;
-    border-color: #ef4444;
-}
-
-.metric-inline-btn.icon-play-btn {
-    width: 18px;
-    height: 15px;
-    padding: 0;
-    font-size: 0.6rem;
 }
 
 /* 速度行 & 負荷行 (スライド/スワイプ編集可能モード) */
@@ -950,7 +792,7 @@ input[type="range"]::-webkit-slider-thumb {
     display: flex;
     align-items: baseline;
     justify-content: flex-end;
-    font-family: monospace;
+    font-family: "SF Mono", Monaco, Consolas, "Courier New", monospace;
     line-height: 1;
     white-space: nowrap;
     flex-shrink: 0;
@@ -993,35 +835,16 @@ input[type="range"]::-webkit-slider-thumb {
     background: #000000;
 }
 
-.ble-trainer-row .metric-num {
-    color: #38bdf8;
-}
-
+.ble-trainer-row .metric-num,
 .ble-trainer-row .metric-unit {
     color: #38bdf8;
 }
 
-/* 勾配8%超えアラート: 背景やバッジは付けず文字が赤色になるのみ */
-.metric-row.capped .metric-num,
-.metric-row.capped #val-slope {
-    color: #ef4444 !important;
-}
-
-.metric-sub.alert {
-    color: #fca5a5 !important;
-    font-weight: 600;
+.ble-trainer-row .metric-num.alert {
+    color: #ef4444;
 }
 
 /* BLE Smart Trainer Widgets */
-.ble-metric-card {
-    border-color: rgba(0, 240, 255, 0.2);
-    background: rgba(0, 240, 255, 0.04);
-}
-
-.ble-metric-card .metric-value {
-    color: var(--accent);
-}
-
 .ble-section {
     padding: 3px 0px;
 }
@@ -1107,47 +930,7 @@ input[type="range"]::-webkit-slider-thumb {
     color: #fff;
 }
 
-/* TEST & Calibration Styles */
-.test-section {
-    background: rgba(245, 158, 11, 0.06);
-    border: 1px dashed rgba(245, 158, 11, 0.35);
-    border-radius: 5px;
-    padding: 5px 6px;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-}
-
-.test-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.test-header h3 {
-    font-size: 0.61rem;
-    color: #fbbf24;
-    margin: 0;
-    letter-spacing: 0.02em;
-}
-
-.mini-toggle {
-    display: flex;
-    gap: 2px;
-}
-
-.mini-toggle .btn.toggle {
-    font-size: 0.58rem;
-    padding: 1px 4px;
-    min-height: 18px;
-}
-
-.mini-toggle .btn.toggle.active {
-    background: rgba(245, 158, 11, 0.25);
-    border-color: #f59e0b;
-    color: #fbbf24;
-}
-
+/* Manual Load / LFO Calibration Styles */
 .test-controls-box {
     display: flex;
     flex-direction: column;
@@ -1195,16 +978,6 @@ input[type="range"]::-webkit-slider-thumb {
     color: #fff;
     font-size: 0.58rem;
     padding: 1px 2px;
-}
-
-.lfo-range-wrap {
-    margin-left: auto;
-}
-
-.lfo-range-text {
-    font-size: 0.54rem;
-    color: var(--text-muted);
-    font-family: monospace;
 }
 
 /* Settings Modal (Flat layout) */

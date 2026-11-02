@@ -16,7 +16,7 @@ class App {
         this.hasBleDistance = false;
         this.baseProgressAtBleStart = 0; // BLE接続時・リセット時の基準進捗率
 
-        // TEST / 手動負荷キャリブレーション機能ステート
+        // 手動負荷キャリブレーション機能ステート
         this.manualSlope = 0.0; // 手動指定斜度 (0% 〜 +7%)
         this.isLfoRunning = false;
         this.lfoPeriodSeconds = 60; // LFO 周期（デフォルト60秒）
@@ -50,7 +50,7 @@ class App {
     /**
      * MapLibre の padding を用いて注視点の位置を決定
      * - top を増やすことで、注視点（ライダー）が確実に画面の下方へ移動します
-     * - left: 左側UIパネル(240px)を避ける
+     * - left: 左側UIパネルを避ける
      * - top: 画面高さの約35%の余白を設けることで、ライダーが画面下部（下から約18〜20%）にピタリと配置されます
      */
     getCameraPadding() {
@@ -58,7 +58,7 @@ class App {
         const screenHeight = window.innerHeight;
 
         const padLeft = (screenWidth > 600) ? 240 : 0;
-        const padTop = Math.round(screenHeight * 0.35); // 画面高さの35%下に押し下げ
+        const padTop = Math.round(screenHeight * 0.35);
 
         return {
             left: padLeft,
@@ -359,20 +359,9 @@ class App {
     }
 
     initUI() {
-        this.progressSlider = document.getElementById('progress-slider');
-        this.progressInput = document.getElementById('progress-input');
         this.btnPlay = document.getElementById('btn-play');
-        this.btnReset = document.getElementById('btn-reset');
-        
         this.camFreeBtn = document.getElementById('cam-free');
 
-        this.elDistance = document.getElementById('val-distance');
-        this.elTotalDist = document.getElementById('val-total-distance');
-        this.elAltitude = document.getElementById('val-altitude');
-        this.elSlope = document.getElementById('val-slope');
-        this.elSlopeWrap = document.getElementById('val-slope-wrap');
-        this.elSlopeCard = this.elSlopeWrap ? (this.elSlopeWrap.closest('.metric-row') || this.elSlopeWrap.closest('.metric-card')) : null;
-        this.slopeCapBadge = document.getElementById('slope-cap-badge');
         this.elTrainerSlope = document.getElementById('val-trainer-slope');
         this.elTrainerUnit = document.getElementById('val-trainer-unit');
         this.elCourseNameDisplay = document.getElementById('course-name-display');
@@ -418,7 +407,6 @@ class App {
         this.btnBleConnect = document.getElementById('btn-ble-connect');
         this.btnBleDisconnect = document.getElementById('btn-ble-disconnect');
         this.bleStatusText = document.getElementById('ble-status-text');
-        this.bleIndicator = document.getElementById('ble-indicator');
         this.valPower = document.getElementById('val-power');
         this.valCadence = document.getElementById('val-cadence');
 
@@ -440,9 +428,6 @@ class App {
 
     updateTotalDistanceUI() {
         const totalKm = (this.course.totalDistance / 1000).toFixed(2);
-        if (this.elTotalDist) {
-            this.elTotalDist.textContent = `/ ${totalKm} km`;
-        }
         if (this.bottomTotalDistTag) {
             this.bottomTotalDistTag.textContent = `全長 ${totalKm}km`;
         }
@@ -471,7 +456,7 @@ class App {
 
     setupGPXImporter() {
         const dropZone = document.getElementById('drop-zone');
-        const gpxSection = dropZone ? (dropZone.closest('.gpx-section-frameless') || dropZone.closest('.gpx-section')) : null;
+        const gpxSection = dropZone ? dropZone.closest('.gpx-section-frameless') : null;
         const fileInput = document.getElementById('gpx-file-input');
         const btnBrowse = document.getElementById('btn-browse');
 
@@ -505,43 +490,47 @@ class App {
             });
         }
 
-        btnBrowse.addEventListener('click', (e) => {
-            e.stopPropagation();
-            fileInput.click();
-        });
+        if (btnBrowse) {
+            btnBrowse.addEventListener('click', (e) => {
+                e.stopPropagation();
+                fileInput.click();
+            });
+        }
 
         fileInput.addEventListener('change', (e) => {
             const file = e.target.files[0];
             if (file) this.loadGPXFile(file);
         });
 
-        ['dragenter', 'dragover'].forEach(name => {
-            gpxSection.addEventListener(name, (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                gpxSection.classList.add('dragover');
+        if (gpxSection) {
+            ['dragenter', 'dragover'].forEach(name => {
+                gpxSection.addEventListener(name, (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    gpxSection.classList.add('dragover');
+                });
             });
-        });
 
-        ['dragleave', 'drop'].forEach(name => {
-            gpxSection.addEventListener(name, (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                gpxSection.classList.remove('dragover');
+            ['dragleave', 'drop'].forEach(name => {
+                gpxSection.addEventListener(name, (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    gpxSection.classList.remove('dragover');
+                });
             });
-        });
 
-        gpxSection.addEventListener('drop', (e) => {
-            const dt = e.dataTransfer;
-            const file = dt.files[0];
-            if (file) {
-                if (file.name.toLowerCase().endsWith('.gpx')) {
-                    this.loadGPXFile(file);
-                } else {
-                    alert('.gpx 拡張子のファイルを選択してください。');
+            gpxSection.addEventListener('drop', (e) => {
+                const dt = e.dataTransfer;
+                const file = dt.files[0];
+                if (file) {
+                    if (file.name.toLowerCase().endsWith('.gpx')) {
+                        this.loadGPXFile(file);
+                    } else {
+                        alert('.gpx 拡張子のファイルを選択してください。');
+                    }
                 }
-            }
-        });
+            });
+        }
     }
 
     loadGPXFile(file) {
@@ -559,6 +548,71 @@ class App {
             }
         };
         reader.readAsText(file);
+    }
+
+    /**
+     * 行要素の上下ドラッグ＆ホイール操作を汎用登録するヘルパー
+     */
+    setupVerticalDrag(element, { isEnabled, getInitialValue, onDragChange, onWheelDelta, ignoreTarget }) {
+        if (!element) return;
+        let isDragging = false;
+        let startY = 0;
+        let startVal = 0;
+
+        const onPointerDown = (clientY) => {
+            if (!isEnabled()) return;
+            isDragging = true;
+            startY = clientY;
+            startVal = getInitialValue();
+            document.body.style.userSelect = 'none';
+        };
+
+        const onPointerMove = (clientY) => {
+            if (!isDragging || !isEnabled()) return;
+            const deltaY = startY - clientY; // 上方向ドラッグでプラス
+            onDragChange(startVal, deltaY);
+        };
+
+        const onPointerUp = () => {
+            if (isDragging) {
+                isDragging = false;
+                document.body.style.userSelect = '';
+            }
+        };
+
+        element.addEventListener('mousedown', (e) => {
+            if (ignoreTarget && e.target === ignoreTarget) return;
+            onPointerDown(e.clientY);
+            const moveHandler = (moveEvent) => onPointerMove(moveEvent.clientY);
+            const upHandler = () => {
+                onPointerUp();
+                window.removeEventListener('mousemove', moveHandler);
+                window.removeEventListener('mouseup', upHandler);
+            };
+            window.addEventListener('mousemove', moveHandler);
+            window.addEventListener('mouseup', upHandler);
+        });
+
+        element.addEventListener('touchstart', (e) => {
+            if (e.touches.length > 0 && (!ignoreTarget || e.target !== ignoreTarget)) {
+                onPointerDown(e.touches[0].clientY);
+            }
+        }, { passive: true });
+
+        element.addEventListener('touchmove', (e) => {
+            if (isDragging && e.touches.length > 0) {
+                onPointerMove(e.touches[0].clientY);
+            }
+        }, { passive: true });
+
+        element.addEventListener('touchend', onPointerUp);
+        element.addEventListener('touchcancel', onPointerUp);
+
+        element.addEventListener('wheel', (e) => {
+            if (!isEnabled()) return;
+            e.preventDefault();
+            onWheelDelta(e.deltaY < 0 ? 1 : -1);
+        }, { passive: false });
     }
 
     setupEvents() {
@@ -591,7 +645,7 @@ class App {
             });
         }
 
-        // Modal Windows Setup (統合設定モーダル ⚙️)
+        // 統合設定モーダル ⚙️
         if (this.btnModalSettings && this.modalSettings) {
             this.btnModalSettings.addEventListener('click', () => {
                 this.modalSettings.style.display = 'flex';
@@ -637,7 +691,7 @@ class App {
             });
         }
 
-        // TEST / 手動負荷キャリブレーション イベント
+        // 手動負荷キャリブレーション イベント
         if (this.testSlopeSlider) {
             this.testSlopeSlider.addEventListener('input', (e) => {
                 this.stopLFO();
@@ -647,7 +701,7 @@ class App {
 
         if (this.lfoPeriodSelect) {
             this.lfoPeriodSelect.addEventListener('change', (e) => {
-                this.lfoPeriodSeconds = parseFloat(e.target.value) || 20;
+                this.lfoPeriodSeconds = parseFloat(e.target.value) || 60;
             });
         }
 
@@ -686,36 +740,19 @@ class App {
             if (data.cadence !== null && this.valCadence) {
                 this.valCadence.textContent = Number(data.cadence).toFixed(2);
             }
-            // スマートトレーナーから実測速度が送られてきた場合、表示を同期（下2桁）
             if (data.speed !== null) {
                 this.speedKmh = data.speed;
                 if (this.speedVal) this.speedVal.textContent = this.speedKmh.toFixed(2);
             }
 
-            // 【方法1】FTMSの Total Distance（累積走行距離）が取得できた場合、ダイレクトに進捗計算
+            // FTMSの Total Distance（累積走行距離）が取得できた場合、ダイレクトに進捗計算
             if (data.sessionDistanceMeters !== null && this.course.totalDistance > 0) {
                 this.hasBleDistance = true;
                 const progressDelta = data.sessionDistanceMeters / this.course.totalDistance;
-                const directProgress = (this.baseProgressAtBleStart + progressDelta) % 1.0;
+                const directProgress = Math.min(1.0, this.baseProgressAtBleStart + progressDelta);
                 this.updateState(directProgress);
             }
         });
-
-        if (this.progressSlider) {
-            this.progressSlider.addEventListener('input', (e) => {
-                const val = parseFloat(e.target.value) / 100;
-                this.setManualProgress(val);
-            });
-        }
-
-        if (this.progressInput) {
-            this.progressInput.addEventListener('change', (e) => {
-                let val = parseFloat(e.target.value);
-                if (isNaN(val)) val = 0;
-                val = Math.max(0, Math.min(100, val)) / 100;
-                this.setManualProgress(val);
-            });
-        }
 
         if (this.btnPlay) {
             this.btnPlay.addEventListener('click', () => {
@@ -750,155 +787,43 @@ class App {
                 this.isManualSlopeMode = !this.isManualSlopeMode;
                 updateTrainerEditability();
                 if (!this.isManualSlopeMode) {
-                    // 自動モードに戻す場合はコース斜度を送信
                     const state = this.course.getStateAtProgress(this.currentProgress);
                     this.sendSlopeToTrainer(state.slope);
                 }
             });
         }
 
-        // 負荷表示行の上下スワイプ／ドラッグ操作（手動モード時のみ有効）
-        if (this.rowTrainer) {
-            let isDragging = false;
-            let startY = 0;
-            let startSlope = 0;
-
-            const onPointerDown = (clientY) => {
-                if (!this.isManualSlopeMode) return;
-                isDragging = true;
-                startY = clientY;
-                startSlope = this.manualSlope;
-                document.body.style.userSelect = 'none';
-            };
-
-            const onPointerMove = (clientY) => {
-                if (!isDragging || !this.isManualSlopeMode) return;
-                // 上へドラッグ（-Y）で負荷アップ、下へドラッグ（+Y）で負荷ダウン
-                const deltaY = startY - clientY;
-                const slopeChange = (deltaY / 15); // 15pxごとに 1.0% 変化
-                const nextSlope = Math.max(0, Math.min(7, startSlope + slopeChange));
+        // 負荷表示行の上下ドラッグ＆ホイール操作（手動モード時のみ有効）
+        this.setupVerticalDrag(this.rowTrainer, {
+            isEnabled: () => this.isManualSlopeMode,
+            getInitialValue: () => this.manualSlope,
+            onDragChange: (startSlope, deltaY) => {
+                const nextSlope = Math.max(0, Math.min(7, startSlope + deltaY / 15));
                 this.applyManualSlope(Math.round(nextSlope * 10) / 10);
-            };
-
-            const onPointerUp = () => {
-                if (isDragging) {
-                    isDragging = false;
-                    document.body.style.userSelect = '';
-                }
-            };
-
-            this.rowTrainer.addEventListener('mousedown', (e) => {
-                if (e.target === this.btnManualSlope) return;
-                onPointerDown(e.clientY);
-                const moveHandler = (moveEvent) => onPointerMove(moveEvent.clientY);
-                const upHandler = () => {
-                    onPointerUp();
-                    window.removeEventListener('mousemove', moveHandler);
-                    window.removeEventListener('mouseup', upHandler);
-                };
-                window.addEventListener('mousemove', moveHandler);
-                window.addEventListener('mouseup', upHandler);
-            });
-
-            this.rowTrainer.addEventListener('touchstart', (e) => {
-                if (e.touches.length > 0 && e.target !== this.btnManualSlope) {
-                    onPointerDown(e.touches[0].clientY);
-                }
-            }, { passive: true });
-
-            this.rowTrainer.addEventListener('touchmove', (e) => {
-                if (isDragging && e.touches.length > 0) {
-                    onPointerMove(e.touches[0].clientY);
-                }
-            }, { passive: true });
-
-            this.rowTrainer.addEventListener('touchend', onPointerUp);
-            this.rowTrainer.addEventListener('touchcancel', onPointerUp);
-
-            this.rowTrainer.addEventListener('wheel', (e) => {
-                if (!this.isManualSlopeMode) return;
-                e.preventDefault();
-                const delta = e.deltaY < 0 ? 0.2 : -0.2;
-                const nextSlope = Math.max(0, Math.min(7, this.manualSlope + delta));
+            },
+            onWheelDelta: (dir) => {
+                const nextSlope = Math.max(0, Math.min(7, this.manualSlope + dir * 0.2));
                 this.applyManualSlope(Math.round(nextSlope * 10) / 10);
-            }, { passive: false });
-        }
+            },
+            ignoreTarget: this.btnManualSlope
+        });
 
-        // 速度表示行の上下スワイプ／ドラッグ操作（AUTOPLAY時のみ有効）
-        if (this.rowSpeed) {
-            let isDragging = false;
-            let startY = 0;
-            let startSpeed = 25;
+        // 速度表示行の上下ドラッグ＆ホイール操作（AUTOPLAY時のみ有効）
+        this.setupVerticalDrag(this.rowSpeed, {
+            isEnabled: () => this.isPlaying,
+            getInitialValue: () => this.speedKmh,
+            onDragChange: (startSpeed, deltaY) => {
+                this.speedKmh = Math.max(1, Math.min(80, startSpeed + Math.round(deltaY / 4)));
+                if (this.speedVal) this.speedVal.textContent = this.speedKmh.toFixed(2);
+            },
+            onWheelDelta: (dir) => {
+                this.speedKmh = Math.max(1, Math.min(80, this.speedKmh + dir));
+                if (this.speedVal) this.speedVal.textContent = this.speedKmh.toFixed(2);
+            },
+            ignoreTarget: this.btnPlay
+        });
 
-            const onPointerDown = (clientY) => {
-                if (!this.isPlaying) return;
-                isDragging = true;
-                startY = clientY;
-                startSpeed = this.speedKmh;
-                document.body.style.userSelect = 'none';
-            };
-
-            const onPointerMove = (clientY) => {
-                if (!isDragging || !this.isPlaying) return;
-                // 上へドラッグ（-Y）で速度アップ、下へドラッグ（+Y）で速度ダウン
-                const deltaY = startY - clientY;
-                const speedChange = Math.round(deltaY / 4); // 4pxごとに 1 km/h 変化
-                const nextSpeed = Math.max(1, Math.min(80, startSpeed + speedChange));
-                this.speedKmh = nextSpeed;
-                if (this.speedVal) {
-                    this.speedVal.textContent = this.speedKmh.toFixed(2);
-                }
-            };
-
-            const onPointerUp = () => {
-                if (isDragging) {
-                    isDragging = false;
-                    document.body.style.userSelect = '';
-                }
-            };
-
-            // マウスイベント
-            this.rowSpeed.addEventListener('mousedown', (e) => {
-                if (e.target === this.btnPlay) return;
-                onPointerDown(e.clientY);
-                const moveHandler = (moveEvent) => onPointerMove(moveEvent.clientY);
-                const upHandler = () => {
-                    onPointerUp();
-                    window.removeEventListener('mousemove', moveHandler);
-                    window.removeEventListener('mouseup', upHandler);
-                };
-                window.addEventListener('mousemove', moveHandler);
-                window.addEventListener('mouseup', upHandler);
-            });
-
-            // タッチイベント（スマートフォン向け上下スワイプ）
-            this.rowSpeed.addEventListener('touchstart', (e) => {
-                if (e.touches.length > 0 && e.target !== this.btnPlay) {
-                    onPointerDown(e.touches[0].clientY);
-                }
-            }, { passive: true });
-
-            this.rowSpeed.addEventListener('touchmove', (e) => {
-                if (isDragging && e.touches.length > 0) {
-                    onPointerMove(e.touches[0].clientY);
-                }
-            }, { passive: true });
-
-            this.rowSpeed.addEventListener('touchend', onPointerUp);
-            this.rowSpeed.addEventListener('touchcancel', onPointerUp);
-
-            // マウスホイールでの微調整もサポート
-            this.rowSpeed.addEventListener('wheel', (e) => {
-                if (!this.isPlaying) return;
-                e.preventDefault();
-                const delta = e.deltaY < 0 ? 1 : -1;
-                this.speedKmh = Math.max(1, Math.min(80, this.speedKmh + delta));
-                if (this.speedVal) {
-                    this.speedVal.textContent = this.speedKmh.toFixed(2);
-                }
-            }, { passive: false });
-        }
-
+        // カメラ調整スライダー群
         this.camPitchSlider.addEventListener('input', (e) => {
             this.cameraParams.pitch = parseFloat(e.target.value);
             this.camPitchVal.textContent = `${Math.round(this.cameraParams.pitch)}°`;
@@ -915,7 +840,6 @@ class App {
             }
         });
 
-        // アングルスライダー（極性反転）
         this.camOrbitSlider.addEventListener('input', (e) => {
             this.orbitAngleOffset = parseFloat(e.target.value);
             if (this.orbitAngleOffset === 0) {
@@ -938,8 +862,7 @@ class App {
 
             if (this.camAdjustBox) {
                 this.camAdjustBox.classList.toggle('disabled', isFree);
-                const inputs = this.camAdjustBox.querySelectorAll('input');
-                inputs.forEach(input => {
+                this.camAdjustBox.querySelectorAll('input').forEach(input => {
                     input.disabled = isFree;
                 });
             }
@@ -984,6 +907,7 @@ class App {
 
             const updateProgressFromEvent = (clientX) => {
                 const rect = this.chartCanvas.getBoundingClientRect();
+                if (rect.width <= 0) return;
                 const clickX = clientX - rect.left;
                 const progress = Math.max(0, Math.min(1.0, clickX / rect.width));
                 this.setManualProgress(progress);
@@ -1036,11 +960,6 @@ class App {
         });
     }
 
-    /**
-     * ユーザーによる現在地（スライダー / 入力値 / 標高グラフクリック）の手動調整
-     * BLE接続中であっても、この調整位置を新しい基準点（baseProgressAtBleStart）としてリセットし、
-     * ここからトレーナーのペダリングが前進するように同期する
-     */
     setPlayState(playing) {
         this.isPlaying = playing;
         if (this.btnPlay) {
@@ -1100,11 +1019,9 @@ class App {
      * トレーナーへ指示負荷を送信し、HUDおよび画面へ常に現在指示負荷を反映
      */
     sendSlopeToTrainer(targetSlope) {
-        // NEROの上限7%（安全リミット8%）でクランプ（下限は0%）
         const clampedSlope = Math.max(0.0, Math.min(7.0, targetSlope));
         this.lastTargetSlopeSent = clampedSlope;
 
-        // HUDの 負荷 表示を常に更新（下2桁小数点揃え）
         if (this.elTrainerSlope) {
             const trSign = clampedSlope > 0 ? '+' : '';
             this.elTrainerSlope.textContent = `${trSign}${clampedSlope.toFixed(2)}`;
@@ -1133,24 +1050,11 @@ class App {
             this.riderMarker.setLngLat([state.lon, state.lat]);
         }
 
-        const pct100 = (this.currentProgress * 100).toFixed(1);
-        if (document.activeElement !== this.progressInput && this.progressInput) {
-            this.progressInput.value = pct100;
-        }
-        if (this.progressSlider) {
-            this.progressSlider.value = (this.currentProgress * 100).toFixed(2);
-        }
-
-        // 小数点下2桁に統一して数値を揃える
         const distKm = (state.distance / 1000).toFixed(2);
-        if (this.elDistance) this.elDistance.textContent = distKm;
-        if (this.elAltitude) this.elAltitude.textContent = state.alt.toFixed(2);
-
         const sign = state.slope >= 0 ? '+' : '';
         const slopeFormatted = `${sign}${state.slope.toFixed(2)}`;
-        if (this.elSlope) this.elSlope.textContent = slopeFormatted;
 
-        // ボトムバーの統計表示も更新（2行スタック表示用: 標高, 斜度, 距離）
+        // ボトムバーの統計表示を更新（2行スタック表示: 標高, 斜度, 距離）
         if (this.bottomAltDisplay) {
             this.bottomAltDisplay.textContent = `${state.alt.toFixed(2)}m`;
         }
@@ -1171,25 +1075,6 @@ class App {
         // 速度表示（未設定時も下2桁）
         if (this.speedVal && !this.speedVal.textContent.includes('.')) {
             this.speedVal.textContent = this.speedKmh.toFixed(2);
-        }
-
-        // スマートトレーナー上限ガード（8%で頭打ち）
-        const MAX_TRAINER_SLOPE = 8.0;
-        const rawSlope = state.slope;
-        const isCapped = rawSlope > MAX_TRAINER_SLOPE;
-
-        if (this.elSlopeCard) {
-            this.elSlopeCard.classList.toggle('capped', isCapped);
-        }
-
-        if (this.elSlopeWrap) {
-            if (state.slope > 7) {
-                this.elSlopeWrap.style.color = 'var(--climb-color)';
-            } else if (state.slope < 0) {
-                this.elSlopeWrap.style.color = 'var(--descent-color)';
-            } else {
-                this.elSlopeWrap.style.color = 'var(--flat-color)';
-            }
         }
 
         // 手動負荷モード時は manualSlope、自動時はコース斜度 state.slope をトレーナーに反映
@@ -1219,7 +1104,6 @@ class App {
         let targetPitch = this.cameraParams.pitch;
         let targetZoom = this.cameraParams.zoom;
 
-        // アングル極性反転: - this.orbitAngleOffset に変更
         const targetBearing = (state.bearing - this.orbitAngleOffset + 360) % 360;
 
         if (this.currentCamBearing === null || duration > 0) {
@@ -1265,10 +1149,8 @@ class App {
         if (this.isLfoRunning) {
             const elapsed = (timestamp - this.lfoStartTime) / 1000;
             const period = Math.max(2, this.lfoPeriodSeconds);
-            const phase = (elapsed % period) / period; // 0.0 〜 1.0
-            // 三角波: 0 -> 1 -> 0
+            const phase = (elapsed % period) / period;
             const tri = phase < 0.5 ? (phase * 2) : ((1.0 - phase) * 2);
-            // 0% から 7.0% まで線形スキャン
             const lfoSlope = Math.round((tri * 7.0) * 10) / 10;
 
             if (this.testSlopeSlider) {
@@ -1285,8 +1167,6 @@ class App {
             const deltaSeconds = Math.min((timestamp - this.lastFrameTime) / 1000, 0.1);
             this.lastFrameTime = timestamp;
 
-            // 【方法1】の Total Distance を受信できている場合は on('data') 側で正確に更新するためここでは二重積算しない
-            // Total Distance が未サポートのトレーナーの場合のみ、速度×時間（Δt）でフォールバック積算
             if (!this.hasBleDistance) {
                 const metersPerSecond = (this.speedKmh * 1000) / 3600;
                 const distanceMoved = metersPerSecond * deltaSeconds;
@@ -1294,7 +1174,6 @@ class App {
 
                 const nextProgress = this.currentProgress + progressDelta;
                 if (nextProgress >= 1.0) {
-                    // 自動再生はループ中止（ゴール到達で再生停止）
                     this.updateState(1.0);
                     if (this.isPlaying) {
                         this.setPlayState(false);
