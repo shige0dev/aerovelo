@@ -24,9 +24,9 @@ class App {
     }
 
     getCameraOffset() {
-        const panelWidth = 380;
+        const panelWidth = 240; // パネル幅230pxに合わせてオフセットを調整
         const screenWidth = window.innerWidth;
-        if (screenWidth > 800) {
+        if (screenWidth > 600) {
             return [panelWidth / 2, 0];
         }
         return [0, 0];
