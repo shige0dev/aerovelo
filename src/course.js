@@ -153,9 +153,13 @@ export class GeoCourseManager {
 
         const bearing = GeoCourseManager.calcBearing(bwdPt.lon, bwdPt.lat, fwdPt.lon, fwdPt.lat);
 
-        // 斜度計算
+        // 斜度計算（GPSノイズによる異常値対策: 前後窓で平滑化し、±8.0%以内にクランプ）
         const horizDist = GeoCourseManager.haversineDistance(bwdPt.lon, bwdPt.lat, fwdPt.lon, fwdPt.lat);
-        const slope = horizDist > 0 ? ((fwdPt.alt - bwdPt.alt) / horizDist) * 100 : 0;
+        let rawSlope = horizDist > 0 ? ((fwdPt.alt - bwdPt.alt) / horizDist) * 100 : 0;
+        
+        // ±8% の範囲に丸め・制限（異常値ガード）
+        let slope = Math.max(-8.0, Math.min(8.0, rawSlope));
+        slope = Math.round(slope * 10) / 10; // 小数点第1位に丸め
 
         return {
             u,

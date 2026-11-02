@@ -13,10 +13,10 @@ class App {
         // 滑らかな角度補間（Lerp）用の現在カメラBearing
         this.currentCamBearing = null;
 
-        // カメラパラメータ（Chase / Drone ごとの調整値）
+        // カメラパラメータ（Chase / Drone ごとの調整値: Zoom 15.0〜20.0）
         this.cameraParams = {
-            chase: { pitch: 68, zoom: 15.6 },
-            drone: { pitch: 45, zoom: 14.5 }
+            chase: { pitch: 68, zoom: 17.5 },
+            drone: { pitch: 48, zoom: 15.8 }
         };
 
         this.initUI();
