@@ -87,7 +87,7 @@ body {
     position: absolute;
     top: 10px;
     left: 10px;
-    width: 135px;
+    width: 140px; /* スマホの太め等幅フォントでも折り返さないよう 135px -> 140px に微調整 */
     max-height: calc(100vh - 100px);
     overflow-y: auto;
     overflow-x: hidden;
@@ -953,26 +953,30 @@ input[type="range"]::-webkit-slider-thumb {
     font-family: monospace;
     line-height: 1;
     white-space: nowrap;
+    flex-shrink: 0;
 }
 
 .metric-num {
     display: inline-block;
-    width: 46px;
+    width: 48px;
     text-align: right;
-    font-size: 0.64rem;
+    font-size: 0.65rem;
     font-weight: 700;
     color: var(--text-primary);
     font-variant-numeric: tabular-nums;
+    font-family: "SF Mono", Monaco, Consolas, "Courier New", monospace;
 }
 
 .metric-unit {
     display: inline-block;
-    min-width: 30px;
+    width: 32px;
     margin-left: 2px;
     font-size: 0.48rem;
     color: var(--text-muted);
-    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     text-align: left;
+    white-space: nowrap;
+    overflow: hidden;
 }
 
 .ble-metric-row {
