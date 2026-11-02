@@ -6,7 +6,8 @@ class App {
         this.currentProgress = 0.0;
         this.cameraMode = 'chase'; // 'chase' | 'drone' | 'free'
         this.isPlaying = false;
-        this.playSpeed = 0.0007; // progress step per frame
+        this.playSpeed = 0.0006; // progress step per frame
+        this.isModeTransitioning = false;
 
         this.initUI();
         this.initElevationProfile();
@@ -14,15 +15,26 @@ class App {
         this.setupEvents();
     }
 
+    // 左パネル(380px)を避けて、ユーザーの目線の中央（右側エリアの中心）にライダーを置くピクセルオフセット
+    getCameraOffset() {
+        const panelWidth = 380;
+        const screenWidth = window.innerWidth;
+        if (screenWidth > 800) {
+            // パネルの半分だけ右にシフトしてライダーを空き領域のど真ん中に配置
+            return [panelWidth / 2, 0];
+        }
+        return [0, 0];
+    }
+
     initMap() {
-        // MapLibre GL JS with ESRI World Imagery (High-res Satellite) + AWS Open Terrain RGB (3D Dem)
-        // Completely Free & No API Key Required
+        const startState = this.course.getStateAtProgress(0.0);
+
         this.map = new maplibregl.Map({
             container: 'map',
             style: {
                 version: 8,
                 sources: {
-                    // 1. 高精細 衛星写真タイル (ESRI World Imagery - Free & No Key)
+                    // 高精細 衛星写真タイル (ESRI World Imagery)
                     'satellite': {
                         type: 'raster',
                         tiles: [
@@ -31,7 +43,7 @@ class App {
                         tileSize: 256,
                         attribution: 'Tiles &copy; Esri, Maxar, Earthstar Geographics'
                     },
-                    // 2. 標高 DEM 3D地形 (AWS Open Terrain RGB - Free & Global 3D)
+                    // 標高 DEM 3D地形 (AWS Open Terrain RGB)
                     'terrain-dem': {
                         type: 'raster-dem',
                         tiles: [
@@ -52,30 +64,29 @@ class App {
                     }
                 ],
                 sky: {
-                    'sky-color': '#199EF3',
-                    'sky-horizon-blend': 0.5,
-                    'horizon-color': '#ffffff',
-                    'horizon-fog-blend': 0.5,
-                    'fog-color': '#0000ff',
-                    'fog-ground-blend': 0.5
+                    'sky-color': '#1e293b',
+                    'sky-horizon-blend': 0.6,
+                    'horizon-color': '#38bdf8',
+                    'horizon-fog-blend': 0.6,
+                    'fog-color': '#0284c7',
+                    'fog-ground-blend': 0.4
                 }
             },
-            center: [139.2248, 35.3721],
-            zoom: 14.5,
-            pitch: 65,     // 傾斜角（3D地形が見えるアングル）
-            bearing: 15,   // 方位角
+            center: [startState.lon, startState.lat],
+            zoom: 16.0,
+            pitch: 75,
+            bearing: startState.bearing,
             maxPitch: 85
         });
 
-        // 3D地形（起伏）と陰影を追加
         this.map.on('load', () => {
-            // Enable 3D Terrain
+            // 3D 地形有効化
             this.map.setTerrain({
                 source: 'terrain-dem',
-                exaggeration: 1.25 // 起伏感を強調
+                exaggeration: 1.25
             });
 
-            // コース全体の3Dラインを追加
+            // コース全体の高精度3Dライン
             const coordinates = this.course.toGeoJSONCoordinates();
             this.map.addSource('route', {
                 type: 'geojson',
@@ -89,7 +100,7 @@ class App {
                 }
             });
 
-            // コースのグローライン（発光下地）
+            // コース発光ライン
             this.map.addLayer({
                 id: 'route-glow',
                 type: 'line',
@@ -101,12 +112,12 @@ class App {
                 paint: {
                     'line-color': '#00f0ff',
                     'line-width': 8,
-                    'line-opacity': 0.5,
+                    'line-opacity': 0.6,
                     'line-blur': 3
                 }
             });
 
-            // コースメインライン
+            // コース実線
             this.map.addLayer({
                 id: 'route-line',
                 type: 'line',
@@ -121,7 +132,7 @@ class App {
                 }
             });
 
-            // ライダー（現在地）のカスタムDOMマーカー作成
+            // ライダーマーカー
             const el = document.createElement('div');
             el.className = 'rider-marker';
             el.innerHTML = `
@@ -129,7 +140,7 @@ class App {
                 <div class="rider-arrow">▲</div>
             `;
             this.riderMarker = new maplibregl.Marker({ element: el })
-                .setLngLat([coordinates[0][0], coordinates[0][1]])
+                .setLngLat([startState.lon, startState.lat])
                 .addTo(this.map);
 
             this.updateState(0.0);
@@ -151,7 +162,7 @@ class App {
 
         ctx.clearRect(0, 0, w, h);
 
-        const samples = 150;
+        const samples = 200;
         const elevations = [];
         let minAlt = Infinity, maxAlt = -Infinity;
 
@@ -167,7 +178,7 @@ class App {
         const padY = 8;
         const getY = (alt) => h - padY - ((alt - minAlt) / altSpan) * (h - padY * 2);
 
-        // 背景グラデーション
+        // グラデーション塗りつぶし
         const gradient = ctx.createLinearGradient(0, 0, 0, h);
         gradient.addColorStop(0, 'rgba(0, 240, 255, 0.45)');
         gradient.addColorStop(1, 'rgba(0, 240, 255, 0.05)');
@@ -196,7 +207,7 @@ class App {
         ctx.lineWidth = 2;
         ctx.stroke();
 
-        // ライダーインジケータ
+        // ライダー現在地インジケータ
         const riderX = this.currentProgress * w;
         const riderState = this.course.getStateAtProgress(this.currentProgress);
         const riderY = getY(riderState.alt);
@@ -257,13 +268,20 @@ class App {
             this.updateState(0.0);
         });
 
+        // カメラモード切り替え（2秒間のスムーズ飛行）
         const setCamMode = (mode) => {
             this.cameraMode = mode;
             this.camChaseBtn.classList.toggle('active', mode === 'chase');
             this.camDroneBtn.classList.toggle('active', mode === 'drone');
             this.camFreeBtn.classList.toggle('active', mode === 'free');
-            // 視点切り替え時は2秒（2000ms）のスムーズなイージング飛行
-            this.updateCamera(2000);
+
+            if (mode !== 'free') {
+                this.isModeTransitioning = true;
+                this.applyCameraTarget(2000);
+                setTimeout(() => {
+                    this.isModeTransitioning = false;
+                }, 2000);
+            }
         };
 
         this.camChaseBtn.addEventListener('click', () => setCamMode('chase'));
@@ -276,13 +294,19 @@ class App {
             const progress = Math.max(0, Math.min(1, clickX / rect.width));
             this.updateState(progress);
         });
+
+        window.addEventListener('resize', () => {
+            if (this.cameraMode !== 'free') {
+                this.applyCameraTarget(0);
+            }
+        });
     }
 
     updateState(progress) {
         this.currentProgress = ((progress % 1.0) + 1.0) % 1.0;
         const state = this.course.getStateAtProgress(this.currentProgress);
 
-        // Update Rider Marker
+        // ライダーマーカーの位置・方位角
         if (this.riderMarker) {
             this.riderMarker.setLngLat([state.lon, state.lat]);
             const arrow = this.riderMarker.getElement().querySelector('.rider-arrow');
@@ -291,7 +315,7 @@ class App {
             }
         }
 
-        // Update UI
+        // 数値・スライダー更新
         const pct100 = (this.currentProgress * 100).toFixed(1);
         if (document.activeElement !== this.progressInput) {
             this.progressInput.value = pct100;
@@ -303,7 +327,7 @@ class App {
 
         const sign = state.slope >= 0 ? '+' : '';
         this.elSlope.textContent = `${sign}${state.slope.toFixed(1)}`;
-        if (state.slope > 5) {
+        if (state.slope > 7) {
             this.elSlopeWrap.style.color = 'var(--climb-color)';
         } else if (state.slope < -2) {
             this.elSlopeWrap.style.color = 'var(--descent-color)';
@@ -313,36 +337,51 @@ class App {
 
         this.elCoords.textContent = `${state.lon.toFixed(4)}, ${state.lat.toFixed(4)}`;
 
-        // Chart dot
+        // 標高チャートの現在地ポインタ更新
         this.drawElevationChart();
 
-        // Camera sync
-        this.updateCamera();
+        // カメラ同期（モード切り替えアニメーション中以外）
+        if (!this.isModeTransitioning && this.cameraMode !== 'free') {
+            this.applyCameraTarget(0); // リアルタイム追従（即座にターゲット位置を固定）
+        }
     }
 
-    updateCamera(transitionDuration = 100) {
+    /**
+     * カメラの視界設定
+     * - chase: ライダー直後方・低高度・高い仰角で臨場感ある追従
+     * - drone: 斜め上空・中高度・広角でコース全体と山並みを見渡す
+     */
+    applyCameraTarget(duration = 0) {
         if (!this.map || this.cameraMode === 'free') return;
 
         const state = this.course.getStateAtProgress(this.currentProgress);
+        const offset = this.getCameraOffset();
 
-        if (this.cameraMode === 'chase') {
-            // ライダー後方からのダイナミック追従
-            this.map.easeTo({
-                center: [state.lon, state.lat],
-                pitch: 75,
-                bearing: state.bearing,
-                zoom: 15.8,
-                duration: transitionDuration
-            });
-        } else if (this.cameraMode === 'drone') {
-            // 上空からのドローン空撮視点
-            this.map.easeTo({
-                center: [state.lon, state.lat],
-                pitch: 45,
-                bearing: (state.bearing + 40) % 360,
-                zoom: 14.5,
-                duration: transitionDuration
-            });
+        let targetPitch = 76;
+        let targetBearing = state.bearing;
+        let targetZoom = 16.2;
+
+        if (this.cameraMode === 'drone') {
+            // ドローン空撮: 斜め上空から見下ろし（Zoom 14.5, 仰角 48度, 方位は少し斜め前方）
+            targetPitch = 48;
+            targetBearing = (state.bearing + 35) % 360;
+            targetZoom = 14.6;
+        }
+
+        const cameraOptions = {
+            center: [state.lon, state.lat],
+            pitch: targetPitch,
+            bearing: targetBearing,
+            zoom: targetZoom,
+            offset: offset,
+            duration: duration,
+            essential: true
+        };
+
+        if (duration > 0) {
+            this.map.easeTo(cameraOptions);
+        } else {
+            this.map.jumpTo(cameraOptions);
         }
     }
 

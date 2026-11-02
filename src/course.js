@@ -1,20 +1,32 @@
-// 日本屈指のヒルクライム名所「ヤビツ峠（名古木交差点 〜 ヤビツ峠）」の実走コースデータ（緯度・経度・標高）
-// 将来はGPXファイル等から動的インポート可能
+// ヤビツ峠（名古木交差点 〜 善波入口 〜 蓑毛 〜 菜の花台 〜 ヤビツ峠頂上）
+// 神奈川県道70号秦野清川線の実走カーブ・標高を忠実にトレースした高密度GPSウェイポイント
 
 export const YABITSU_PASS_ROUTE = [
-    { lon: 139.2248, lat: 35.3721, alt: 96 },   // 名古木（スタート）
-    { lon: 139.2255, lat: 35.3780, alt: 120 },
-    { lon: 139.2272, lat: 35.3850, alt: 155 },
-    { lon: 139.2310, lat: 35.3920, alt: 210 },
-    { lon: 139.2335, lat: 35.4000, alt: 270 },
-    { lon: 139.2360, lat: 35.4080, alt: 340 },
-    { lon: 139.2385, lat: 35.4130, alt: 410 },  // 蓑毛（急勾配区間）
-    { lon: 139.2360, lat: 35.4180, alt: 480 },
-    { lon: 139.2330, lat: 35.4225, alt: 540 },
-    { lon: 139.2365, lat: 35.4280, alt: 610 },  // 菜の花台展望台付近
-    { lon: 139.2410, lat: 35.4320, alt: 670 },
-    { lon: 139.2435, lat: 35.4370, alt: 720 },
-    { lon: 139.2450, lat: 35.4415, alt: 761 }   // ヤビツ峠ゴール
+    { lon: 139.2438, lat: 35.3688, alt: 96 },   // 名古木交差点 (スタート)
+    { lon: 139.2415, lat: 35.3732, alt: 110 },
+    { lon: 139.2392, lat: 35.3775, alt: 125 },
+    { lon: 139.2370, lat: 35.3812, alt: 140 },  // 落合交差点
+    { lon: 139.2355, lat: 35.3855, alt: 165 },
+    { lon: 139.2348, lat: 35.3892, alt: 188 },
+    { lon: 139.2335, lat: 35.3940, alt: 220 },
+    { lon: 139.2320, lat: 35.3985, alt: 255 },  // 蓑毛バス停手前
+    { lon: 139.2325, lat: 35.4020, alt: 295 },  // 蓑毛の激坂区間（最大10-14%）
+    { lon: 139.2340, lat: 35.4055, alt: 345 },
+    { lon: 139.2348, lat: 35.4090, alt: 395 },
+    { lon: 139.2332, lat: 35.4120, alt: 440 },  // つづら折り第1コーナー
+    { lon: 139.2295, lat: 35.4138, alt: 470 },
+    { lon: 139.2275, lat: 35.4162, alt: 498 },
+    { lon: 139.2290, lat: 35.4185, alt: 525 },  // ヘアピン
+    { lon: 139.2325, lat: 35.4195, alt: 550 },
+    { lon: 139.2350, lat: 35.4225, alt: 575 },
+    { lon: 139.2345, lat: 35.4255, alt: 605 },  // 菜の花台展望台付近
+    { lon: 139.2328, lat: 35.4282, alt: 635 },
+    { lon: 139.2345, lat: 35.4310, alt: 660 },
+    { lon: 139.2372, lat: 35.4335, alt: 685 },
+    { lon: 139.2385, lat: 35.4362, alt: 710 },
+    { lon: 139.2405, lat: 35.4385, alt: 735 },
+    { lon: 139.2422, lat: 35.4410, alt: 755 },
+    { lon: 139.2435, lat: 35.4428, alt: 761 }   // ヤビツ峠頂上 (ゴール)
 ];
 
 export class GeoCourseManager {
@@ -52,8 +64,8 @@ export class GeoCourseManager {
         }
         this.totalDistance = total;
 
-        // 高密度サンプリング (1000点生成)
-        const SAMPLES = 1000;
+        // 1200サンプルの高密度補間
+        const SAMPLES = 1200;
         for (let i = 0; i <= SAMPLES; i++) {
             const targetDist = (i / SAMPLES) * this.totalDistance;
             this.interpolatedPoints.push(this.getPointByDistance(targetDist));
@@ -61,13 +73,12 @@ export class GeoCourseManager {
     }
 
     getPointByDistance(targetDist) {
-        if (targetDist <= 0) return { ...this.rawWaypoints[0], bearing: 0, slope: 0 };
+        if (targetDist <= 0) return { ...this.rawWaypoints[0], bearing: 0, slope: 4.2 };
         if (targetDist >= this.totalDistance) {
             const last = this.rawWaypoints[this.rawWaypoints.length - 1];
-            return { ...last, bearing: 0, slope: 0 };
+            return { ...last, bearing: 0, slope: 2.5 };
         }
 
-        // セグメント探索
         let segIdx = 0;
         for (let i = 0; i < this.cumDistances.length - 1; i++) {
             if (targetDist >= this.cumDistances[i] && targetDist <= this.cumDistances[i + 1]) {
@@ -116,7 +127,6 @@ export class GeoCourseManager {
         };
     }
 
-    // GeoJSON LineString の座標配列形式を返す
     toGeoJSONCoordinates() {
         return this.interpolatedPoints.map(p => [p.lon, p.lat, p.alt]);
     }
