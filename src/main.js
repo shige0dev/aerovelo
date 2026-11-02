@@ -187,7 +187,6 @@ class App {
         this.ui.updateManualModeState(this.loadMode !== 'auto');
 
         this.manualSlope = Math.max(0.0, Math.min(7.0, slope));
-        this.ui.updateManualSlopeControls(this.manualSlope);
         this.sendSlopeToTrainer(this.manualSlope);
     }
 

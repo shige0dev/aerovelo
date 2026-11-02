@@ -35,7 +35,7 @@ body {
 .sub-val { font-size: 0.68rem; font-weight: 700; color: var(--accent); font-family: var(--font-mono); }
 
 /* 共通ボタンスタイル */
-.btn, .icon-btn, .metric-inline-btn, .action-item, .ble-btn, .gsi-btn, .mini-scan-btn, .bottom-play-btn {
+.btn, .icon-btn, .action-item, .ble-btn, .gsi-btn, .mini-scan-btn {
     display: flex; align-items: center; justify-content: center;
     border-radius: 4px; cursor: pointer; line-height: 1; white-space: nowrap;
     text-decoration: none; border: 1px solid transparent; transition: all 0.15s ease;
@@ -45,7 +45,7 @@ body {
     background: rgba(255, 255, 255, 0.08); color: var(--text); border-color: var(--panel-border);
 }
 .btn.toggle { background: rgba(0, 0, 0, 0.4); color: var(--muted); font-size: 0.60rem; padding: 2px 4px; }
-.btn.toggle.active, .metric-inline-btn.active { background: var(--accent); color: #0b0f19; border-color: var(--accent); box-shadow: 0 0 6px var(--accent-glow); }
+.btn.toggle.active { background: var(--accent); color: #0b0f19; border-color: var(--accent); box-shadow: 0 0 6px var(--accent-glow); }
 
 .icon-btn {
     background: rgba(255, 255, 255, 0.08); border-color: var(--panel-border); color: var(--muted);

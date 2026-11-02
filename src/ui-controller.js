@@ -30,10 +30,8 @@ export class UIController {
         this.bottomDistDisplay = document.getElementById('bottom-dist-display');
         this.bottomTotalDistTag = document.getElementById('bottom-total-dist-tag');
 
-        this.vSlopeSlider = document.getElementById('v-slope-slider');
         this.vSlopeVal = document.getElementById('v-slope-val');
         this.rowSlopeCtrl = document.getElementById('row-slope-ctrl');
-        this.slopeEditHint = document.getElementById('slope-edit-hint');
         this.btnManualMode = document.getElementById('btn-manual-mode');
         this.autorunSpeedBox = document.getElementById('autorun-speed-box');
         this.canvasSpeedVal = document.getElementById('canvas-speed-val');
@@ -140,14 +138,6 @@ export class UIController {
         if (this.btnPlay) {
             this.btnPlay.addEventListener('click', () => {
                 if (this.cb.onTogglePlay) this.cb.onTogglePlay();
-            });
-        }
-
-        if (this.vSlopeSlider) {
-            this.vSlopeSlider.addEventListener('input', (e) => {
-                if (this.cb.onManualSlopeInput) {
-                    this.cb.onManualSlopeInput(parseFloat(e.target.value), true);
-                }
             });
         }
 
@@ -447,16 +437,6 @@ export class UIController {
         }
     }
 
-    updateManualSlopeControls(slope) {
-        if (this.testSlopeSlider) this.testSlopeSlider.value = slope;
-        if (this.testSlopeVal) {
-            const s = slope > 0 ? '+' : '';
-            this.testSlopeVal.textContent = `${s}${slope.toFixed(2)} %`;
-        }
-        if (this.vSlopeSlider) this.vSlopeSlider.value = slope;
-        if (this.vSlopeVal) this.vSlopeVal.textContent = slope.toFixed(2);
-    }
-
     updateLfoState(isRunning) {
         if (this.btnLfoToggle) {
             this.btnLfoToggle.textContent = isRunning ? 'スキャン停止' : '連続スキャン';
@@ -465,7 +445,6 @@ export class UIController {
     }
 
     updateTrainerSlopeDisplay(clampedSlope) {
-        if (this.vSlopeSlider) this.vSlopeSlider.value = clampedSlope;
         if (this.vSlopeVal) this.vSlopeVal.textContent = clampedSlope.toFixed(2);
         if (this.testSlopeSlider) this.testSlopeSlider.value = clampedSlope;
         if (this.testSlopeVal) {
