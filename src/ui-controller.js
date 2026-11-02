@@ -181,8 +181,7 @@ export class UIController {
                 const cur = this.cb.getSpeed ? this.cb.getSpeed() : 25;
                 const nextSpeed = Math.max(1, Math.min(80, cur + dir));
                 if (this.cb.onSpeedChange) this.cb.onSpeedChange(nextSpeed);
-            },
-            ignoreTarget: this.btnPlay
+            }
         });
 
         // Camera Dialog & Sliders
@@ -341,7 +340,9 @@ export class UIController {
     updateCourseMeta(course, currentProgress) {
         const totalKm = (course.totalDistance / 1000).toFixed(2);
         if (this.bottomTotalDistTag) {
-            this.bottomTotalDistTag.textContent = `${totalKm}km`;
+            const [intPart, decPart] = totalKm.split('.');
+            const paddedTotal = `${intPart.padStart(3, '0')}.${decPart}`;
+            this.bottomTotalDistTag.textContent = `Total${paddedTotal}Km`;
         }
         if (this.bottomDistDisplay) {
             const curDistKm = ((currentProgress * course.totalDistance) / 1000).toFixed(2);
@@ -376,8 +377,8 @@ export class UIController {
 
     updatePlayState(isPlaying) {
         if (this.btnPlay) {
-            this.btnPlay.textContent = isPlaying ? '❚❚' : '▶';
-            this.btnPlay.title = isPlaying ? '一時停止 (Pause)' : '自動再生 (Auto Fly)';
+            this.btnPlay.textContent = isPlaying ? 'Pause' : 'AutoRun';
+            this.btnPlay.title = isPlaying ? '一時停止 (Pause)' : '自動走行 (AutoRun)';
             this.btnPlay.classList.toggle('running', isPlaying);
         }
         if (this.rowSpeed) {

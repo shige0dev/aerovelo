@@ -50,7 +50,7 @@
         <div class="bottom-row-1">
             <div class="bottom-title-group">
                 <h1 class="bottom-app-title">AeroVelo</h1>
-                <span class="version-badge" id="app-version">v1.6.5</span>
+                <span class="version-badge" id="app-version">v1.6.6</span>
             </div>
             <div class="bottom-course-group">
                 <span id="course-name-display" class="bottom-course-badge">読み込み中...</span>
@@ -62,10 +62,9 @@
             </div>
         </div>
 
-        <!-- 2行目: 再生ボタン ＆ Speed ＆ 標高, 斜度, 距離 ＆ Cadence, Power（2行スタック表示） -->
+        <!-- 2行目: Speed ＆ 標高, 斜度, 距離 ＆ Cadence, Power（2行スタック表示） -->
         <div class="bottom-row-2">
             <div class="bottom-stats-row">
-                <button type="button" id="btn-play" class="bottom-play-btn" title="自動再生 (Auto Fly)">▶</button>
                 <div class="stacked-stat-item speed-stack-item" id="row-speed" title="AUTOPLAY時のみ上下スワイプ・ホイールで速度変更可能">
                     <span class="stat-label">Speed <span class="stat-unit">km/h</span><span id="speed-edit-hint" class="speed-hint" style="display: none;">⇅</span></span>
                     <span id="speed-val" class="stat-value">25.0</span>
@@ -97,8 +96,10 @@
         <div class="bottom-main-row">
             <div class="bottom-canvas-slider-container">
                 <canvas id="elevation-canvas"></canvas>
-                <!-- 全長表示（標高表示の右上） -->
-                <span id="bottom-total-dist-tag" class="canvas-total-dist-tag">0.00km</span>
+                <!-- AutoRun ボタン (勾配表示範囲・左上に配置) -->
+                <button type="button" id="btn-play" class="canvas-autorun-btn" title="自動走行 (AutoRun)">AutoRun</button>
+                <!-- 全長表示（標高表示の右上・枠なし） -->
+                <span id="bottom-total-dist-tag" class="canvas-total-dist-tag">Total000.00Km</span>
             </div>
             <div class="bottom-slope-vertical-wrapper">
                 <span class="v-slope-title">負荷</span>
