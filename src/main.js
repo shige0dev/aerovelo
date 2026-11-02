@@ -320,7 +320,7 @@ class App {
         this.slopeCapBadge = document.getElementById('slope-cap-badge');
         this.elTrainerSlope = document.getElementById('val-trainer-slope');
         this.elCoords = document.getElementById('val-coords');
-        this.elProfileChartTitle = document.getElementById('profile-chart-title');
+        this.elCourseNameDisplay = document.getElementById('course-name-display');
         this.presetSelect = document.getElementById('preset-select');
 
         this.speedSlider = document.getElementById('speed-slider');
@@ -373,9 +373,10 @@ class App {
     updateTotalDistanceUI() {
         const totalKm = (this.course.totalDistance / 1000).toFixed(2);
         this.elTotalDist.textContent = `/ ${totalKm} km`;
-        if (this.elProfileChartTitle) {
-            const statusTag = this.course.isGsiCorrected ? ' [DEM5A補正済]' : '';
-            this.elProfileChartTitle.textContent = `${this.course.name} 標高プロファイル${statusTag}`;
+        if (this.elCourseNameDisplay) {
+            const statusTag = this.course.isGsiCorrected ? ' [DEM5A]' : '';
+            this.elCourseNameDisplay.textContent = `${this.course.name}${statusTag}`;
+            this.elCourseNameDisplay.title = `${this.course.name}${statusTag} (${totalKm} km)`;
         }
         if (this.btnGsiDem) {
             const isJapan = this.course.isWithinJapan();
@@ -682,13 +683,15 @@ class App {
 
         this.btnPlay.addEventListener('click', () => {
             this.isPlaying = !this.isPlaying;
-            this.btnPlay.textContent = this.isPlaying ? '停止 (Pause)' : '再生 (Auto Fly)';
+            this.btnPlay.textContent = this.isPlaying ? '❚❚' : '▶';
+            this.btnPlay.title = this.isPlaying ? '一時停止 (Pause)' : '自動再生 (Auto Fly)';
             this.btnPlay.classList.toggle('running', this.isPlaying);
         });
 
         this.btnReset.addEventListener('click', () => {
             this.isPlaying = false;
-            this.btnPlay.textContent = '再生 (Auto Fly)';
+            this.btnPlay.textContent = '▶';
+            this.btnPlay.title = '自動再生 (Auto Fly)';
             this.btnPlay.classList.remove('running');
             if (this.bleManager) {
                 this.bleManager.resetDistance();

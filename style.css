@@ -177,6 +177,27 @@ body {
     font-weight: 800;
 }
 
+/* コースタイトル独立行 */
+.course-title-row {
+    margin-top: 3px;
+    overflow: hidden;
+}
+
+.course-name-badge {
+    display: inline-block;
+    max-width: 100%;
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: #38bdf8;
+    background: rgba(56, 189, 248, 0.1);
+    border: 1px solid rgba(56, 189, 248, 0.25);
+    border-radius: 4px;
+    padding: 1px 6px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 .subtitle {
     font-size: 0.64rem;
     color: var(--text-muted);
@@ -417,6 +438,14 @@ input[type="range"]::-webkit-slider-thumb {
     flex-direction: column;
 }
 
+/* スライダーのつまみ（幅12px）の中心に合わせるため左右に6pxのパディング */
+.elevation-canvas-box {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0 6px;
+    display: flex;
+}
+
 #elevation-canvas {
     width: 100%;
     height: 38px;
@@ -458,6 +487,14 @@ input[type="range"]::-webkit-slider-thumb {
     padding: 1px 6px !important;
     font-size: 0.58rem !important;
     border-radius: 3px !important;
+}
+
+.icon-play-btn {
+    width: 26px !important;
+    padding: 1px 0 !important;
+    font-size: 0.72rem !important;
+    font-family: inherit;
+    line-height: 1;
 }
 
 .speed-group {

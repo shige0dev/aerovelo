@@ -20,10 +20,14 @@
             <div class="header-top">
                 <h1>AeroVelo <span>3D</span></h1>
                 <div class="header-actions">
-                    <span class="version-badge" id="app-version">v1.3.0</span>
+                    <span class="version-badge" id="app-version">v1.3.1</span>
                     <button type="button" id="btn-modal-settings" class="icon-btn" title="設定 (GPX / トレーナー / テスト)">⚙️</button>
                     <button type="button" id="btn-fullscreen" class="icon-btn" title="全画面表示 (F11)">⛶</button>
                 </div>
+            </div>
+            <!-- コースタイトル独立表示行 -->
+            <div class="course-title-row">
+                <span id="course-name-display" class="course-name-badge">読み込み中...</span>
             </div>
         </header>
 
@@ -31,21 +35,23 @@
         <section class="control-group progress-group">
             <div class="progress-main-row">
                 <div class="progress-info-wrap">
-                    <span class="ctrl-title" id="profile-chart-title">進捗</span>
+                    <span class="ctrl-title">進捗</span>
                     <div class="input-wrap">
                         <input type="number" id="progress-input" min="0" max="100" step="0.1" value="0.0">
                         <span class="unit">%</span>
                     </div>
                 </div>
                 <div class="inline-play-btns">
-                    <button id="btn-play" class="btn primary mini-ctrl-btn">再生</button>
-                    <button id="btn-reset" class="btn secondary mini-ctrl-btn">0%</button>
+                    <button id="btn-play" class="btn primary mini-ctrl-btn icon-play-btn" title="自動再生 (Auto Fly)">▶</button>
+                    <button id="btn-reset" class="btn secondary mini-ctrl-btn" title="スタート地点に戻る (0%)">0%</button>
                 </div>
             </div>
 
             <!-- スライダーの真上に合体した標高プロファイルグラフ -->
             <div class="elevation-slider-wrapper">
-                <canvas id="elevation-canvas" width="220" height="42"></canvas>
+                <div class="elevation-canvas-box">
+                    <canvas id="elevation-canvas" width="200" height="42"></canvas>
+                </div>
                 <input type="range" id="progress-slider" min="0" max="100" step="0.05" value="0" class="overlay-slider">
             </div>
         </section>
