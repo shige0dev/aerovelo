@@ -73,18 +73,19 @@ input[type="range"]::-webkit-slider-thumb {
     box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.6); display: flex; flex-direction: column; gap: 2px;
 }
 .bottom-row-1, .bottom-row-2, .bottom-main-row { display: flex; align-items: center; width: 100%; }
-.bottom-row-1 { justify-content: space-between; gap: 8px; }
-.bottom-title-group { display: flex; align-items: baseline; gap: 3px; flex-shrink: 0; }
+.bottom-row-1 { justify-content: space-between; gap: 8px; height: 18px; }
+.bottom-title-group { display: flex; align-items: baseline; gap: 3px; flex-shrink: 0; line-height: 1; }
 .bottom-app-title { font-size: 0.78rem; font-weight: 800; letter-spacing: 0.04em; color: #f8fafc; line-height: 1; }
-.version-badge { font-size: 0.44rem; color: rgba(255, 255, 255, 0.75); font-family: var(--font-mono); line-height: 1; align-self: flex-end; }
+.version-badge { font-size: 0.44rem; color: rgba(255, 255, 255, 0.75); font-family: var(--font-mono); line-height: 1; }
 
-.bottom-course-group { flex: 1; overflow: hidden; text-align: center; }
+.bottom-course-group { flex: 1; overflow: hidden; display: flex; align-items: center; justify-content: center; height: 18px; }
 .bottom-course-badge {
-    display: inline-block; max-width: 100%; font-size: 0.64rem; font-weight: 700; color: #38bdf8;
+    display: inline-flex; align-items: center; justify-content: center; height: 18px; box-sizing: border-box;
+    max-width: 100%; font-size: 0.64rem; font-weight: 700; color: #38bdf8;
     background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.25);
-    border-radius: 3px; padding: 1px 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    border-radius: 3px; padding: 0 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1;
 }
-.bottom-actions-group { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+.bottom-actions-group { display: flex; align-items: center; gap: 4px; flex-shrink: 0; height: 18px; }
 
 /* 2行目: 再生ボタン ＆ Speed ＆ 標高, 斜度, 距離 ＆ Cadence, Power */
 .bottom-row-2 { justify-content: space-between; }

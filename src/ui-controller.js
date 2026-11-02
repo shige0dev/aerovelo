@@ -341,11 +341,11 @@ export class UIController {
     updateCourseMeta(course, currentProgress) {
         const totalKm = (course.totalDistance / 1000).toFixed(2);
         if (this.bottomTotalDistTag) {
-            this.bottomTotalDistTag.textContent = `全長 ${totalKm}km`;
+            this.bottomTotalDistTag.textContent = `${totalKm}km`;
         }
         if (this.bottomDistDisplay) {
             const curDistKm = ((currentProgress * course.totalDistance) / 1000).toFixed(2);
-            this.bottomDistDisplay.textContent = `${curDistKm}km`;
+            this.bottomDistDisplay.textContent = curDistKm;
         }
         if (this.elCourseNameDisplay) {
             const statusTag = course.isGsiCorrected ? ' [DEM5A]' : '';
