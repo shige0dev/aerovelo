@@ -155,13 +155,14 @@ class App {
     toggleCamVectorMode() {
         this.camVectorMode = (this.camVectorMode === 'fwd') ? 'bwdfwd' : 'fwd';
         this.ui.updateCamVectorMode(this.camVectorMode);
-        this.updateState(this.currentProgress);
+        this.updateState(this.currentProgress, true);
     }
 
     toggleCamSmoothMode() {
         this.isCamSmoothEnabled = !this.isCamSmoothEnabled;
         this.mapView.setSmoothing(this.isCamSmoothEnabled);
         this.ui.updateCamSmoothMode(this.isCamSmoothEnabled);
+        this.updateState(this.currentProgress, true);
     }
 
     setLoadMode(mode) {
@@ -230,17 +231,19 @@ class App {
     setManualProgress(progress) {
         if (this.bleManager.isConnected) this.bleManager.resetDistance();
         this.baseProgressAtBleStart = progress;
-        this.updateState(progress);
+        this.updateState(progress, true);
     }
 
-    updateState(progress) {
+    updateState(progress, forceInstant = false) {
         this.currentProgress = isNaN(progress) ? 0.0 : clamp(progress, 0.0, 1.0);
         const state = this.currentState();
 
         this.ui.updateMetrics(state, this.speedKmh);
         this.sendSlopeToTrainer(this.loadMode === 'auto' ? state.slope : this.manualSlope);
         this.chart.setProgress(this.currentProgress);
-        this.mapView.updateRiderAndCamera(state, 0);
+
+        const isMoving = !forceInstant && (this.isPlaying || (this.bleManager.isConnected && this.speedKmh > 0));
+        this.mapView.updateRiderAndCamera(state, forceInstant ? 300 : 0, isMoving);
     }
 
     animate(timestamp) {

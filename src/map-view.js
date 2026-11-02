@@ -141,7 +141,7 @@ export class MapViewController {
         if (initialState) this.updateRiderAndCamera(initialState, 1500);
     }
 
-    updateRiderAndCamera(state, duration = 0) {
+    updateRiderAndCamera(state, duration = 0, isMoving = false) {
         this.lastState = state;
         this.riderMarker?.setLngLat([state.lon, state.lat]);
 
@@ -161,7 +161,7 @@ export class MapViewController {
         }
 
         if (!this.isModeTransitioning && this.cameraMode !== 'free') {
-            this.applyCameraTarget(state, duration);
+            this.applyCameraTarget(state, duration, isMoving);
         }
     }
 
@@ -253,18 +253,19 @@ export class MapViewController {
         if (this.cameraMode !== 'free' && currentState) this.applyCameraTarget(currentState, 0);
     }
 
-    applyCameraTarget(state, duration = 0) {
+    applyCameraTarget(state, duration = 0, isMoving = false) {
         if (!this.map || this.cameraMode === 'free' || !state) return;
 
         let targetPitch = this.cameraParams.pitch;
         const targetBearing = (state.bearing - this.orbitAngleOffset + 360) % 360;
 
-        if (!this.isSmoothingEnabled || this.currentCamBearing === null || duration > 0) {
+        // スムージング無効時、初回ロード時、アニメーション指定時、または停止中（手動操作時）は即座に目標方向へ向く
+        if (!this.isSmoothingEnabled || this.currentCamBearing === null || duration > 0 || !isMoving) {
             this.currentCamBearing = targetBearing;
         } else {
-            // 目標との角度差 (-180°〜+180°) に対し毎回4%ずつ近づく（急カーブでも1フレーム最大0.5°＝秒間30°に制限）
+            // 走行中スムージング: 目標との角度差 (-180°〜+180°) に対し適正な速度（毎フレーム最大1.5°＝秒間90°）で追従
             const diff = ((targetBearing - this.currentCamBearing + 540) % 360) - 180;
-            const step = Math.max(-0.5, Math.min(0.5, diff * 0.04));
+            const step = Math.max(-1.5, Math.min(1.5, diff * 0.08));
             this.currentCamBearing = (this.currentCamBearing + step + 360) % 360;
         }
 
