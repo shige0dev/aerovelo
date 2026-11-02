@@ -71,7 +71,7 @@ class App {
     }
 
     currentState() {
-        return this.course.getStateAtProgress(this.currentProgress);
+        return this.course.getStateAtProgress(this.currentProgress, this.speedKmh);
     }
 
     handleResize() {

@@ -124,14 +124,19 @@ export class GeoCourseManager {
         };
     }
 
-    getStateAtProgress(progress) {
+    getStateAtProgress(progress, speedKmh = 25) {
         const u = Math.max(0, Math.min(1, progress));
         const dist = u * this.totalDistance;
         const cur = this.sampleAtDist(dist);
 
-        // 方位角（Bearing）は後方25m〜前方55mの連続補間座標から算出し、折れ点での急変を防ぐ
-        const bwdLook = this.sampleAtDist(dist - 25);
-        const fwdLook = this.sampleAtDist(dist + 55);
+        // 方位角（Bearing）: 現在地から「時速の数字 m（最低12m）」先の前方地点へのベクトルから算出
+        const lookaheadDist = Math.max(12, speedKmh);
+        let p0 = cur;
+        let p1 = this.sampleAtDist(dist + lookaheadDist);
+        if (dist + lookaheadDist > this.totalDistance) {
+            p0 = this.sampleAtDist(Math.max(0, this.totalDistance - lookaheadDist));
+            p1 = this.sampleAtDist(this.totalDistance);
+        }
 
         // 斜度（Slope）は前後25mの連続標高差から算出
         const bwdSlope = this.sampleAtDist(dist - 25);
@@ -145,7 +150,7 @@ export class GeoCourseManager {
             lon: cur.lon,
             lat: cur.lat,
             alt: cur.alt,
-            bearing: GeoCourseManager.calcBearing(bwdLook.lon, bwdLook.lat, fwdLook.lon, fwdLook.lat),
+            bearing: GeoCourseManager.calcBearing(p0.lon, p0.lat, p1.lon, p1.lat),
             slope
         };
     }
