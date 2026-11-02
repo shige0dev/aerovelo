@@ -19,7 +19,7 @@
         <header class="panel-header">
             <div class="header-top">
                 <h1>AeroVelo <span>3D Terrain</span></h1>
-                <span class="version-badge" id="app-version">v0.5.1</span>
+                <span class="version-badge" id="app-version">v0.5.2</span>
             </div>
             <p class="subtitle" id="course-title">実地形 3D 衛星空撮バーチャルサイクリング</p>
         </header>
@@ -88,23 +88,22 @@
         </section>
 
         <section class="control-group camera-group">
-            <label>空撮カメラ視点</label>
             <div class="btn-group">
-                <button id="cam-chase" class="btn toggle active">後方追従 (Chase)</button>
-                <button id="cam-drone" class="btn toggle">ドローン空撮 (Aerial)</button>
-                <button id="cam-free" class="btn toggle">自由操作 (Free)</button>
+                <button id="cam-chase" class="btn toggle active">Chase</button>
+                <button id="cam-drone" class="btn toggle">Aerial</button>
+                <button id="cam-free" class="btn toggle">Free</button>
             </div>
 
-            <!-- Drone / Camera Adjustment Sliders -->
+            <!-- Camera Adjustment Sliders -->
             <div id="camera-adjust-box" class="camera-adjust-box">
                 <div class="label-row">
-                    <label for="cam-pitch-slider">カメラ仰角 (角度)</label>
+                    <label for="cam-pitch-slider">Pitch</label>
                     <span id="cam-pitch-val" class="sub-val">68°</span>
                 </div>
                 <input type="range" id="cam-pitch-slider" min="20" max="85" step="1" value="68">
 
-                <div class="label-row" style="margin-top: 6px;">
-                    <label for="cam-zoom-slider">カメラ拡大度 (ズーム)</label>
+                <div class="label-row" style="margin-top: 4px;">
+                    <label for="cam-zoom-slider">Zoom</label>
                     <span id="cam-zoom-val" class="sub-val">17.0</span>
                 </div>
                 <input type="range" id="cam-zoom-slider" min="15.0" max="20.0" step="0.1" value="17.0">
