@@ -350,6 +350,12 @@ class App {
         // Fullscreen Button
         this.btnFullscreen = document.getElementById('btn-fullscreen');
 
+        // Modal Triggers
+        this.btnModalGpx = document.getElementById('btn-modal-gpx');
+        this.btnModalTest = document.getElementById('btn-modal-test');
+        this.modalGpx = document.getElementById('modal-gpx');
+        this.modalTest = document.getElementById('modal-test');
+
         // TEST / キャリブレーション UI
         this.testModeCourseBtn = document.getElementById('test-mode-course');
         this.testModeManualBtn = document.getElementById('test-mode-manual');
@@ -506,6 +512,32 @@ class App {
                 this.bleManager.disconnect();
             });
         }
+
+        // Modal Windows Setup
+        if (this.btnModalGpx && this.modalGpx) {
+            this.btnModalGpx.addEventListener('click', () => {
+                this.modalGpx.style.display = 'flex';
+            });
+        }
+        if (this.btnModalTest && this.modalTest) {
+            this.btnModalTest.addEventListener('click', () => {
+                this.modalTest.style.display = 'flex';
+            });
+        }
+        document.querySelectorAll('.modal-close').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const targetId = btn.dataset.close;
+                const modal = document.getElementById(targetId);
+                if (modal) modal.style.display = 'none';
+            });
+        });
+        document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
+            backdrop.addEventListener('click', (e) => {
+                if (e.target === backdrop) {
+                    backdrop.style.display = 'none';
+                }
+            });
+        });
 
         // 全画面表示 (Fullscreen API)
         if (this.btnFullscreen) {
