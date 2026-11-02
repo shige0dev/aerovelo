@@ -130,20 +130,17 @@
         </section>
     </div>
 
-    <!-- 統合設定モーダル (⚙️) -->
+    <!-- 統合設定モーダル (⚙️ フラット表示) -->
     <div id="modal-settings" class="modal-backdrop" style="display: none;">
         <div class="modal-dialog">
             <div class="modal-header">
-                <div class="settings-nav-tabs">
-                    <button type="button" class="tab-btn active" data-tab="tab-gpx">📁 コース</button>
-                    <button type="button" class="tab-btn" data-tab="tab-ble">⚡ トレーナー</button>
-                    <button type="button" class="tab-btn" data-tab="tab-test">🛠️ TEST</button>
-                </div>
+                <h3>⚙️ 設定 (Settings)</h3>
                 <button type="button" class="modal-close" data-close="modal-settings">✕</button>
             </div>
             <div class="modal-body">
-                <!-- Tab 1: GPX コース選定 -->
-                <div id="tab-gpx" class="tab-pane active">
+                <!-- セクション 1: コース選定・GPX -->
+                <div class="settings-section">
+                    <div class="settings-sec-title">📁 コース選定・GPX</div>
                     <section class="control-group gpx-section">
                         <div class="preset-row">
                             <select id="preset-select" class="preset-select">
@@ -169,8 +166,9 @@
                     </section>
                 </div>
 
-                <!-- Tab 2: スマートトレーナー接続 -->
-                <div id="tab-ble" class="tab-pane">
+                <!-- セクション 2: スマートトレーナー接続 -->
+                <div class="settings-section">
+                    <div class="settings-sec-title">⚡ スマートトレーナー (FTMS)</div>
                     <section class="control-group ble-section">
                         <div class="ble-bar">
                             <button type="button" id="btn-ble-connect" class="ble-btn">
@@ -180,15 +178,13 @@
                             <button type="button" id="btn-ble-disconnect" class="ble-disconnect-btn" style="display: none;" title="切断">✕</button>
                         </div>
                     </section>
-                    <p style="font-size: 0.62rem; color: var(--text-muted); margin-top: 6px; line-height: 1.4;">
-                        Bluetooth (FTMS規格) で Elite NERO や KICKR、Tacx 等とペアリングし、パワー・ケイデンス・速度の受信および勾配負荷の自動制御を行います。
-                    </p>
                 </div>
 
-                <!-- Tab 3: TEST / 負荷キャリブレーション -->
-                <div id="tab-test" class="tab-pane">
+                <!-- セクション 3: TEST / 負荷キャリブレーション -->
+                <div class="settings-section">
+                    <div class="settings-sec-title">🛠️ TEST / 負荷キャリブレーション</div>
                     <div class="test-header" style="margin-bottom: 6px;">
-                        <span style="font-size: 0.65rem; color: var(--text-muted);">モード切替:</span>
+                        <span style="font-size: 0.65rem; color: var(--text-muted);">動作モード:</span>
                         <div class="btn-group mini-toggle">
                             <button type="button" id="test-mode-course" class="btn toggle active">コース連動</button>
                             <button type="button" id="test-mode-manual" class="btn toggle">TEST手動</button>

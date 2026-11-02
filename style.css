@@ -880,44 +880,25 @@ input[type="range"]::-webkit-slider-thumb {
     font-family: monospace;
 }
 
-/* Settings Navigation Tabs in Modal Header */
-.settings-nav-tabs {
+/* Settings Modal (Flat layout) */
+.settings-section {
     display: flex;
-    gap: 4px;
-    align-items: center;
-}
-
-.tab-btn {
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    color: var(--text-muted);
-    font-size: 0.65rem;
-    font-weight: 600;
-    padding: 3px 8px;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: all 0.15s ease;
-}
-
-.tab-btn:hover {
-    background: rgba(255, 255, 255, 0.12);
-    color: #fff;
-}
-
-.tab-btn.active {
-    background: rgba(0, 240, 255, 0.15);
-    border-color: var(--accent);
-    color: var(--accent);
-}
-
-.tab-pane {
-    display: none;
     flex-direction: column;
-    gap: 6px;
+    gap: 4px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-.tab-pane.active {
-    display: flex;
+.settings-section:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.settings-sec-title {
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: var(--accent);
+    margin-bottom: 2px;
 }
 
 /* Modal Windows */
@@ -938,6 +919,7 @@ input[type="range"]::-webkit-slider-thumb {
 .modal-dialog {
     width: 90%;
     max-width: 320px;
+    max-height: 85vh;
     background: var(--panel-bg);
     border: 1px solid var(--panel-border);
     border-radius: 8px;
@@ -960,6 +942,7 @@ input[type="range"]::-webkit-slider-thumb {
     align-items: center;
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
     padding-bottom: 6px;
+    flex-shrink: 0;
 }
 
 .modal-header h3 {
@@ -986,5 +969,7 @@ input[type="range"]::-webkit-slider-thumb {
 .modal-body {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 8px;
+    overflow-y: auto;
+    padding-right: 2px;
 }

@@ -353,8 +353,6 @@ class App {
         // Modal Triggers & Elements (統合設定モーダル ⚙️)
         this.btnModalSettings = document.getElementById('btn-modal-settings');
         this.modalSettings = document.getElementById('modal-settings');
-        this.settingsTabBtns = document.querySelectorAll('.settings-nav-tabs .tab-btn');
-        this.settingsTabPanes = document.querySelectorAll('.modal-dialog .tab-pane');
 
         // TEST / キャリブレーション UI
         this.testModeCourseBtn = document.getElementById('test-mode-course');
@@ -518,20 +516,6 @@ class App {
         if (this.btnModalSettings && this.modalSettings) {
             this.btnModalSettings.addEventListener('click', () => {
                 this.modalSettings.style.display = 'flex';
-            });
-        }
-
-        // Settings Tabs Switching
-        if (this.settingsTabBtns && this.settingsTabBtns.length > 0) {
-            this.settingsTabBtns.forEach(btn => {
-                btn.addEventListener('click', () => {
-                    const targetId = btn.dataset.tab;
-                    this.settingsTabBtns.forEach(b => b.classList.remove('active'));
-                    this.settingsTabPanes.forEach(pane => pane.classList.remove('active'));
-                    btn.classList.add('active');
-                    const targetPane = document.getElementById(targetId);
-                    if (targetPane) targetPane.classList.add('active');
-                });
             });
         }
 
