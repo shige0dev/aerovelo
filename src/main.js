@@ -13,9 +13,7 @@ class App {
 
         // Bluetooth Smart Trainer Manager
         this.bleManager = new BleTrainerManager();
-        this.bleData = { power: null, cadence: null, speed: null, totalDistanceMeters: null };
         this.hasBleDistance = false;
-        this.lastBleSessionDistance = 0;
         this.baseProgressAtBleStart = 0; // BLE接続時・リセット時の基準進捗率
 
         // 滑らかな角度補間（Lerp）用の現在カメラBearing
@@ -479,7 +477,6 @@ class App {
 
         this.bleManager.on('connected', () => {
             this.baseProgressAtBleStart = this.currentProgress;
-            this.lastBleSessionDistance = 0;
             this.hasBleDistance = false;
         });
 
@@ -545,7 +542,6 @@ class App {
                 this.bleManager.resetDistance();
             }
             this.baseProgressAtBleStart = 0.0;
-            this.lastBleSessionDistance = 0;
             this.updateState(0.0);
         });
 
