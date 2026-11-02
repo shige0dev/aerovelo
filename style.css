@@ -64,58 +64,67 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 /* ========================================================
-   Bottom Bar (画面最下段 全幅 3行レイアウト)
+   Top Bar (画面最上段 タイトル / コース名 / アクションボタン)
    ======================================================== */
-#bottom-bar {
-    position: absolute; bottom: 0; left: 0; width: 100vw;
-    background: rgba(15, 23, 42, 0.94); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-    border-top: 1px solid var(--panel-border); padding: 3px 8px 4px; z-index: 10;
-    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.6); display: flex; flex-direction: column; gap: 2px;
+#top-bar {
+    position: absolute; top: 0; left: 0; width: 100vw; height: 26px;
+    background: rgba(15, 23, 42, 0.88); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--panel-border); padding: 0 8px; z-index: 20;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5); display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    box-sizing: border-box;
 }
-.bottom-row-1, .bottom-row-2, .bottom-main-row { display: flex; align-items: center; width: 100%; }
-.bottom-row-1 { justify-content: space-between; gap: 8px; height: 18px; }
-.bottom-title-group { display: flex; align-items: baseline; gap: 3px; flex-shrink: 0; line-height: 1; }
-.bottom-app-title { font-size: 0.78rem; font-weight: 800; letter-spacing: 0.04em; color: #f8fafc; line-height: 1; }
+.top-title-group { display: flex; align-items: baseline; gap: 3px; flex-shrink: 0; line-height: 1; }
+.top-app-title { font-size: 0.78rem; font-weight: 800; letter-spacing: 0.04em; color: #f8fafc; line-height: 1; margin: 0; }
 .version-badge { font-size: 0.44rem; color: rgba(255, 255, 255, 0.75); font-family: var(--font-mono); line-height: 1; }
 
-.bottom-course-group { flex: 1; overflow: hidden; display: flex; align-items: center; justify-content: center; height: 18px; }
-.bottom-course-badge {
+.top-course-group { flex: 1; overflow: hidden; display: flex; align-items: center; justify-content: center; height: 18px; }
+.top-course-badge {
     display: inline-flex; align-items: center; justify-content: center; height: 18px; box-sizing: border-box;
     max-width: 100%; font-size: 0.64rem; font-weight: 700; color: #38bdf8;
     background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.25);
     border-radius: 3px; padding: 0 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1;
 }
-.bottom-actions-group { display: flex; align-items: center; gap: 4px; flex-shrink: 0; height: 18px; }
+.top-actions-group { display: flex; align-items: center; gap: 4px; flex-shrink: 0; height: 18px; }
 
-/* 2行目: Speed ＆ 標高, 斜度, 距離 ＆ Cadence, Power */
-.bottom-row-2 { justify-content: space-between; }
-.bottom-stats-row { display: flex; align-items: center; gap: 4px; overflow-x: auto; width: 100%; }
+/* ========================================================
+   HUD Metrics (画面上部左側: 1行表示×6行縦並び、ベースなし個別配置)
+   ======================================================== */
+#hud-metrics {
+    position: absolute; top: 32px; left: 8px; z-index: 15;
+    display: flex; flex-direction: column; gap: 3px; pointer-events: none;
+}
+.hud-item {
+    pointer-events: auto; display: flex; align-items: center; justify-content: space-between;
+    width: 116px; height: 20px; padding: 0 6px; box-sizing: border-box;
+    background: rgba(15, 23, 42, 0.75); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 3px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+.hud-label {
+    font-size: 0.46rem; color: var(--muted); font-weight: 700; line-height: 1; white-space: nowrap;
+    display: flex; align-items: center; gap: 2px;
+}
+.hud-value-box { display: flex; align-items: baseline; gap: 2px; justify-content: flex-end; }
+.hud-val {
+    font-size: 0.72rem; font-family: var(--font-mono); font-weight: 700; color: #cbd5e1;
+    line-height: 1; white-space: nowrap; letter-spacing: -0.02em; text-align: right;
+}
+.hud-unit { font-size: 0.36rem; color: rgba(255, 255, 255, 0.45); font-weight: 500; line-height: 1; }
 
-.stacked-stat-item {
-    display: flex; flex-direction: column; align-items: flex-end; justify-content: center;
-    background: rgba(0, 0, 0, 0.45); border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 3px; padding: 1px 5px; min-width: 44px; flex-shrink: 0; height: 24px; box-sizing: border-box;
-}
-.stacked-stat-item .stat-label {
-    font-size: 0.38rem; color: var(--muted); font-weight: 700; line-height: 1; margin-bottom: 2px;
-    display: flex; align-items: baseline; justify-content: flex-end; gap: 2px; white-space: nowrap; width: 100%;
-}
-.stat-unit { font-size: 0.32rem; color: rgba(255, 255, 255, 0.45); font-weight: 500; }
-.stacked-stat-item .stat-value {
-    font-size: 0.74rem; font-family: var(--font-mono); font-weight: 700; color: #cbd5e1;
-    line-height: 1; white-space: nowrap; letter-spacing: -0.02em; text-align: right; width: 100%;
-}
-
-.speed-stack-item { min-width: 48px; }
-.speed-stack-item.editable { border-color: rgba(0, 240, 255, 0.6); cursor: ns-resize; touch-action: none; background: rgba(0, 240, 255, 0.08); }
+.speed-hud-item.editable { border-color: rgba(0, 240, 255, 0.6); cursor: ns-resize; touch-action: none; background: rgba(0, 240, 255, 0.12); }
 .speed-hint { font-size: 0.48rem; color: var(--accent); margin-left: 2px; font-weight: 800; }
-.alt-stack-item { min-width: 46px; }
-.slope-stack-item { min-width: 46px; } /* 斜度2桁 (+15.5) に余裕 */
-.dist-stack-item { min-width: 50px; }  /* 距離3桁 (125.50) に余裕 */
-.ble-stat-item { min-width: 42px; border-color: rgba(0, 240, 255, 0.2); } /* Cadence/Power 3桁 (---, 999) */
+.ble-hud-item { border-color: rgba(0, 240, 255, 0.22); }
 
-/* 3行目: 標高プロファイルCanvas ＆ 縦型負荷スライダー */
-.bottom-main-row { align-items: stretch; gap: 6px; }
+/* ========================================================
+   Bottom Bar (画面最下段 全幅: 標高プロファイルCanvas ＆ 縦型負荷スライダー)
+   ======================================================== */
+#bottom-bar {
+    position: absolute; bottom: 0; left: 0; width: 100vw;
+    background: rgba(15, 23, 42, 0.94); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    border-top: 1px solid var(--panel-border); padding: 4px 8px; z-index: 10;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.6); display: flex; align-items: stretch; gap: 6px;
+    box-sizing: border-box;
+}
 .bottom-canvas-slider-container {
     position: relative; flex: 1; min-width: 0; background: rgba(0, 0, 0, 0.5);
     border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 4px; overflow: hidden;
@@ -152,10 +161,10 @@ input[type="range"]::-webkit-slider-thumb {
 .v-slope-value { font-size: 0.50rem; font-family: var(--font-mono); font-weight: 700; color: #38bdf8; line-height: 1; }
 
 /* ========================================================
-   フローティングカメラダイアログ (右下浮動 170px)
+   フローティングカメラダイアログ (右上ボタン直下 170px)
    ======================================================== */
 .floating-cam-dialog {
-    position: absolute; bottom: 125px; right: 15px; width: 170px;
+    position: absolute; top: 30px; right: 8px; width: 170px;
     background: var(--panel-bg); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
     border: 1px solid var(--panel-border); border-radius: 8px; padding: 6px; z-index: 25;
     box-shadow: 0 6px 20px rgba(0, 0, 0, 0.7); display: flex; flex-direction: column; gap: 4px;
@@ -174,10 +183,10 @@ input[type="range"]::-webkit-slider-thumb {
 .camera-adjust-box.disabled { opacity: 0.28; pointer-events: none; }
 
 /* ========================================================
-   統合設定フローティングダイアログ (右下浮動・ボタン直上 240px)
+   統合設定フローティングダイアログ (右上ボタン直下 240px)
    ======================================================== */
 .floating-settings-dialog {
-    position: absolute; bottom: 125px; right: 15px; width: 240px; max-height: calc(100vh - 140px);
+    position: absolute; top: 30px; right: 8px; width: 240px; max-height: calc(100vh - 45px);
     background: var(--panel-bg); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
     border: 1px solid var(--panel-border); border-radius: 8px; padding: 8px 10px; z-index: 25;
     box-shadow: 0 6px 20px rgba(0, 0, 0, 0.7); display: flex; flex-direction: column; gap: 6px;

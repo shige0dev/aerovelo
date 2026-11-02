@@ -14,6 +14,67 @@
     <!-- Fullscreen 3D Map Container -->
     <div id="map"></div>
 
+    <!-- 画面最上段バー: タイトル, コース名, アクション (⚙️ ⛶ 🎥) -->
+    <div id="top-bar">
+        <div class="top-title-group">
+            <h1 class="top-app-title">AeroVelo</h1>
+            <span class="version-badge" id="app-version">v1.6.7</span>
+        </div>
+        <div class="top-course-group">
+            <span id="course-name-display" class="top-course-badge">読み込み中...</span>
+        </div>
+        <div class="top-actions-group">
+            <button type="button" id="btn-modal-settings" class="icon-btn" title="設定 (GPX / トレーナー / テスト)">⚙️</button>
+            <button type="button" id="btn-fullscreen" class="icon-btn" title="全画面表示 (F11)">⛶</button>
+            <button type="button" id="btn-toggle-cam-dialog" class="icon-btn" title="カメラ調整を展開">🎥</button>
+        </div>
+    </div>
+
+    <!-- 画面上部 HUDメトリクス (スピード〜パワー: 1行表示×6行縦並び、ベースなし個別配置) -->
+    <div id="hud-metrics">
+        <div class="hud-item speed-hud-item" id="row-speed" title="AUTOPLAY時のみ上下スワイプ・ホイールで速度変更可能">
+            <span class="hud-label">Speed<span id="speed-edit-hint" class="speed-hint" style="display: none;">⇅</span></span>
+            <div class="hud-value-box">
+                <span id="speed-val" class="hud-val">25.0</span>
+                <span class="hud-unit">km/h</span>
+            </div>
+        </div>
+        <div class="hud-item alt-hud-item">
+            <span class="hud-label">標高</span>
+            <div class="hud-value-box">
+                <span id="bottom-alt-display" class="hud-val">0.0</span>
+                <span class="hud-unit">m</span>
+            </div>
+        </div>
+        <div class="hud-item slope-hud-item">
+            <span class="hud-label">斜度</span>
+            <div class="hud-value-box">
+                <span id="bottom-slope-display" class="hud-val">+0.0</span>
+                <span class="hud-unit">%</span>
+            </div>
+        </div>
+        <div class="hud-item dist-hud-item">
+            <span class="hud-label">距離</span>
+            <div class="hud-value-box">
+                <span id="bottom-dist-display" class="hud-val">0.00</span>
+                <span class="hud-unit">km</span>
+            </div>
+        </div>
+        <div class="hud-item ble-hud-item" title="ケイデンスセンサー計測値">
+            <span class="hud-label">Cadence</span>
+            <div class="hud-value-box">
+                <span id="val-cadence" class="hud-val">---</span>
+            </div>
+        </div>
+        <div class="hud-item ble-hud-item" title="トレーナー/パワーメーター計測値">
+            <span class="hud-label">Power</span>
+            <div class="hud-value-box">
+                <span id="val-power" class="hud-val">---</span>
+                <span class="hud-unit">W</span>
+            </div>
+        </div>
+    </div>
+
     <!-- カメラ調整フローティングダイアログ (他操作を遮らないモードレスダイアログ) -->
     <div id="camera-dialog" class="floating-cam-dialog" style="display: none;">
         <div class="floating-cam-header">
@@ -44,70 +105,21 @@
         </div>
     </div>
 
-    <!-- 画面最下段 全幅バー: 2行ヘッダー ＆ 標高プロファイルCanvas + 縦負荷スライダー -->
+    <!-- 画面最下段: 標高プロファイルCanvas + 縦負荷スライダー -->
     <div id="bottom-bar">
-        <!-- 1行目: AeroVelo + バージョン, コース名, アクション (⚙️ ⛶ 🎥) -->
-        <div class="bottom-row-1">
-            <div class="bottom-title-group">
-                <h1 class="bottom-app-title">AeroVelo</h1>
-                <span class="version-badge" id="app-version">v1.6.6</span>
-            </div>
-            <div class="bottom-course-group">
-                <span id="course-name-display" class="bottom-course-badge">読み込み中...</span>
-            </div>
-            <div class="bottom-actions-group">
-                <button type="button" id="btn-modal-settings" class="icon-btn" title="設定 (GPX / トレーナー / テスト)">⚙️</button>
-                <button type="button" id="btn-fullscreen" class="icon-btn" title="全画面表示 (F11)">⛶</button>
-                <button type="button" id="btn-toggle-cam-dialog" class="icon-btn" title="カメラ調整を展開">🎥</button>
-            </div>
+        <div class="bottom-canvas-slider-container">
+            <canvas id="elevation-canvas"></canvas>
+            <!-- AutoRun ボタン (勾配表示範囲・左上に配置) -->
+            <button type="button" id="btn-play" class="canvas-autorun-btn" title="自動走行 (AutoRun)">AutoRun</button>
+            <!-- 全長表示（標高表示の右上・枠なし） -->
+            <span id="bottom-total-dist-tag" class="canvas-total-dist-tag">Total000.00Km</span>
         </div>
-
-        <!-- 2行目: Speed ＆ 標高, 斜度, 距離 ＆ Cadence, Power（2行スタック表示） -->
-        <div class="bottom-row-2">
-            <div class="bottom-stats-row">
-                <div class="stacked-stat-item speed-stack-item" id="row-speed" title="AUTOPLAY時のみ上下スワイプ・ホイールで速度変更可能">
-                    <span class="stat-label">Speed <span class="stat-unit">km/h</span><span id="speed-edit-hint" class="speed-hint" style="display: none;">⇅</span></span>
-                    <span id="speed-val" class="stat-value">25.0</span>
-                </div>
-                <div class="stacked-stat-item alt-stack-item">
-                    <span class="stat-label">標高 <span class="stat-unit">m</span></span>
-                    <span id="bottom-alt-display" class="stat-value">0.0</span>
-                </div>
-                <div class="stacked-stat-item slope-stack-item">
-                    <span class="stat-label">斜度 <span class="stat-unit">%</span></span>
-                    <span id="bottom-slope-display" class="stat-value">+0.0</span>
-                </div>
-                <div class="stacked-stat-item dist-stack-item">
-                    <span class="stat-label">距離 <span class="stat-unit">km</span></span>
-                    <span id="bottom-dist-display" class="stat-value">0.00</span>
-                </div>
-                <div class="stacked-stat-item ble-stat-item" title="ケイデンスセンサー計測値">
-                    <span class="stat-label">Cadence</span>
-                    <span id="val-cadence" class="stat-value">---</span>
-                </div>
-                <div class="stacked-stat-item ble-stat-item" title="トレーナー/パワーメーター計測値">
-                    <span class="stat-label">Power <span class="stat-unit">W</span></span>
-                    <span id="val-power" class="stat-value">---</span>
-                </div>
+        <div class="bottom-slope-vertical-wrapper">
+            <span class="v-slope-title">負荷</span>
+            <div class="v-slope-slider-box">
+                <input type="range" id="v-slope-slider" min="0" max="7" step="0.1" value="0" orient="vertical">
             </div>
-        </div>
-
-        <!-- 標高プロファイル ＆ 右側エリア縦スライダー (負荷) -->
-        <div class="bottom-main-row">
-            <div class="bottom-canvas-slider-container">
-                <canvas id="elevation-canvas"></canvas>
-                <!-- AutoRun ボタン (勾配表示範囲・左上に配置) -->
-                <button type="button" id="btn-play" class="canvas-autorun-btn" title="自動走行 (AutoRun)">AutoRun</button>
-                <!-- 全長表示（標高表示の右上・枠なし） -->
-                <span id="bottom-total-dist-tag" class="canvas-total-dist-tag">Total000.00Km</span>
-            </div>
-            <div class="bottom-slope-vertical-wrapper">
-                <span class="v-slope-title">負荷</span>
-                <div class="v-slope-slider-box">
-                    <input type="range" id="v-slope-slider" min="0" max="7" step="0.1" value="0" orient="vertical">
-                </div>
-                <span id="v-slope-val" class="v-slope-value">0.0%</span>
-            </div>
+            <span id="v-slope-val" class="v-slope-value">0.0%</span>
         </div>
     </div>
 
