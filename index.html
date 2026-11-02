@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AeroVelo - 3D Course Prototype</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Three.js & OrbitControls via CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+    <div id="canvas-container"></div>
+
+    <!-- UI Overlay -->
+    <div id="ui-panel">
+        <header class="panel-header">
+            <h1>AeroVelo <span>3D Prototype</span></h1>
+            <p class="subtitle">コース進捗・位置同期シミュレータ</p>
+        </header>
+
+        <section class="control-group">
+            <div class="label-row">
+                <label for="progress-slider">コース進捗率</label>
+                <div class="input-wrap">
+                    <input type="number" id="progress-input" min="0" max="100" step="0.1" value="0.0">
+                    <span class="unit">%</span>
+                </div>
+            </div>
+            <input type="range" id="progress-slider" min="0" max="100" step="0.05" value="0">
+        </section>
+
+        <section class="control-group buttons-row">
+            <button id="btn-play" class="btn primary">再生 (Auto Run)</button>
+            <button id="btn-reset" class="btn secondary">リセット (0%)</button>
+        </section>
+
+        <section class="hud-group">
+            <h3>走行メトリクス (HUD)</h3>
+            <div class="metrics-grid">
+                <div class="metric-card">
+                    <span class="metric-label">総距離 / 走行距離</span>
+                    <span class="metric-value"><span id="val-distance">0.00</span> <small>km</small></span>
+                    <span class="metric-sub" id="val-total-distance">/ 0.00 km</span>
+                </div>
+                <div class="metric-card">
+                    <span class="metric-label">標高 (Altitude)</span>
+                    <span class="metric-value"><span id="val-altitude">0.0</span> <small>m</small></span>
+                </div>
+                <div class="metric-card">
+                    <span class="metric-label">斜度 (Slope)</span>
+                    <span class="metric-value" id="val-slope-wrap"><span id="val-slope">+0.0</span> <small>%</small></span>
+                </div>
+                <div class="metric-card">
+                    <span class="metric-label">3D座標 (X, Y, Z)</span>
+                    <span class="metric-coords" id="val-coords">0, 0, 0</span>
+                </div>
+            </div>
+        </section>
+
+        <section class="control-group camera-group">
+            <label>カメラ視点</label>
+            <div class="btn-group">
+                <button id="cam-follow" class="btn toggle active">ライダー追従 (後方視点)</button>
+                <button id="cam-free" class="btn toggle">自由視点 (ドラッグ操作)</button>
+            </div>
+        </section>
+    </div>
+
+    <!-- Mini Profile Elevation Chart Overlay -->
+    <div id="profile-container">
+        <div class="profile-header">標高プロファイル</div>
+        <canvas id="elevation-canvas" width="340" height="70"></canvas>
+    </div>
+
+    <script type="module" src="src/main.js"></script>
+</body>
+</html>
+
