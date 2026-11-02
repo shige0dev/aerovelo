@@ -40,8 +40,7 @@ export class GPXParser {
     }
 }
 
-// デフォルトのサンプルコース: 富士山麓・本栖湖パノラマレイクサイドループ（緩やかなカーブと美しい湖畔・富士山の絶景）
-// 周回ループで始点・終点が自然につながり、離散的な角のない滑らかなコース
+// デフォルトのサンプルコース: 本栖湖レイクサイドパノラマループ
 export const DEFAULT_LAKE_ROUTE = [
     { lon: 138.5830, lat: 35.4740, alt: 902 },
     { lon: 138.5885, lat: 35.4785, alt: 905 },
@@ -100,12 +99,42 @@ export class GeoCourseManager {
         }
         this.totalDistance = total;
 
-        // 密集サンプリング (1500サンプル)
+        // 1. まず全ポイントを高密度にサンプリング
         const SAMPLES = Math.min(3000, Math.max(1000, Math.round(this.totalDistance / 8)));
+        const rawSamples = [];
         for (let i = 0; i <= SAMPLES; i++) {
             const targetDist = (i / SAMPLES) * this.totalDistance;
-            this.interpolatedPoints.push(this.getRawPointByDistance(targetDist));
+            rawSamples.push({
+                dist: targetDist,
+                ...this.getRawPointByDistance(targetDist)
+            });
         }
+
+        // 2. 移動平均フィルター（Gaussian-weighted Moving Average）で標高ノイズを平滑化
+        // 道路勾配として自然な波形（~100m区間の平均トレンド）を形成
+        const SMOOTH_WINDOW_METERS = 80; // 前後80mの窓で標高を平滑化
+        const stepDist = this.totalDistance / SAMPLES;
+        const windowHalfCount = Math.max(2, Math.round((SMOOTH_WINDOW_METERS / 2) / stepDist));
+
+        this.interpolatedPoints = rawSamples.map((sample, idx) => {
+            let sumAlt = 0;
+            let sumWeight = 0;
+
+            for (let offset = -windowHalfCount; offset <= windowHalfCount; offset++) {
+                const targetIdx = Math.max(0, Math.min(SAMPLES, idx + offset));
+                // ガウシアン風の距離減衰重み
+                const weight = Math.exp(-Math.pow(offset / (windowHalfCount * 0.6), 2));
+                sumAlt += rawSamples[targetIdx].alt * weight;
+                sumWeight += weight;
+            }
+
+            return {
+                dist: sample.dist,
+                lon: sample.lon,
+                lat: sample.lat,
+                alt: sumWeight > 0 ? (sumAlt / sumWeight) : sample.alt
+            };
+        });
     }
 
     getRawPointByDistance(targetDist) {
@@ -136,37 +165,53 @@ export class GeoCourseManager {
 
     /**
      * 高精度・平滑化されたステート取得
-     * 前後一定距離（Lookahead & Lookbehind）に基づく接線ベクトルから滑らかな方位角（Bearing）を算出
+     * 平滑化された標高プロファイルから真の物理勾配（Slope）と接線Bearingを算出
      */
     getStateAtProgress(progress) {
         const u = Math.max(0, Math.min(1, progress));
         const dist = u * this.totalDistance;
-        const currentPt = this.getRawPointByDistance(dist);
 
-        // 前後 15m 〜 25m の窓で接線ベクトルを計算（離散値の角折れジャンプを完全解消）
-        const windowDist = Math.min(25, Math.max(10, this.totalDistance * 0.003));
+        if (this.interpolatedPoints.length === 0) {
+            this.initInterpolation();
+        }
+
+        // 補間済みテーブルからの高速二分探索/インデックス参照
+        const sampleCount = this.interpolatedPoints.length - 1;
+        const approxIdx = Math.min(sampleCount - 1, Math.max(0, Math.floor(u * sampleCount)));
+        const pA = this.interpolatedPoints[approxIdx];
+        const pB = this.interpolatedPoints[approxIdx + 1];
+        const segRatio = (pB.dist - pA.dist) > 0 ? (dist - pA.dist) / (pB.dist - pA.dist) : 0;
+
+        const currentLon = pA.lon + (pB.lon - pA.lon) * segRatio;
+        const currentLat = pA.lat + (pB.lat - pA.lat) * segRatio;
+        const currentAlt = pA.alt + (pB.alt - pA.alt) * segRatio;
+
+        // 前後 25m の窓で接線 Bearing を算出（滑らかな旋回）
+        const windowDist = Math.min(30, Math.max(12, this.totalDistance * 0.003));
         const forwardDist = Math.min(this.totalDistance, dist + windowDist);
         const backwardDist = Math.max(0, dist - windowDist);
 
-        const fwdPt = this.getRawPointByDistance(forwardDist);
-        const bwdPt = this.getRawPointByDistance(backwardDist);
+        const fwdIdx = Math.min(sampleCount, Math.round((forwardDist / this.totalDistance) * sampleCount));
+        const bwdIdx = Math.max(0, Math.round((backwardDist / this.totalDistance) * sampleCount));
+
+        const fwdPt = this.interpolatedPoints[fwdIdx];
+        const bwdPt = this.interpolatedPoints[bwdIdx];
 
         const bearing = GeoCourseManager.calcBearing(bwdPt.lon, bwdPt.lat, fwdPt.lon, fwdPt.lat);
 
-        // 斜度計算（GPSノイズによる異常値対策: 前後窓で平滑化し、±8.0%以内にクランプ）
+        // 斜度計算: 平滑化された前後区間の標高差から自然な勾配を算出
         const horizDist = GeoCourseManager.haversineDistance(bwdPt.lon, bwdPt.lat, fwdPt.lon, fwdPt.lat);
-        let rawSlope = horizDist > 0 ? ((fwdPt.alt - bwdPt.alt) / horizDist) * 100 : 0;
+        let slope = horizDist > 0 ? ((fwdPt.alt - bwdPt.alt) / horizDist) * 100 : 0;
         
-        // ±8% の範囲に丸め・制限（異常値ガード）
-        let slope = Math.max(-8.0, Math.min(8.0, rawSlope));
-        slope = Math.round(slope * 10) / 10; // 小数点第1位に丸め
+        // 小数点第1位に丸め
+        slope = Math.round(slope * 10) / 10;
 
         return {
             u,
             distance: dist,
-            lon: currentPt.lon,
-            lat: currentPt.lat,
-            alt: currentPt.alt,
+            lon: currentLon,
+            lat: currentLat,
+            alt: currentAlt,
             bearing,
             slope
         };
