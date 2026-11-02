@@ -262,7 +262,8 @@ class App {
             this.camChaseBtn.classList.toggle('active', mode === 'chase');
             this.camDroneBtn.classList.toggle('active', mode === 'drone');
             this.camFreeBtn.classList.toggle('active', mode === 'free');
-            this.updateCamera();
+            // 視点切り替え時は2秒（2000ms）のスムーズなイージング飛行
+            this.updateCamera(2000);
         };
 
         this.camChaseBtn.addEventListener('click', () => setCamMode('chase'));
@@ -319,7 +320,7 @@ class App {
         this.updateCamera();
     }
 
-    updateCamera() {
+    updateCamera(transitionDuration = 100) {
         if (!this.map || this.cameraMode === 'free') return;
 
         const state = this.course.getStateAtProgress(this.currentProgress);
@@ -331,7 +332,7 @@ class App {
                 pitch: 75,
                 bearing: state.bearing,
                 zoom: 15.8,
-                duration: 100
+                duration: transitionDuration
             });
         } else if (this.cameraMode === 'drone') {
             // 上空からのドローン空撮視点
@@ -340,7 +341,7 @@ class App {
                 pitch: 45,
                 bearing: (state.bearing + 40) % 360,
                 zoom: 14.5,
-                duration: 100
+                duration: transitionDuration
             });
         }
     }
