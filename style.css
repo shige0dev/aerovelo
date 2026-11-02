@@ -95,18 +95,18 @@ input[type="range"]::-webkit-slider-thumb {
 .bottom-play-btn.running { background: var(--climb); color: #fff; }
 
 .stacked-stat-item {
-    display: flex; flex-direction: column; align-items: flex-start; justify-content: center;
+    display: flex; flex-direction: column; align-items: flex-end; justify-content: center;
     background: rgba(0, 0, 0, 0.45); border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 3px; padding: 1px 5px; min-width: 44px; flex-shrink: 0; height: 24px; box-sizing: border-box;
 }
 .stacked-stat-item .stat-label {
     font-size: 0.38rem; color: var(--muted); font-weight: 700; line-height: 1; margin-bottom: 2px;
-    display: flex; align-items: baseline; gap: 2px; white-space: nowrap;
+    display: flex; align-items: baseline; justify-content: flex-end; gap: 2px; white-space: nowrap; width: 100%;
 }
 .stat-unit { font-size: 0.32rem; color: rgba(255, 255, 255, 0.45); font-weight: 500; }
 .stacked-stat-item .stat-value {
     font-size: 0.74rem; font-family: var(--font-mono); font-weight: 700; color: #cbd5e1;
-    line-height: 1; white-space: nowrap; letter-spacing: -0.02em;
+    line-height: 1; white-space: nowrap; letter-spacing: -0.02em; text-align: right; width: 100%;
 }
 
 .speed-stack-item { min-width: 48px; }
