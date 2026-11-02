@@ -238,14 +238,29 @@ class App {
         this.chartCtx = this.chartCanvas.getContext('2d');
         this.resizeChartCanvas();
         this.drawElevationChart();
+
+        // Canvasのサイズ変化を正確に捉えて解像度を1:1同期するObserver
+        if (window.ResizeObserver && this.chartCanvas) {
+            this.chartResizeObserver = new ResizeObserver(() => {
+                this.resizeChartCanvas();
+                this.drawElevationChart();
+            });
+            this.chartResizeObserver.observe(this.chartCanvas);
+        }
     }
 
     resizeChartCanvas() {
         if (!this.chartCanvas) return;
-        const rect = this.chartCanvas.parentElement ? this.chartCanvas.parentElement.getBoundingClientRect() : null;
-        const w = rect ? Math.floor(rect.width) : window.innerWidth;
-        this.chartCanvas.width = Math.max(w, 300);
-        this.chartCanvas.height = 80; // 縦方向に2倍 (40px -> 80px)
+        const rect = this.chartCanvas.getBoundingClientRect();
+        const displayW = Math.floor(rect.width);
+        const displayH = Math.floor(rect.height) || 76;
+        if (displayW > 0) {
+            this.chartCanvas.width = displayW;
+            this.chartCanvas.height = displayH;
+        } else {
+            this.chartCanvas.width = Math.max(window.innerWidth - 60, 300);
+            this.chartCanvas.height = 76;
+        }
     }
 
     drawElevationChart() {
