@@ -16,21 +16,6 @@
 
     <!-- UI Overlay (メイン操作パネル) -->
     <div id="ui-panel">
-        <header class="panel-header">
-            <div class="header-top">
-                <h1>AeroVelo</h1>
-                <div class="header-actions">
-                    <span class="version-badge" id="app-version">v1.4.2</span>
-                    <button type="button" id="btn-modal-settings" class="icon-btn" title="設定 (GPX / トレーナー / テスト)">⚙️</button>
-                    <button type="button" id="btn-fullscreen" class="icon-btn" title="全画面表示 (F11)">⛶</button>
-                </div>
-            </div>
-            <!-- コースタイトル独立表示行 -->
-            <div class="course-title-row">
-                <span id="course-name-display" class="course-name-badge">読み込み中...</span>
-            </div>
-        </header>
-
         <!-- HUD Metrics (情報表示リスト: 負荷を速度の上に配置、手動/再生ボタン直結) -->
         <section class="hud-group">
             <div class="metrics-list">
@@ -79,51 +64,68 @@
                 </div>
             </div>
         </section>
-
-        <!-- Camera Controls (メインダイアログに常駐: FREEボタンのみ) -->
-        <section class="control-group camera-group">
-            <div class="camera-header-row">
-                <span class="ctrl-title camera-title">CAMERA</span>
-                <div class="btn-group inline-cam-btns">
-                    <button type="button" id="cam-free" class="btn toggle">FREE</button>
-                </div>
-            </div>
-
-            <!-- Camera Adjustment Sliders (FREE時はグレーアウト＆無効化) -->
-            <div id="camera-adjust-box" class="camera-adjust-box">
-                <div class="label-row">
-                    <label for="cam-orbit-slider">Angle</label>
-                    <span id="cam-orbit-val" class="sub-val">0°</span>
-                </div>
-                <input type="range" id="cam-orbit-slider" min="-180" max="180" step="5" value="0">
-
-                <div class="label-row" style="margin-top: 4px;">
-                    <label for="cam-pitch-slider">Pitch</label>
-                    <span id="cam-pitch-val" class="sub-val">68°</span>
-                </div>
-                <input type="range" id="cam-pitch-slider" min="20" max="75" step="1" value="68">
-
-                <div class="label-row" style="margin-top: 4px;">
-                    <label for="cam-zoom-slider">Zoom</label>
-                    <span id="cam-zoom-val" class="sub-val">16.5</span>
-                </div>
-                <input type="range" id="cam-zoom-slider" min="13.0" max="18.5" step="0.1" value="16.5">
-            </div>
-        </section>
     </div>
 
-    <!-- 画面最下段 全幅バー: 勾配 (標高プロファイル) ＆ 進捗・標高・斜度・距離 -->
+    <!-- カメラ調整フローティングダイアログ (他操作を遮らないモードレスダイアログ) -->
+    <div id="camera-dialog" class="floating-cam-dialog" style="display: none;">
+        <div class="floating-cam-header">
+            <div class="floating-cam-title-wrap">
+                <span class="floating-cam-title">CAMERA</span>
+                <button type="button" id="cam-free" class="btn toggle mini-cam-free">FREE</button>
+            </div>
+            <button type="button" id="btn-close-cam-dialog" class="floating-cam-close" title="閉じる">✕</button>
+        </div>
+        <div id="camera-adjust-box" class="camera-adjust-box">
+            <div class="label-row">
+                <label for="cam-orbit-slider">Angle</label>
+                <span id="cam-orbit-val" class="sub-val">0°</span>
+            </div>
+            <input type="range" id="cam-orbit-slider" min="-180" max="180" step="5" value="0">
+
+            <div class="label-row" style="margin-top: 4px;">
+                <label for="cam-pitch-slider">Pitch</label>
+                <span id="cam-pitch-val" class="sub-val">68°</span>
+            </div>
+            <input type="range" id="cam-pitch-slider" min="20" max="75" step="1" value="68">
+
+            <div class="label-row" style="margin-top: 4px;">
+                <label for="cam-zoom-slider">Zoom</label>
+                <span id="cam-zoom-val" class="sub-val">16.5</span>
+            </div>
+            <input type="range" id="cam-zoom-slider" min="13.0" max="18.5" step="0.1" value="16.5">
+        </div>
+    </div>
+
+    <!-- 画面最下段 全幅バー: 2行ヘッダー ＆ 標高プロファイルCanvas -->
     <div id="bottom-bar">
-        <div class="bottom-bar-header">
-            <div class="bottom-stats-row">
-                <span class="bottom-stat-tag stat-progress">
-                    <span id="bottom-progress-val">0.00</span>%
-                </span>
-                <span id="bottom-alt-display" class="bottom-stat-tag">標高: 0.00m</span>
-                <span id="bottom-slope-display" class="bottom-stat-tag">斜度: +0.00%</span>
-                <span id="bottom-dist-display" class="bottom-stat-tag">0.00 / 0.00 km</span>
+        <!-- 1行目: AeroVelo + バージョン, コース名, 設定/全画面アクション -->
+        <div class="bottom-row-1">
+            <div class="bottom-title-group">
+                <h1 class="bottom-app-title">AeroVelo</h1>
+                <span class="version-badge" id="app-version">v1.4.3</span>
+            </div>
+            <div class="bottom-course-group">
+                <span id="course-name-display" class="bottom-course-badge">読み込み中...</span>
+            </div>
+            <div class="bottom-actions-group">
+                <button type="button" id="btn-modal-settings" class="icon-btn" title="設定 (GPX / トレーナー / テスト)">⚙️</button>
+                <button type="button" id="btn-fullscreen" class="icon-btn" title="全画面表示 (F11)">⛶</button>
             </div>
         </div>
+
+        <!-- 2行目: 標高, 斜度, 距離, カメラ展開ボタン (余白を詰めたコンパクト配置) -->
+        <div class="bottom-row-2">
+            <div class="bottom-stats-row">
+                <span id="bottom-alt-display" class="bottom-stat-tag">標高: 0.00m</span>
+                <span id="bottom-slope-display" class="bottom-stat-tag">斜度: +0.00%</span>
+                <span id="bottom-dist-display" class="bottom-stat-tag">距離: 0.00 / 0.00 km</span>
+            </div>
+            <div class="bottom-cam-wrap">
+                <button type="button" id="btn-toggle-cam-dialog" class="bottom-cam-btn" title="カメラ調整を展開">📷 CAMERA</button>
+            </div>
+        </div>
+
+        <!-- 標高プロファイルCanvas (進捗%を枠なしで内部描画) -->
         <div class="bottom-canvas-slider-container">
             <canvas id="elevation-canvas"></canvas>
         </div>

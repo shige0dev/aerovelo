@@ -339,6 +339,18 @@ class App {
         ctx.closePath();
         ctx.fillStyle = '#00f0ff';
         ctx.fill();
+
+        // グラフ内の進捗表示% (枠なし・シアン文字・影付き)
+        const pctText = `${(this.currentProgress * 100).toFixed(2)}%`;
+        ctx.save();
+        ctx.font = 'bold 13px monospace';
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'top';
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
+        ctx.shadowBlur = 4;
+        ctx.fillStyle = '#00f0ff';
+        ctx.fillText(pctText, w - 10, 6);
+        ctx.restore();
     }
 
     initUI() {
@@ -376,6 +388,11 @@ class App {
         this.bottomAltDisplay = document.getElementById('bottom-alt-display');
         this.bottomSlopeDisplay = document.getElementById('bottom-slope-display');
         this.bottomDistDisplay = document.getElementById('bottom-dist-display');
+
+        // カメラダイアログ関連
+        this.cameraDialog = document.getElementById('camera-dialog');
+        this.btnToggleCamDialog = document.getElementById('btn-toggle-cam-dialog');
+        this.btnCloseCamDialog = document.getElementById('btn-close-cam-dialog');
 
         this.camPitchSlider = document.getElementById('cam-pitch-slider');
         this.camPitchVal = document.getElementById('cam-pitch-val');
@@ -421,7 +438,7 @@ class App {
         }
         if (this.bottomDistDisplay) {
             const curDistKm = ((this.currentProgress * this.course.totalDistance) / 1000).toFixed(2);
-            this.bottomDistDisplay.textContent = `${curDistKm} / ${totalKm} km`;
+            this.bottomDistDisplay.textContent = `距離: ${curDistKm} / ${totalKm} km`;
         }
         if (this.elCourseNameDisplay) {
             const statusTag = this.course.isGsiCorrected ? ' [DEM5A]' : '';
@@ -924,6 +941,24 @@ class App {
             });
         }
 
+        // カメラ調整ダイアログの展開・閉じる
+        if (this.btnToggleCamDialog && this.cameraDialog) {
+            this.btnToggleCamDialog.addEventListener('click', () => {
+                const isHidden = (this.cameraDialog.style.display === 'none' || !this.cameraDialog.style.display);
+                this.cameraDialog.style.display = isHidden ? 'flex' : 'none';
+                this.btnToggleCamDialog.classList.toggle('active', isHidden);
+            });
+        }
+
+        if (this.btnCloseCamDialog && this.cameraDialog) {
+            this.btnCloseCamDialog.addEventListener('click', () => {
+                this.cameraDialog.style.display = 'none';
+                if (this.btnToggleCamDialog) {
+                    this.btnToggleCamDialog.classList.remove('active');
+                }
+            });
+        }
+
         // 標高プロファイルCanvas上の縦線スライド/ドラッグ操作
         if (this.chartCanvas) {
             let isDraggingProgress = false;
@@ -1096,7 +1131,7 @@ class App {
         }
         if (this.bottomDistDisplay) {
             const totalKm = (this.course.totalDistance / 1000).toFixed(2);
-            this.bottomDistDisplay.textContent = `${distKm} / ${totalKm} km`;
+            this.bottomDistDisplay.textContent = `距離: ${distKm} / ${totalKm} km`;
         }
 
         // 速度表示（未設定時も下2桁）

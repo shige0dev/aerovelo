@@ -415,62 +415,200 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 /* ========================================================
-   Bottom Bar (画面最下段 全幅 進捗＆標高・勾配プロファイル)
+   Bottom Bar (画面最下段 全幅: 2行ヘッダー ＆ 標高プロファイル)
    ======================================================== */
 #bottom-bar {
     position: absolute;
     bottom: 0;
     left: 0;
     width: 100vw;
-    background: rgba(15, 23, 42, 0.92);
+    background: rgba(15, 23, 42, 0.94);
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
     border-top: 1px solid var(--panel-border);
-    padding: 4px 12px 6px;
+    padding: 3px 8px 4px;
     z-index: 10;
     box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.6);
     display: flex;
     flex-direction: column;
-    gap: 3px;
+    gap: 2px;
     box-sizing: border-box;
 }
 
-.bottom-bar-header {
+/* 1行目: AeroVelo + バージョン, コース名, アクション */
+.bottom-row-1 {
     display: flex;
-    justify-content: flex-start;
+    justify-content: space-between;
     align-items: center;
     width: 100%;
+    gap: 8px;
+}
+
+.bottom-title-group {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+.bottom-app-title {
+    font-size: 0.78rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    color: #f8fafc;
+    margin: 0;
+    line-height: 1;
+}
+
+.bottom-course-group {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: center;
+}
+
+.bottom-course-badge {
+    display: inline-block;
+    max-width: 100%;
+    font-size: 0.64rem;
+    font-weight: 700;
+    color: #38bdf8;
+    background: rgba(56, 189, 248, 0.12);
+    border: 1px solid rgba(56, 189, 248, 0.25);
+    border-radius: 3px;
+    padding: 1px 6px;
+    line-height: 1.2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.bottom-actions-group {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+/* 2行目: 標高, 斜度, 距離, カメラ展開ボタン (余白を詰めたコンパクト配置) */
+.bottom-row-2 {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    gap: 4px;
 }
 
 .bottom-stats-row {
     display: flex;
     align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
-}
-
-.stat-progress {
-    color: var(--accent) !important;
-    font-weight: 700 !important;
-    border-color: rgba(0, 240, 255, 0.4) !important;
-    background: rgba(0, 240, 255, 0.1) !important;
-}
-
-.bottom-course-stats {
-    display: flex;
-    align-items: center;
-    gap: 8px;
+    gap: 4px; /* 余白を詰める */
+    flex-wrap: nowrap;
+    overflow-x: auto;
 }
 
 .bottom-stat-tag {
-    font-size: 0.64rem;
+    font-size: 0.62rem;
     font-family: monospace;
     font-weight: 600;
     color: #cbd5e1;
-    background: rgba(0, 0, 0, 0.4);
+    background: rgba(0, 0, 0, 0.45);
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 3px;
-    padding: 1px 6px;
+    padding: 1px 4px; /* 余白を詰める */
+    line-height: 1.1;
+    white-space: nowrap;
+}
+
+.bottom-cam-wrap {
+    flex-shrink: 0;
+}
+
+.bottom-cam-btn {
+    background: rgba(0, 240, 255, 0.15);
+    border: 1px solid rgba(0, 240, 255, 0.35);
+    color: var(--accent);
+    font-size: 0.58rem;
+    font-weight: 700;
+    padding: 1px 5px;
+    border-radius: 3px;
+    cursor: pointer;
+    line-height: 1.2;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.bottom-cam-btn:hover {
+    background: rgba(0, 240, 255, 0.3);
+    color: #ffffff;
+    box-shadow: 0 0 6px rgba(0, 240, 255, 0.4);
+}
+
+.bottom-cam-btn.active {
+    background: #00f0ff;
+    color: #0b0f19;
+    border-color: #00f0ff;
+}
+
+/* モードレス・フローティングカメラダイアログ */
+.floating-cam-dialog {
+    position: absolute;
+    bottom: 125px;
+    right: 15px;
+    width: 170px;
+    background: rgba(15, 23, 42, 0.95);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    padding: 6px;
+    z-index: 25;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.7);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.floating-cam-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding-bottom: 3px;
+}
+
+.floating-cam-title-wrap {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.floating-cam-title {
+    font-size: 0.6rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    letter-spacing: 0.05em;
+}
+
+.mini-cam-free {
+    min-height: 16px !important;
+    padding: 0 4px !important;
+    font-size: 0.54rem !important;
+}
+
+.floating-cam-close {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 0.72rem;
+    cursor: pointer;
+    line-height: 1;
+    padding: 0 2px;
+}
+
+.floating-cam-close:hover {
+    color: #ef4444;
 }
 
 .bottom-canvas-slider-container {
