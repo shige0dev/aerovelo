@@ -655,6 +655,133 @@ input[type="range"]::-webkit-slider-thumb {
     color: #fff;
 }
 
+/* TEST & Calibration Styles */
+.test-section {
+    background: rgba(245, 158, 11, 0.06);
+    border: 1px dashed rgba(245, 158, 11, 0.35);
+    border-radius: 5px;
+    padding: 5px 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.test-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.test-header h3 {
+    font-size: 0.61rem;
+    color: #fbbf24;
+    margin: 0;
+    letter-spacing: 0.02em;
+}
+
+.mini-toggle {
+    display: flex;
+    gap: 2px;
+}
+
+.mini-toggle .btn.toggle {
+    font-size: 0.58rem;
+    padding: 1px 4px;
+    min-height: 18px;
+}
+
+.mini-toggle .btn.toggle.active {
+    background: rgba(245, 158, 11, 0.25);
+    border-color: #f59e0b;
+    color: #fbbf24;
+}
+
+.test-controls-box {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding-top: 2px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.test-presets-row {
+    display: flex;
+    gap: 3px;
+    justify-content: space-between;
+}
+
+.btn-preset-slope {
+    flex: 1;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--panel-border);
+    color: #f1f5f9;
+    font-size: 0.58rem;
+    font-weight: 600;
+    padding: 2px 0px;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.btn-preset-slope:hover, .btn-preset-slope.active {
+    background: rgba(245, 158, 11, 0.3);
+    border-color: #f59e0b;
+    color: #fff;
+}
+
+.test-lfo-box {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 4px;
+    padding: 4px;
+    margin-top: 2px;
+}
+
+.lfo-controls-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 3px;
+}
+
+.mini-btn {
+    min-height: 20px;
+    padding: 2px 6px;
+    font-size: 0.6rem;
+}
+
+.mini-btn.running {
+    background: #ef4444 !important;
+    color: #fff !important;
+}
+
+.lfo-period-wrap {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    font-size: 0.58rem;
+    color: var(--text-muted);
+}
+
+.mini-select {
+    background: rgba(0, 0, 0, 0.5);
+    border: 1px solid var(--panel-border);
+    border-radius: 3px;
+    color: #fff;
+    font-size: 0.58rem;
+    padding: 1px 2px;
+}
+
+.lfo-range-wrap {
+    margin-left: auto;
+}
+
+.lfo-range-text {
+    font-size: 0.54rem;
+    color: var(--text-muted);
+    font-family: monospace;
+}
+
 /* Mini Profile Chart */
 #profile-container {
     position: absolute;

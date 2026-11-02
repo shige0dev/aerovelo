@@ -16,6 +16,14 @@ class App {
         this.hasBleDistance = false;
         this.baseProgressAtBleStart = 0; // BLE接続時・リセット時の基準進捗率
 
+        // TEST / 負荷キャリブレーション機能ステート
+        this.testMode = 'course'; // 'course' | 'manual'
+        this.manualSlope = 0.0; // 手動指定斜度 (-3% 〜 +7%)
+        this.isLfoRunning = false;
+        this.lfoPeriodSeconds = 20; // LFO 周期（秒）
+        this.lfoStartTime = 0;
+        this.lastTargetSlopeSent = 0.0; // 画面表示用・実際にトレーナーへ指示した最新斜度
+
         // 滑らかな角度補間（Lerp）用の現在カメラBearing
         this.currentCamBearing = null;
         this.orbitAngleOffset = 0; // スライダー値 (-180°〜+180°)
@@ -342,6 +350,17 @@ class App {
         // Fullscreen Button
         this.btnFullscreen = document.getElementById('btn-fullscreen');
 
+        // TEST / キャリブレーション UI
+        this.testModeCourseBtn = document.getElementById('test-mode-course');
+        this.testModeManualBtn = document.getElementById('test-mode-manual');
+        this.testControlsBox = document.getElementById('test-controls-box');
+        this.testSlopeSlider = document.getElementById('test-slope-slider');
+        this.testSlopeVal = document.getElementById('test-slope-val');
+        this.btnPresetSlopes = document.querySelectorAll('.btn-preset-slope');
+        this.btnLfoToggle = document.getElementById('btn-lfo-toggle');
+        this.testLfoStatus = document.getElementById('test-lfo-status');
+        this.lfoPeriodSelect = document.getElementById('lfo-period-select');
+
         this.updateTotalDistanceUI();
     }
 
@@ -512,6 +531,60 @@ class App {
             });
         }
 
+        // TEST / 負荷キャリブレーション イベント
+        const setTestMode = (mode) => {
+            this.testMode = mode;
+            this.testModeCourseBtn.classList.toggle('active', mode === 'course');
+            this.testModeManualBtn.classList.toggle('active', mode === 'manual');
+            this.testControlsBox.style.display = (mode === 'manual') ? 'flex' : 'none';
+
+            if (mode === 'course') {
+                this.stopLFO();
+            } else {
+                this.applyManualSlope(this.manualSlope);
+            }
+            this.updateState(this.currentProgress);
+        };
+
+        if (this.testModeCourseBtn && this.testModeManualBtn) {
+            this.testModeCourseBtn.addEventListener('click', () => setTestMode('course'));
+            this.testModeManualBtn.addEventListener('click', () => setTestMode('manual'));
+        }
+
+        if (this.testSlopeSlider) {
+            this.testSlopeSlider.addEventListener('input', (e) => {
+                this.stopLFO();
+                this.applyManualSlope(parseFloat(e.target.value));
+            });
+        }
+
+        if (this.btnPresetSlopes) {
+            this.btnPresetSlopes.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    this.stopLFO();
+                    const val = parseFloat(btn.dataset.val);
+                    if (this.testSlopeSlider) this.testSlopeSlider.value = val;
+                    this.applyManualSlope(val);
+                });
+            });
+        }
+
+        if (this.lfoPeriodSelect) {
+            this.lfoPeriodSelect.addEventListener('change', (e) => {
+                this.lfoPeriodSeconds = parseFloat(e.target.value) || 20;
+            });
+        }
+
+        if (this.btnLfoToggle) {
+            this.btnLfoToggle.addEventListener('click', () => {
+                if (this.isLfoRunning) {
+                    this.stopLFO();
+                } else {
+                    this.startLFO();
+                }
+            });
+        }
+
         this.bleManager.on('connected', () => {
             this.baseProgressAtBleStart = this.currentProgress;
             this.hasBleDistance = false;
@@ -666,6 +739,67 @@ class App {
         this.updateState(progress);
     }
 
+    applyManualSlope(slope) {
+        this.manualSlope = Math.max(-3, Math.min(7, slope));
+        if (this.testSlopeVal) {
+            const s = this.manualSlope >= 0 ? '+' : '';
+            this.testSlopeVal.textContent = `${s}${this.manualSlope.toFixed(1)} %`;
+        }
+        if (this.btnPresetSlopes) {
+            this.btnPresetSlopes.forEach(btn => {
+                const bVal = parseFloat(btn.dataset.val);
+                btn.classList.toggle('active', Math.abs(bVal - this.manualSlope) < 0.15);
+            });
+        }
+        this.sendSlopeToTrainer(this.manualSlope);
+    }
+
+    startLFO() {
+        this.isLfoRunning = true;
+        this.lfoStartTime = performance.now();
+        if (this.btnLfoToggle) {
+            this.btnLfoToggle.textContent = 'LFO 停止';
+            this.btnLfoToggle.classList.add('running');
+        }
+        if (this.testLfoStatus) {
+            this.testLfoStatus.textContent = 'RUNNING';
+            this.testLfoStatus.style.color = '#10b981';
+        }
+    }
+
+    stopLFO() {
+        this.isLfoRunning = false;
+        if (this.btnLfoToggle) {
+            this.btnLfoToggle.textContent = 'LFO 開始';
+            this.btnLfoToggle.classList.remove('running');
+        }
+        if (this.testLfoStatus) {
+            this.testLfoStatus.textContent = 'OFF';
+            this.testLfoStatus.style.color = 'var(--text-muted)';
+        }
+    }
+
+    /**
+     * トレーナーへ指示負荷を送信し、HUDおよび画面へ常に現在指示負荷を反映
+     */
+    sendSlopeToTrainer(targetSlope) {
+        // NEROの上限7%（安全リミット8%）でクランプ
+        const clampedSlope = Math.max(-8.0, Math.min(8.0, targetSlope));
+        this.lastTargetSlopeSent = clampedSlope;
+
+        // HUDの Trainer 指示負荷表示を常に更新
+        if (this.elTrainerSlope) {
+            const trSign = clampedSlope >= 0 ? '+' : '';
+            const modeTag = this.testMode === 'manual' ? (this.isLfoRunning ? '[LFO]' : '[TEST]') : '';
+            this.elTrainerSlope.textContent = `Trainer: ${trSign}${clampedSlope.toFixed(1)}% ${modeTag}`;
+            this.elTrainerSlope.classList.toggle('alert', clampedSlope >= 7.0);
+        }
+
+        if (this.bleManager && this.bleManager.isConnected) {
+            this.bleManager.sendSlope(clampedSlope);
+        }
+    }
+
     updateState(progress) {
         this.currentProgress = ((progress % 1.0) + 1.0) % 1.0;
         const state = this.course.getStateAtProgress(this.currentProgress);
@@ -699,11 +833,6 @@ class App {
         if (this.slopeCapBadge) {
             this.slopeCapBadge.style.display = isCapped ? 'inline-block' : 'none';
         }
-        if (this.elTrainerSlope) {
-            const trSign = cappedTrainerSlope >= 0 ? '+' : '';
-            this.elTrainerSlope.textContent = `Trainer: ${trSign}${cappedTrainerSlope.toFixed(1)}%`;
-            this.elTrainerSlope.classList.toggle('alert', isCapped);
-        }
 
         if (state.slope > 7) {
             this.elSlopeWrap.style.color = 'var(--climb-color)';
@@ -713,9 +842,9 @@ class App {
             this.elSlopeWrap.style.color = 'var(--flat-color)';
         }
 
-        // Bluetooth スマートトレーナーへ目標斜度（上限8%ガード済）を自動送信
-        if (this.bleManager && this.bleManager.isConnected) {
-            this.bleManager.sendSlope(cappedTrainerSlope);
+        // コース連動モードのときのみ、コース計算された勾配をトレーナーへ送信
+        if (this.testMode === 'course') {
+            this.sendSlopeToTrainer(cappedTrainerSlope);
         }
 
         this.elCoords.textContent = `${state.lon.toFixed(4)}, ${state.lat.toFixed(4)}`;
@@ -784,6 +913,22 @@ class App {
 
     animate(timestamp) {
         requestAnimationFrame(this.animate);
+
+        // LFO 自動スキャンの実行（三角波: 0% → 7% → 0% を lfoPeriodSeconds で往復）
+        if (this.testMode === 'manual' && this.isLfoRunning) {
+            const elapsed = (timestamp - this.lfoStartTime) / 1000;
+            const period = Math.max(2, this.lfoPeriodSeconds);
+            const phase = (elapsed % period) / period; // 0.0 〜 1.0
+            // 三角波: 0 -> 1 -> 0
+            const tri = phase < 0.5 ? (phase * 2) : ((1.0 - phase) * 2);
+            // 0% から 7.0% まで線形スキャン
+            const lfoSlope = Math.round((tri * 7.0) * 10) / 10;
+
+            if (this.testSlopeSlider) {
+                this.testSlopeSlider.value = lfoSlope;
+            }
+            this.applyManualSlope(lfoSlope);
+        }
 
         // BLE接続中でトレーナーが回転している（速度 > 0）場合、または「再生」ボタンが押されている場合に進捗更新
         const isBleRiding = this.bleManager.isConnected && this.speedKmh > 0;
