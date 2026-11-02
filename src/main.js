@@ -353,12 +353,11 @@ class App {
         this.btnModalSettings = document.getElementById('btn-modal-settings');
         this.modalSettings = document.getElementById('modal-settings');
 
-        // TEST / 手動キャリブレーション UI
+        // 手動負荷設定 UI
         this.testSlopeSlider = document.getElementById('test-slope-slider');
         this.testSlopeVal = document.getElementById('test-slope-val');
         this.btnPresetSlopes = document.querySelectorAll('.btn-preset-slope');
         this.btnLfoToggle = document.getElementById('btn-lfo-toggle');
-        this.testLfoStatus = document.getElementById('test-lfo-status');
         this.lfoPeriodSelect = document.getElementById('lfo-period-select');
 
         this.updateTotalDistanceUI();
@@ -764,24 +763,16 @@ class App {
         this.isLfoRunning = true;
         this.lfoStartTime = performance.now();
         if (this.btnLfoToggle) {
-            this.btnLfoToggle.textContent = 'LFO 停止';
+            this.btnLfoToggle.textContent = '自動連続スキャン 停止';
             this.btnLfoToggle.classList.add('running');
-        }
-        if (this.testLfoStatus) {
-            this.testLfoStatus.textContent = 'RUNNING';
-            this.testLfoStatus.style.color = '#10b981';
         }
     }
 
     stopLFO() {
         this.isLfoRunning = false;
         if (this.btnLfoToggle) {
-            this.btnLfoToggle.textContent = 'LFO 開始';
+            this.btnLfoToggle.textContent = '自動連続スキャン 開始';
             this.btnLfoToggle.classList.remove('running');
-        }
-        if (this.testLfoStatus) {
-            this.testLfoStatus.textContent = 'OFF';
-            this.testLfoStatus.style.color = 'var(--text-muted)';
         }
     }
 
@@ -796,7 +787,7 @@ class App {
         // HUDの Trainer 指示負荷表示を常に更新
         if (this.elTrainerSlope) {
             const trSign = clampedSlope >= 0 ? '+' : '';
-            const modeTag = this.isLfoRunning ? '[LFO]' : '[TEST]';
+            const modeTag = this.isLfoRunning ? '[AUTO]' : '[手動]';
             this.elTrainerSlope.textContent = `Trainer: ${trSign}${clampedSlope.toFixed(1)}% ${modeTag}`;
             this.elTrainerSlope.classList.toggle('alert', clampedSlope >= 7.0);
         }

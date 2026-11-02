@@ -20,7 +20,7 @@
             <div class="header-top">
                 <h1>AeroVelo <span>3D</span></h1>
                 <div class="header-actions">
-                    <span class="version-badge" id="app-version">v1.3.3</span>
+                    <span class="version-badge" id="app-version">v1.3.4</span>
                     <button type="button" id="btn-modal-settings" class="icon-btn" title="設定 (GPX / トレーナー / テスト)">⚙️</button>
                     <button type="button" id="btn-fullscreen" class="icon-btn" title="全画面表示 (F11)">⛶</button>
                 </div>
@@ -180,9 +180,9 @@
                     </section>
                 </div>
 
-                <!-- セクション 3: TEST / 手動負荷キャリブレーション -->
+                <!-- セクション 3: 手動負荷設定 -->
                 <div class="settings-section">
-                    <div class="settings-sec-title">🛠️ TEST / 手動負荷キャリブレーション</div>
+                    <div class="settings-sec-title">🛠️ 手動負荷設定</div>
                     <div id="test-controls-box" class="test-controls-box">
                         <!-- Manual Slope Slider -->
                         <div class="label-row">
@@ -202,14 +202,10 @@
                             <button type="button" class="btn-preset-slope" data-val="7">7%</button>
                         </div>
 
-                        <!-- LFO Auto Sweep -->
+                        <!-- Auto Sweep -->
                         <div class="test-lfo-box">
-                            <div class="label-row" style="margin-top: 3px;">
-                                <label>LFO 自動連続スキャン</label>
-                                <span id="test-lfo-status" class="sub-val">OFF</span>
-                            </div>
                             <div class="lfo-controls-row">
-                                <button type="button" id="btn-lfo-toggle" class="btn secondary mini-btn">LFO 開始</button>
+                                <button type="button" id="btn-lfo-toggle" class="btn secondary mini-btn">自動連続スキャン 開始</button>
                                 <div class="lfo-period-wrap">
                                     <label for="lfo-period-select">周期:</label>
                                     <select id="lfo-period-select" class="mini-select">
@@ -220,7 +216,7 @@
                                     </select>
                                 </div>
                                 <div class="lfo-range-wrap">
-                                    <span class="lfo-range-text">0% ↔ 7% (三角波)</span>
+                                    <span class="lfo-range-text">0% ↔ 7%</span>
                                 </div>
                             </div>
                         </div>
