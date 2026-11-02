@@ -648,17 +648,19 @@ class App {
             this.btnPlay.classList.toggle('running', this.isPlaying);
         });
 
-        this.btnReset.addEventListener('click', () => {
-            this.isPlaying = false;
-            this.btnPlay.textContent = '▶';
-            this.btnPlay.title = '自動再生 (Auto Fly)';
-            this.btnPlay.classList.remove('running');
-            if (this.bleManager) {
-                this.bleManager.resetDistance();
-            }
-            this.baseProgressAtBleStart = 0.0;
-            this.updateState(0.0);
-        });
+        if (this.btnReset) {
+            this.btnReset.addEventListener('click', () => {
+                this.isPlaying = false;
+                this.btnPlay.textContent = '▶';
+                this.btnPlay.title = '自動再生 (Auto Fly)';
+                this.btnPlay.classList.remove('running');
+                if (this.bleManager) {
+                    this.bleManager.resetDistance();
+                }
+                this.baseProgressAtBleStart = 0.0;
+                this.updateState(0.0);
+            });
+        }
 
         this.speedSlider.addEventListener('input', (e) => {
             this.speedKmh = parseFloat(e.target.value);
@@ -685,7 +687,7 @@ class App {
         this.camOrbitSlider.addEventListener('input', (e) => {
             this.orbitAngleOffset = parseFloat(e.target.value);
             if (this.orbitAngleOffset === 0) {
-                this.camOrbitVal.textContent = '0° (真後ろ)';
+                this.camOrbitVal.textContent = '0°';
             } else {
                 const sign = this.orbitAngleOffset > 0 ? '+' : '';
                 this.camOrbitVal.textContent = `${sign}${Math.round(this.orbitAngleOffset)}°`;

@@ -20,7 +20,7 @@
             <div class="header-top">
                 <h1>AeroVelo <span>3D</span></h1>
                 <div class="header-actions">
-                    <span class="version-badge" id="app-version">v1.3.4</span>
+                    <span class="version-badge" id="app-version">v1.3.5</span>
                     <button type="button" id="btn-modal-settings" class="icon-btn" title="設定 (GPX / トレーナー / テスト)">⚙️</button>
                     <button type="button" id="btn-fullscreen" class="icon-btn" title="全画面表示 (F11)">⛶</button>
                 </div>
@@ -43,7 +43,6 @@
                 </div>
                 <div class="inline-play-btns">
                     <button id="btn-play" class="btn primary mini-ctrl-btn icon-play-btn" title="自動再生 (Auto Fly)">▶</button>
-                    <button id="btn-reset" class="btn secondary mini-ctrl-btn" title="スタート地点に戻る (0%)">0%</button>
                 </div>
             </div>
 
@@ -102,27 +101,28 @@
 
         <!-- Camera Controls (メインダイアログに常駐) -->
         <section class="control-group camera-group">
+            <div class="ctrl-title" style="margin-bottom: 2px;">CAMERA</div>
             <div class="btn-group">
-                <button id="cam-chase" class="btn toggle active">ライダー追従 (Track)</button>
-                <button id="cam-free" class="btn toggle">自由操作 (Free)</button>
+                <button id="cam-chase" class="btn toggle active">CHASE</button>
+                <button id="cam-free" class="btn toggle">FREE</button>
             </div>
 
             <!-- Camera Adjustment Sliders -->
             <div id="camera-adjust-box" class="camera-adjust-box">
                 <div class="label-row">
-                    <label for="cam-orbit-slider">アングル</label>
-                    <span id="cam-orbit-val" class="sub-val">0° (真後ろ)</span>
+                    <label for="cam-orbit-slider">Angle</label>
+                    <span id="cam-orbit-val" class="sub-val">0°</span>
                 </div>
                 <input type="range" id="cam-orbit-slider" min="-180" max="180" step="5" value="0">
 
                 <div class="label-row" style="margin-top: 4px;">
-                    <label for="cam-pitch-slider">Pitch (仰角)</label>
+                    <label for="cam-pitch-slider">Pitch</label>
                     <span id="cam-pitch-val" class="sub-val">68°</span>
                 </div>
                 <input type="range" id="cam-pitch-slider" min="20" max="75" step="1" value="68">
 
                 <div class="label-row" style="margin-top: 4px;">
-                    <label for="cam-zoom-slider">Zoom (距離)</label>
+                    <label for="cam-zoom-slider">Zoom</label>
                     <span id="cam-zoom-val" class="sub-val">16.5</span>
                 </div>
                 <input type="range" id="cam-zoom-slider" min="13.0" max="18.5" step="0.1" value="16.5">
