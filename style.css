@@ -596,6 +596,31 @@ input[type="range"]::-webkit-slider-thumb {
     justify-content: space-between;
 }
 
+/* 速度行 (スライドなし・AUTOPLAY時のみ上下スワイプ編集可能) */
+.speed-row {
+    transition: all 0.2s ease;
+}
+
+.speed-row.editable {
+    background: rgba(0, 240, 255, 0.12);
+    border-color: rgba(0, 240, 255, 0.4);
+    cursor: ns-resize;
+    user-select: none;
+    touch-action: none;
+}
+
+.speed-row.editable:hover {
+    background: rgba(0, 240, 255, 0.2);
+    box-shadow: 0 0 8px rgba(0, 240, 255, 0.3);
+}
+
+.speed-hint {
+    font-size: 0.52rem;
+    color: var(--accent);
+    margin-left: 2px;
+    font-weight: 800;
+}
+
 .metric-row .metric-label {
     font-size: 0.58rem;
     color: var(--text-muted);

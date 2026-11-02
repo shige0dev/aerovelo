@@ -20,7 +20,7 @@
             <div class="header-top">
                 <h1>AeroVelo <span>3D</span></h1>
                 <div class="header-actions">
-                    <span class="version-badge" id="app-version">v1.3.6</span>
+                    <span class="version-badge" id="app-version">v1.3.7</span>
                     <button type="button" id="btn-modal-settings" class="icon-btn" title="設定 (GPX / トレーナー / テスト)">⚙️</button>
                     <button type="button" id="btn-fullscreen" class="icon-btn" title="全画面表示 (F11)">⛶</button>
                 </div>
@@ -55,18 +55,18 @@
             </div>
         </section>
 
-        <!-- Compact Speed Control -->
-        <section class="control-group speed-group">
-            <div class="label-row">
-                <label for="speed-slider">速度</label>
-                <span id="speed-val" class="sub-val">25 km/h</span>
-            </div>
-            <input type="range" id="speed-slider" min="1" max="50" step="1" value="25">
-        </section>
-
-        <!-- HUD Metrics (7行リスト表示) -->
+        <!-- HUD Metrics (情報表示リスト) -->
         <section class="hud-group">
             <div class="metrics-list">
+                <!-- 速度行: スライドなし、AUTOPLAY時のみ上下スワイプ・ドラッグで速度編集可能 -->
+                <div class="metric-row speed-row" id="row-speed" title="AUTOPLAY時のみ上下スワイプで速度変更可能">
+                    <span class="metric-label">速度</span>
+                    <span class="metric-value">
+                        <span id="speed-val">25</span>
+                        <small>km/h</small>
+                        <span id="speed-edit-hint" class="speed-hint" style="display: none;">⇅</span>
+                    </span>
+                </div>
                 <!-- 1行目: 距離 -->
                 <div class="metric-row">
                     <span class="metric-label">距離</span>

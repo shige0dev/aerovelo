@@ -322,8 +322,9 @@ class App {
         this.elCourseNameDisplay = document.getElementById('course-name-display');
         this.presetSelect = document.getElementById('preset-select');
 
-        this.speedSlider = document.getElementById('speed-slider');
+        this.rowSpeed = document.getElementById('row-speed');
         this.speedVal = document.getElementById('speed-val');
+        this.speedEditHint = document.getElementById('speed-edit-hint');
 
         this.camPitchSlider = document.getElementById('cam-pitch-slider');
         this.camPitchVal = document.getElementById('cam-pitch-val');
@@ -613,11 +614,10 @@ class App {
             if (data.cadence !== null && this.valCadence) {
                 this.valCadence.textContent = data.cadence;
             }
-            // スマートトレーナーから実測速度が送られてきた場合、スライダーと表示を同期
+            // スマートトレーナーから実測速度が送られてきた場合、表示を同期
             if (data.speed !== null) {
                 this.speedKmh = data.speed;
-                if (this.speedSlider) this.speedSlider.value = Math.min(50, Math.round(data.speed));
-                if (this.speedVal) this.speedVal.textContent = `${Math.round(data.speed)} km/h`;
+                if (this.speedVal) this.speedVal.textContent = Math.round(data.speed);
             }
 
             // 【方法1】FTMSの Total Distance（累積走行距離）が取得できた場合、ダイレクトに進捗計算
@@ -641,31 +641,96 @@ class App {
             this.setManualProgress(val);
         });
 
+        const updateSpeedEditability = () => {
+            if (this.rowSpeed) {
+                this.rowSpeed.classList.toggle('editable', this.isPlaying);
+                if (this.speedEditHint) {
+                    this.speedEditHint.style.display = this.isPlaying ? 'inline' : 'none';
+                }
+            }
+        };
+
         this.btnPlay.addEventListener('click', () => {
             this.isPlaying = !this.isPlaying;
             this.btnPlay.textContent = this.isPlaying ? '❚❚' : '▶';
             this.btnPlay.title = this.isPlaying ? '一時停止 (Pause)' : '自動再生 (Auto Fly)';
             this.btnPlay.classList.toggle('running', this.isPlaying);
+            updateSpeedEditability();
         });
 
-        if (this.btnReset) {
-            this.btnReset.addEventListener('click', () => {
-                this.isPlaying = false;
-                this.btnPlay.textContent = '▶';
-                this.btnPlay.title = '自動再生 (Auto Fly)';
-                this.btnPlay.classList.remove('running');
-                if (this.bleManager) {
-                    this.bleManager.resetDistance();
+        // 速度表示行の上下スワイプ／ドラッグ操作（AUTOPLAY時のみ有効）
+        if (this.rowSpeed) {
+            let isDragging = false;
+            let startY = 0;
+            let startSpeed = 25;
+
+            const onPointerDown = (clientY) => {
+                if (!this.isPlaying) return;
+                isDragging = true;
+                startY = clientY;
+                startSpeed = this.speedKmh;
+                document.body.style.userSelect = 'none';
+            };
+
+            const onPointerMove = (clientY) => {
+                if (!isDragging || !this.isPlaying) return;
+                // 上へドラッグ（-Y）で速度アップ、下へドラッグ（+Y）で速度ダウン
+                const deltaY = startY - clientY;
+                const speedChange = Math.round(deltaY / 4); // 4pxごとに 1 km/h 変化
+                const nextSpeed = Math.max(1, Math.min(80, startSpeed + speedChange));
+                this.speedKmh = nextSpeed;
+                if (this.speedVal) {
+                    this.speedVal.textContent = Math.round(this.speedKmh);
                 }
-                this.baseProgressAtBleStart = 0.0;
-                this.updateState(0.0);
-            });
-        }
+            };
 
-        this.speedSlider.addEventListener('input', (e) => {
-            this.speedKmh = parseFloat(e.target.value);
-            this.speedVal.textContent = `${Math.round(this.speedKmh)} km/h`;
-        });
+            const onPointerUp = () => {
+                if (isDragging) {
+                    isDragging = false;
+                    document.body.style.userSelect = '';
+                }
+            };
+
+            // マウスイベント
+            this.rowSpeed.addEventListener('mousedown', (e) => {
+                onPointerDown(e.clientY);
+                const moveHandler = (moveEvent) => onPointerMove(moveEvent.clientY);
+                const upHandler = () => {
+                    onPointerUp();
+                    window.removeEventListener('mousemove', moveHandler);
+                    window.removeEventListener('mouseup', upHandler);
+                };
+                window.addEventListener('mousemove', moveHandler);
+                window.addEventListener('mouseup', upHandler);
+            });
+
+            // タッチイベント（スマートフォン向け上下スワイプ）
+            this.rowSpeed.addEventListener('touchstart', (e) => {
+                if (e.touches.length > 0) {
+                    onPointerDown(e.touches[0].clientY);
+                }
+            }, { passive: true });
+
+            this.rowSpeed.addEventListener('touchmove', (e) => {
+                if (isDragging && e.touches.length > 0) {
+                    onPointerMove(e.touches[0].clientY);
+                }
+            }, { passive: true });
+
+            this.rowSpeed.addEventListener('touchend', onPointerUp);
+            this.rowSpeed.addEventListener('touchcancel', onPointerUp);
+
+            // マウスホイールでの微調整もサポート
+            this.rowSpeed.addEventListener('wheel', (e) => {
+                if (!this.isPlaying) return;
+                e.preventDefault();
+                const delta = e.deltaY < 0 ? 1 : -1;
+                this.speedKmh = Math.max(1, Math.min(80, this.speedKmh + delta));
+                if (this.speedVal) {
+                    this.speedVal.textContent = Math.round(this.speedKmh);
+                }
+            }, { passive: false });
+        }
 
         this.camPitchSlider.addEventListener('input', (e) => {
             this.cameraParams.pitch = parseFloat(e.target.value);
