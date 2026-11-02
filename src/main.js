@@ -36,7 +36,8 @@ class App {
         const screenHeight = window.innerHeight;
 
         const offsetX = (screenWidth > 600) ? (panelWidth / 2) : 0;
-        const offsetY = screenHeight * (1 / 6); // 下から1/3の位置に配置
+        // 垂直方向: さらに画面高さの15%下方向へシフト (1/6 + 0.15 = 0.3167)
+        const offsetY = screenHeight * (1 / 6 + 0.15);
 
         return [offsetX, offsetY];
     }
