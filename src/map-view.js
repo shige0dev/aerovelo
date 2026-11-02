@@ -178,6 +178,7 @@ export class MapViewController {
     setCameraMode(mode, currentState) {
         this.cameraMode = mode;
         if (mode !== 'free' && currentState) {
+            this.currentCamBearing = null;
             this.isModeTransitioning = true;
             this.applyCameraTarget(currentState, 2000);
             setTimeout(() => {

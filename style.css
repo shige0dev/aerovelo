@@ -152,24 +152,20 @@ input[type="range"]::-webkit-slider-thumb {
 .camera-adjust-box.disabled { opacity: 0.28; pointer-events: none; }
 
 /* ========================================================
-   統合設定モーダル (⚙️ GPX / BLE / 負荷設定)
+   統合設定フローティングダイアログ (右下浮動・ボタン直上 240px)
    ======================================================== */
-.modal-backdrop {
-    position: fixed; inset: 0; width: 100vw; height: 100vh;
-    background: rgba(0, 0, 0, 0.65); backdrop-filter: blur(4px); z-index: 1000;
-    display: flex; align-items: center; justify-content: center;
+.floating-settings-dialog {
+    position: absolute; bottom: 125px; right: 15px; width: 240px; max-height: calc(100vh - 140px);
+    background: var(--panel-bg); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--panel-border); border-radius: 8px; padding: 8px 10px; z-index: 25;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.7); display: flex; flex-direction: column; gap: 6px;
+    animation: dialog-pop 0.15s ease-out;
 }
-.modal-dialog {
-    width: 230px; max-width: 90vw; max-height: 85vh; background: var(--panel-bg);
-    border: 1px solid var(--panel-border); border-radius: 8px; padding: 10px 12px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8); display: flex; flex-direction: column; gap: 8px;
-    animation: modal-pop 0.2s ease-out;
-}
-@keyframes modal-pop { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
-.modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255, 255, 255, 0.1); padding-bottom: 6px; }
-.modal-header h3 { font-size: 0.74rem; font-weight: 700; color: #fff; }
-.modal-close { background: transparent; border: none; color: var(--muted); font-size: 0.85rem; cursor: pointer; padding: 2px 4px; }
-.modal-close:hover { color: #fff; }
+@keyframes dialog-pop { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+.floating-settings-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255, 255, 255, 0.1); padding-bottom: 4px; }
+.floating-settings-title { font-size: 0.62rem; font-weight: 700; color: var(--muted); letter-spacing: 0.05em; }
+.floating-settings-close { background: transparent; border: none; color: var(--muted); font-size: 0.76rem; cursor: pointer; line-height: 1; padding: 0 2px; }
+.floating-settings-close:hover { color: var(--climb); }
 
 .modal-body { display: flex; flex-direction: column; gap: 8px; overflow-y: auto; padding-right: 2px; }
 .settings-section { display: flex; flex-direction: column; gap: 4px; padding-bottom: 6px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); }

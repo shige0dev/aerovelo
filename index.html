@@ -14,10 +14,6 @@
     <!-- Fullscreen 3D Map Container -->
     <div id="map"></div>
 
-    <!-- UI Overlay (メイン操作パネル: すべて下部バーへ移設したため完全撤去) -->
-    <!-- Fullscreen 3D Map Container -->
-    <div id="map"></div>
-
     <!-- カメラ調整フローティングダイアログ (他操作を遮らないモードレスダイアログ) -->
     <div id="camera-dialog" class="floating-cam-dialog" style="display: none;">
         <div class="floating-cam-header">
@@ -54,7 +50,7 @@
         <div class="bottom-row-1">
             <div class="bottom-title-group">
                 <h1 class="bottom-app-title">AeroVelo</h1>
-                <span class="version-badge" id="app-version">v1.6.0</span>
+                <span class="version-badge" id="app-version">v1.6.1</span>
             </div>
             <div class="bottom-course-group">
                 <span id="course-name-display" class="bottom-course-badge">読み込み中...</span>
@@ -88,11 +84,11 @@
                 </div>
                 <div class="stacked-stat-item ble-stat-item" title="トレーナー/パワーメーター計測値">
                     <span class="stat-label">Power</span>
-                    <span id="val-power" class="stat-value accent-cyan">--.--W</span>
+                    <span id="val-power" class="stat-value">--W</span>
                 </div>
                 <div class="stacked-stat-item ble-stat-item" title="ケイデンスセンサー計測値">
                     <span class="stat-label">Cadence</span>
-                    <span id="val-cadence" class="stat-value accent-cyan">--.--rpm</span>
+                    <span id="val-cadence" class="stat-value">--rpm</span>
                 </div>
             </div>
         </div>
@@ -114,14 +110,13 @@
         </div>
     </div>
 
-    <!-- 統合設定モーダル (⚙️ フラット表示) -->
-    <div id="modal-settings" class="modal-backdrop" style="display: none;">
-        <div class="modal-dialog">
-            <div class="modal-header">
-                <h3>⚙️ 設定 (Settings)</h3>
-                <button type="button" class="modal-close" data-close="modal-settings">✕</button>
-            </div>
-            <div class="modal-body">
+    <!-- 統合設定フローティングダイアログ (⚙️ ボタン直上に展開、他操作を遮らないモードレスダイアログ) -->
+    <div id="modal-settings" class="floating-settings-dialog" style="display: none;">
+        <div class="floating-settings-header">
+            <span class="floating-settings-title">SETTINGS</span>
+            <button type="button" id="btn-close-settings" class="floating-settings-close" title="閉じる">✕</button>
+        </div>
+        <div class="modal-body">
                 <!-- セクション 1: コース選定・GPX (枠線なし) -->
                 <div class="settings-section">
                     <div class="settings-sec-title">📁 コース選定・GPX</div>
@@ -191,7 +186,6 @@
                 </div>
             </div>
         </div>
-    </div>
 
     <script type="module" src="src/main.js"></script>
 </body>

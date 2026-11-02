@@ -45,8 +45,9 @@ export class UIController {
         this.camZoomSlider = document.getElementById('cam-zoom-slider');
         this.camZoomVal = document.getElementById('cam-zoom-val');
 
-        // Settings Modal
+        // Settings Floating Dialog
         this.modalSettings = document.getElementById('modal-settings');
+        this.btnCloseSettings = document.getElementById('btn-close-settings');
         this.presetSelect = document.getElementById('preset-select');
         this.dropZone = document.getElementById('drop-zone');
         this.fileInput = document.getElementById('gpx-file-input');
@@ -233,25 +234,21 @@ export class UIController {
             });
         }
 
-        // Settings Modal & Fullscreen
+        // Settings Floating Dialog
         if (this.btnModalSettings && this.modalSettings) {
             this.btnModalSettings.addEventListener('click', () => {
-                this.modalSettings.style.display = 'flex';
+                const isHidden = (this.modalSettings.style.display === 'none' || !this.modalSettings.style.display);
+                this.modalSettings.style.display = isHidden ? 'flex' : 'none';
+                this.btnModalSettings.classList.toggle('active', isHidden);
             });
         }
 
-        document.querySelectorAll('.modal-close').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const modal = document.getElementById(btn.dataset.close);
-                if (modal) modal.style.display = 'none';
+        if (this.btnCloseSettings && this.modalSettings) {
+            this.btnCloseSettings.addEventListener('click', () => {
+                this.modalSettings.style.display = 'none';
+                if (this.btnModalSettings) this.btnModalSettings.classList.remove('active');
             });
-        });
-
-        document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
-            backdrop.addEventListener('click', (e) => {
-                if (e.target === backdrop) backdrop.style.display = 'none';
-            });
-        });
+        }
 
         if (this.btnFullscreen) {
             this.btnFullscreen.addEventListener('click', () => {
@@ -450,10 +447,10 @@ export class UIController {
 
     updateBleMetrics({ power, cadence, speed }) {
         if (power !== null && power !== undefined && this.valPower) {
-            this.valPower.textContent = `${Number(power).toFixed(2)}W`;
+            this.valPower.textContent = `${Math.round(power)}W`;
         }
         if (cadence !== null && cadence !== undefined && this.valCadence) {
-            this.valCadence.textContent = `${Number(cadence).toFixed(2)}rpm`;
+            this.valCadence.textContent = `${Math.round(cadence)}rpm`;
         }
         if (speed !== null && speed !== undefined && this.speedVal) {
             this.speedVal.textContent = `${Number(speed).toFixed(2)}km/h`;
@@ -472,8 +469,8 @@ export class UIController {
             this.btnBleConnect.classList.remove('connected');
             this.bleStatusText.textContent = '⚡ スマートトレーナー接続';
             if (this.btnBleDisconnect) this.btnBleDisconnect.style.display = 'none';
-            if (this.valPower) this.valPower.textContent = '--.--W';
-            if (this.valCadence) this.valCadence.textContent = '--.--rpm';
+            if (this.valPower) this.valPower.textContent = '--W';
+            if (this.valCadence) this.valCadence.textContent = '--rpm';
         }
     }
 
