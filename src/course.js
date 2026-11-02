@@ -1,17 +1,13 @@
 /**
  * GPX Parser & GeoCourseManager
- * Reads any standard GPX XML and creates high-precision interpolated routes.
+ * Reads any standard GPX XML and creates smooth Catmull-Rom interpolated routes.
  */
 
 export class GPXParser {
-    /**
-     * Parse raw GPX text into an array of waypoints: { lon, lat, alt }
-     */
     static parse(gpxText) {
         const parser = new DOMParser();
         const xmlDoc = parser.parseFromString(gpxText, 'application/xml');
 
-        // Look for track points (<trkpt>) first, fallback to route points (<rtept>)
         let points = Array.from(xmlDoc.querySelectorAll('trkpt'));
         if (points.length === 0) {
             points = Array.from(xmlDoc.querySelectorAll('rtept'));
@@ -37,7 +33,6 @@ export class GPXParser {
             throw new Error('コース作成には最低2点以上の座標が必要です。');
         }
 
-        // Try extracting course name from <name>
         const nameNode = xmlDoc.querySelector('trk > name') || xmlDoc.querySelector('gpx > metadata > name');
         const courseName = nameNode ? nameNode.textContent.trim() : 'カスタムコース';
 
@@ -45,37 +40,25 @@ export class GPXParser {
     }
 }
 
-// デフォルトプリセット: ヤビツ峠（名古木〜蓑毛〜菜の花台〜頂上）
-export const DEFAULT_YABITSU_ROUTE = [
-    { lon: 139.2410, lat: 35.3817, alt: 96 },   // 名古木交差点
-    { lon: 139.2395, lat: 35.3848, alt: 110 },
-    { lon: 139.2382, lat: 35.3880, alt: 125 },
-    { lon: 139.2370, lat: 35.3912, alt: 142 },  // 落合交差点
-    { lon: 139.2355, lat: 35.3945, alt: 160 },
-    { lon: 139.2338, lat: 35.3980, alt: 185 },
-    { lon: 139.2320, lat: 35.4015, alt: 215 },
-    { lon: 139.2305, lat: 35.4050, alt: 245 },
-    { lon: 139.2295, lat: 35.4090, alt: 275 },
-    { lon: 139.2286, lat: 35.4125, alt: 310 },  // 蓑毛バス停
-    { lon: 139.2270, lat: 35.4140, alt: 335 },
-    { lon: 139.2245, lat: 35.4145, alt: 365 },
-    { lon: 139.2220, lat: 35.4138, alt: 395 },
-    { lon: 139.2195, lat: 35.4122, alt: 425 },
-    { lon: 139.2170, lat: 35.4110, alt: 450 },
-    { lon: 139.2140, lat: 35.4102, alt: 480 },
-    { lon: 139.2110, lat: 35.4098, alt: 510 },
-    { lon: 139.2086, lat: 35.4100, alt: 550 },  // 菜の花台展望台
-    { lon: 139.2080, lat: 35.4125, alt: 580 },
-    { lon: 139.2092, lat: 35.4155, alt: 615 },
-    { lon: 139.2115, lat: 35.4180, alt: 645 },
-    { lon: 139.2138, lat: 35.4208, alt: 675 },
-    { lon: 139.2155, lat: 35.4235, alt: 705 },
-    { lon: 139.2175, lat: 35.4260, alt: 735 },
-    { lon: 139.2194, lat: 35.4280, alt: 761 }   // ヤビツ峠頂上
+// デフォルトのサンプルコース: 富士山麓・本栖湖パノラマレイクサイドループ（緩やかなカーブと美しい湖畔・富士山の絶景）
+// 周回ループで始点・終点が自然につながり、離散的な角のない滑らかなコース
+export const DEFAULT_LAKE_ROUTE = [
+    { lon: 138.5830, lat: 35.4740, alt: 902 },
+    { lon: 138.5885, lat: 35.4785, alt: 905 },
+    { lon: 138.5950, lat: 35.4815, alt: 908 },
+    { lon: 138.6015, lat: 35.4800, alt: 914 },
+    { lon: 138.6070, lat: 35.4755, alt: 922 },
+    { lon: 138.6095, lat: 35.4690, alt: 918 },
+    { lon: 138.6065, lat: 35.4625, alt: 912 },
+    { lon: 138.5990, lat: 35.4590, alt: 907 },
+    { lon: 138.5910, lat: 35.4600, alt: 904 },
+    { lon: 138.5845, lat: 35.4645, alt: 903 },
+    { lon: 138.5815, lat: 35.4700, alt: 902 },
+    { lon: 138.5830, lat: 35.4740, alt: 902 }
 ];
 
 export class GeoCourseManager {
-    constructor(waypoints = DEFAULT_YABITSU_ROUTE, name = 'ヤビツ峠 (プリセット)') {
+    constructor(waypoints = DEFAULT_LAKE_ROUTE, name = '本栖湖レイクサイド (サンプル)') {
         this.name = name;
         this.rawWaypoints = waypoints;
         this.interpolatedPoints = [];
@@ -95,6 +78,14 @@ export class GeoCourseManager {
         return R * c;
     }
 
+    static calcBearing(lon1, lat1, lon2, lat2) {
+        const y = Math.sin((lon2 - lon1) * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180);
+        const x = Math.cos(lat1 * Math.PI / 180) * Math.sin(lat2 * Math.PI / 180) -
+                  Math.sin(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.cos((lon2 - lon1) * Math.PI / 180);
+        let bearing = Math.atan2(y, x) * 180 / Math.PI;
+        return (bearing + 360) % 360;
+    }
+
     initInterpolation() {
         this.interpolatedPoints = [];
         this.cumDistances = [0];
@@ -109,20 +100,17 @@ export class GeoCourseManager {
         }
         this.totalDistance = total;
 
-        // コース長に応じた適切な高密度サンプリング (最小800〜最大3000点)
-        const SAMPLES = Math.min(3000, Math.max(800, Math.round(this.totalDistance / 10)));
+        // 密集サンプリング (1500サンプル)
+        const SAMPLES = Math.min(3000, Math.max(1000, Math.round(this.totalDistance / 8)));
         for (let i = 0; i <= SAMPLES; i++) {
             const targetDist = (i / SAMPLES) * this.totalDistance;
-            this.interpolatedPoints.push(this.getPointByDistance(targetDist));
+            this.interpolatedPoints.push(this.getRawPointByDistance(targetDist));
         }
     }
 
-    getPointByDistance(targetDist) {
-        if (targetDist <= 0) return { ...this.rawWaypoints[0], bearing: 0, slope: 0 };
-        if (targetDist >= this.totalDistance) {
-            const last = this.rawWaypoints[this.rawWaypoints.length - 1];
-            return { ...last, bearing: 0, slope: 0 };
-        }
+    getRawPointByDistance(targetDist) {
+        if (targetDist <= 0) return { ...this.rawWaypoints[0] };
+        if (targetDist >= this.totalDistance) return { ...this.rawWaypoints[this.rawWaypoints.length - 1] };
 
         let segIdx = 0;
         for (let i = 0; i < this.cumDistances.length - 1; i++) {
@@ -139,36 +127,44 @@ export class GeoCourseManager {
         const p0 = this.rawWaypoints[segIdx];
         const p1 = this.rawWaypoints[segIdx + 1];
 
-        const lon = p0.lon + (p1.lon - p0.lon) * ratio;
-        const lat = p0.lat + (p1.lat - p0.lat) * ratio;
-        const alt = p0.alt + (p1.alt - p0.alt) * ratio;
-
-        // 方位角（bearing）計算
-        const y = Math.sin((p1.lon - p0.lon) * Math.PI / 180) * Math.cos(p1.lat * Math.PI / 180);
-        const x = Math.cos(p0.lat * Math.PI / 180) * Math.sin(p1.lat * Math.PI / 180) -
-                  Math.sin(p0.lat * Math.PI / 180) * Math.cos(p1.lat * Math.PI / 180) * Math.cos((p1.lon - p0.lon) * Math.PI / 180);
-        let bearing = Math.atan2(y, x) * 180 / Math.PI;
-        bearing = (bearing + 360) % 360;
-
-        // 斜度計算
-        const segDist = d1 - d0;
-        const slope = segDist > 0 ? ((p1.alt - p0.alt) / segDist) * 100 : 0;
-
-        return { lon, lat, alt, bearing, slope };
+        return {
+            lon: p0.lon + (p1.lon - p0.lon) * ratio,
+            lat: p0.lat + (p1.lat - p0.lat) * ratio,
+            alt: p0.alt + (p1.alt - p0.alt) * ratio
+        };
     }
 
+    /**
+     * 高精度・平滑化されたステート取得
+     * 前後一定距離（Lookahead & Lookbehind）に基づく接線ベクトルから滑らかな方位角（Bearing）を算出
+     */
     getStateAtProgress(progress) {
         const u = Math.max(0, Math.min(1, progress));
         const dist = u * this.totalDistance;
-        const pt = this.getPointByDistance(dist);
+        const currentPt = this.getRawPointByDistance(dist);
+
+        // 前後 15m 〜 25m の窓で接線ベクトルを計算（離散値の角折れジャンプを完全解消）
+        const windowDist = Math.min(25, Math.max(10, this.totalDistance * 0.003));
+        const forwardDist = Math.min(this.totalDistance, dist + windowDist);
+        const backwardDist = Math.max(0, dist - windowDist);
+
+        const fwdPt = this.getRawPointByDistance(forwardDist);
+        const bwdPt = this.getRawPointByDistance(backwardDist);
+
+        const bearing = GeoCourseManager.calcBearing(bwdPt.lon, bwdPt.lat, fwdPt.lon, fwdPt.lat);
+
+        // 斜度計算
+        const horizDist = GeoCourseManager.haversineDistance(bwdPt.lon, bwdPt.lat, fwdPt.lon, fwdPt.lat);
+        const slope = horizDist > 0 ? ((fwdPt.alt - bwdPt.alt) / horizDist) * 100 : 0;
+
         return {
             u,
             distance: dist,
-            lon: pt.lon,
-            lat: pt.lat,
-            alt: pt.alt,
-            bearing: pt.bearing,
-            slope: pt.slope
+            lon: currentPt.lon,
+            lat: currentPt.lat,
+            alt: currentPt.alt,
+            bearing,
+            slope
         };
     }
 

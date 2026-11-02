@@ -1,14 +1,17 @@
-import { GeoCourseManager, GPXParser, DEFAULT_YABITSU_ROUTE } from './course.js';
+import { GeoCourseManager, GPXParser, DEFAULT_LAKE_ROUTE } from './course.js';
 
 class App {
     constructor() {
-        this.course = new GeoCourseManager(DEFAULT_YABITSU_ROUTE, 'ヤビツ峠 (プリセット)');
+        this.course = new GeoCourseManager(DEFAULT_LAKE_ROUTE, '本栖湖レイクサイド (サンプル)');
         this.currentProgress = 0.0;
         this.cameraMode = 'chase'; // 'chase' | 'drone' | 'free'
         this.isPlaying = false;
-        this.speedKmh = 20; // 時速 (km/h)
+        this.speedKmh = 25; // 時速 (km/h)
         this.isModeTransitioning = false;
         this.lastFrameTime = 0;
+
+        // 滑らかな角度補間（Lerp）用の現在カメラBearing
+        this.currentCamBearing = null;
 
         // カメラパラメータ（Chase / Drone ごとの調整値）
         this.cameraParams = {
@@ -493,6 +496,17 @@ class App {
         }
     }
 
+    /**
+     * 最短角度差分を考慮した角度の線形補間（Angle Lerp）
+     * 359度と1度の間で逆回転したりジャンプするのを防ぎます
+     */
+    static lerpAngle(fromAngle, toAngle, t) {
+        let diff = (toAngle - fromAngle) % 360;
+        if (diff < -180) diff += 360;
+        if (diff > 180) diff -= 360;
+        return (fromAngle + diff * t + 360) % 360;
+    }
+
     applyCameraTarget(duration = 0) {
         if (!this.map || this.cameraMode === 'free') return;
 
@@ -508,10 +522,18 @@ class App {
             targetBearing = (state.bearing + 35) % 360;
         }
 
+        // カメラ角度の線形補間（急激な首振りを防ぐダンピング・スムージング）
+        if (this.currentCamBearing === null || duration > 0) {
+            this.currentCamBearing = targetBearing;
+        } else {
+            // スムーズな補間係数 (t = 0.08: 約12フレームで滑らかに追従)
+            this.currentCamBearing = App.lerpAngle(this.currentCamBearing, targetBearing, 0.08);
+        }
+
         const cameraOptions = {
             center: [state.lon, state.lat],
             pitch: targetPitch,
-            bearing: targetBearing,
+            bearing: this.currentCamBearing,
             zoom: targetZoom,
             offset: offset,
             duration: duration,
