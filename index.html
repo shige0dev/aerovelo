@@ -211,9 +211,9 @@
                     </section>
                 </div>
 
-                <!-- セクション 3: 手動負荷設定 (負荷%ボタンなし・コンパクトスキャン) -->
+                <!-- セクション 3: 負荷設定 (負荷%ボタンなし・コンパクトスキャン) -->
                 <div class="settings-section">
-                    <div class="settings-sec-title">🛠️ 手動負荷設定</div>
+                    <div class="settings-sec-title">🛠️ 負荷設定</div>
                     <div id="test-controls-box" class="test-controls-box">
                         <!-- Manual Slope Slider (0%〜7%) -->
                         <div class="label-row">
@@ -222,16 +222,15 @@
                         </div>
                         <input type="range" id="test-slope-slider" min="0" max="7" step="0.2" value="0">
 
-                        <!-- Auto Sweep (コンパクト表示: 連続スキャン + 周期) -->
+                        <!-- Auto Sweep (コンパクト表示: 連続スキャン + 周期: 30秒, 60秒[デフォルト], 120秒) -->
                         <div class="compact-scan-row">
                             <button type="button" id="btn-lfo-toggle" class="btn secondary mini-scan-btn">連続スキャン</button>
                             <div class="lfo-period-wrap">
                                 <label for="lfo-period-select">周期:</label>
                                 <select id="lfo-period-select" class="mini-select">
-                                    <option value="10">10秒</option>
-                                    <option value="20" selected>20秒</option>
                                     <option value="30">30秒</option>
-                                    <option value="60">60秒</option>
+                                    <option value="60" selected>60秒</option>
+                                    <option value="120">120秒</option>
                                 </select>
                             </div>
                         </div>

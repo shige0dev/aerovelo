@@ -17,9 +17,9 @@ class App {
         this.baseProgressAtBleStart = 0; // BLE接続時・リセット時の基準進捗率
 
         // TEST / 手動負荷キャリブレーション機能ステート
-        this.manualSlope = 0.0; // 手動指定斜度 (-3% 〜 +7%)
+        this.manualSlope = 0.0; // 手動指定斜度 (0% 〜 +7%)
         this.isLfoRunning = false;
-        this.lfoPeriodSeconds = 20; // LFO 周期（秒）
+        this.lfoPeriodSeconds = 60; // LFO 周期（デフォルト60秒）
         this.lfoStartTime = 0;
         this.lastTargetSlopeSent = 0.0; // 画面表示用・実際にトレーナーへ指示した最新斜度
 
