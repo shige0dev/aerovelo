@@ -6,9 +6,17 @@ class App {
         this.currentProgress = 0.0;
         this.cameraMode = 'chase'; // 'chase' | 'drone' | 'free'
         this.isPlaying = false;
-        this.playSpeed = 0.0006;
+        this.baseSpeed = 0.0006;
+        this.speedMultiplier = 1.0;
+        this.playSpeed = this.baseSpeed * this.speedMultiplier;
         this.isModeTransitioning = false;
         this.lastFrameTime = 0;
+
+        // カメラパラメータ（Chase / Drone ごとの調整値）
+        this.cameraParams = {
+            chase: { pitch: 68, zoom: 15.6 },
+            drone: { pitch: 45, zoom: 14.5 }
+        };
 
         this.initUI();
         this.initElevationProfile();
@@ -240,6 +248,17 @@ class App {
         this.elActiveCourseName = document.getElementById('active-course-name');
         this.elProfileChartTitle = document.getElementById('profile-chart-title');
 
+        // Speed UI
+        this.speedSlider = document.getElementById('speed-slider');
+        this.speedVal = document.getElementById('speed-val');
+
+        // Camera Sliders UI
+        this.camPitchSlider = document.getElementById('cam-pitch-slider');
+        this.camPitchVal = document.getElementById('cam-pitch-val');
+        this.camZoomSlider = document.getElementById('cam-zoom-slider');
+        this.camZoomVal = document.getElementById('cam-zoom-val');
+        this.camAdjustBox = document.getElementById('camera-adjust-box');
+
         this.updateTotalDistanceUI();
     }
 
@@ -363,11 +382,52 @@ class App {
             this.updateState(0.0);
         });
 
+        // 再生速度スライダー
+        this.speedSlider.addEventListener('input', (e) => {
+            this.speedMultiplier = parseFloat(e.target.value);
+            this.playSpeed = this.baseSpeed * this.speedMultiplier;
+            this.speedVal.textContent = `${this.speedMultiplier.toFixed(1)}x`;
+        });
+
+        // カメラ仰角スライダー
+        this.camPitchSlider.addEventListener('input', (e) => {
+            const pitch = parseFloat(e.target.value);
+            this.camPitchVal.textContent = `${Math.round(pitch)}°`;
+            if (this.cameraMode !== 'free') {
+                this.cameraParams[this.cameraMode].pitch = pitch;
+                this.applyCameraTarget(0);
+            }
+        });
+
+        // カメラ距離 (ズーム) スライダー
+        this.camZoomSlider.addEventListener('input', (e) => {
+            const zoom = parseFloat(e.target.value);
+            this.camZoomVal.textContent = zoom.toFixed(1);
+            if (this.cameraMode !== 'free') {
+                this.cameraParams[this.cameraMode].zoom = zoom;
+                this.applyCameraTarget(0);
+            }
+        });
+
+        const syncCameraSlidersToMode = (mode) => {
+            if (mode === 'free') {
+                if (this.camAdjustBox) this.camAdjustBox.style.opacity = '0.35';
+                return;
+            }
+            if (this.camAdjustBox) this.camAdjustBox.style.opacity = '1';
+            const params = this.cameraParams[mode];
+            this.camPitchSlider.value = params.pitch;
+            this.camPitchVal.textContent = `${Math.round(params.pitch)}°`;
+            this.camZoomSlider.value = params.zoom;
+            this.camZoomVal.textContent = params.zoom.toFixed(1);
+        };
+
         const setCamMode = (mode) => {
             this.cameraMode = mode;
             this.camChaseBtn.classList.toggle('active', mode === 'chase');
             this.camDroneBtn.classList.toggle('active', mode === 'drone');
             this.camFreeBtn.classList.toggle('active', mode === 'free');
+            syncCameraSlidersToMode(mode);
 
             if (mode !== 'free') {
                 this.isModeTransitioning = true;
@@ -442,14 +502,13 @@ class App {
         const state = this.course.getStateAtProgress(this.currentProgress);
         const offset = this.getCameraOffset();
 
-        let targetPitch = 68;
+        const currentParams = this.cameraParams[this.cameraMode] || { pitch: 68, zoom: 15.6 };
+        let targetPitch = currentParams.pitch;
+        let targetZoom = currentParams.zoom;
         let targetBearing = state.bearing;
-        let targetZoom = 15.6;
 
         if (this.cameraMode === 'drone') {
-            targetPitch = 45;
             targetBearing = (state.bearing + 35) % 360;
-            targetZoom = 14.5;
         }
 
         const cameraOptions = {
