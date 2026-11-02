@@ -18,10 +18,10 @@
     <div id="top-bar">
         <div class="top-title-group">
             <h1 class="top-app-title">AeroVelo</h1>
-            <span class="version-badge" id="app-version">v1.6.7</span>
+            <span class="version-badge" id="app-version">v1.6.8</span>
         </div>
         <div class="top-course-group">
-            <span id="course-name-display" class="top-course-badge">読み込み中...</span>
+            <span id="course-name-display" class="top-course-title">読み込み中...</span>
         </div>
         <div class="top-actions-group">
             <button type="button" id="btn-modal-settings" class="icon-btn" title="設定 (GPX / トレーナー / テスト)">⚙️</button>
@@ -73,6 +73,13 @@
                 <span class="hud-unit">W</span>
             </div>
         </div>
+        <div class="hud-item slope-ctrl-hud-item" title="トレーナー手動負荷 (0%〜7%)">
+            <span class="hud-label">負荷</span>
+            <div class="hud-slider-wrap">
+                <input type="range" id="v-slope-slider" min="0" max="7" step="0.1" value="0">
+            </div>
+            <span id="v-slope-val" class="hud-val hud-slope-val">0.0%</span>
+        </div>
     </div>
 
     <!-- カメラ調整フローティングダイアログ (他操作を遮らないモードレスダイアログ) -->
@@ -105,22 +112,13 @@
         </div>
     </div>
 
-    <!-- 画面最下段: 標高プロファイルCanvas + 縦負荷スライダー -->
+    <!-- 画面最下段 全幅バー: 標高プロファイルCanvas (全幅) -->
     <div id="bottom-bar">
-        <div class="bottom-canvas-slider-container">
-            <canvas id="elevation-canvas"></canvas>
-            <!-- AutoRun ボタン (勾配表示範囲・左上に配置) -->
-            <button type="button" id="btn-play" class="canvas-autorun-btn" title="自動走行 (AutoRun)">AutoRun</button>
-            <!-- 全長表示（標高表示の右上・枠なし） -->
-            <span id="bottom-total-dist-tag" class="canvas-total-dist-tag">Total000.00Km</span>
-        </div>
-        <div class="bottom-slope-vertical-wrapper">
-            <span class="v-slope-title">負荷</span>
-            <div class="v-slope-slider-box">
-                <input type="range" id="v-slope-slider" min="0" max="7" step="0.1" value="0" orient="vertical">
-            </div>
-            <span id="v-slope-val" class="v-slope-value">0.0%</span>
-        </div>
+        <canvas id="elevation-canvas"></canvas>
+        <!-- AutoRun ボタン (勾配表示範囲・左上に配置) -->
+        <button type="button" id="btn-play" class="canvas-autorun-btn" title="自動走行 (AutoRun)">AutoRun</button>
+        <!-- 全長表示（標高表示の右上・枠なし） -->
+        <span id="bottom-total-dist-tag" class="canvas-total-dist-tag">Total000.00Km</span>
     </div>
 
     <!-- 統合設定フローティングダイアログ (⚙️ ボタン直上に展開、他操作を遮らないモードレスダイアログ) -->
