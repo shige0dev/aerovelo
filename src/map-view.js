@@ -17,6 +17,7 @@ export class MapViewController {
         };
 
         this.riderMarker = null;
+        this.lastCamTime = 0;
         this.initMap(initialState);
     }
 
@@ -110,6 +111,7 @@ export class MapViewController {
 
     setCourse(course, initialState) {
         this.currentCamBearing = null;
+        this.lastCamTime = 0;
         if (!this.map) return;
 
         if (!this.map.isStyleLoaded()) {
@@ -177,6 +179,7 @@ export class MapViewController {
 
     setCameraMode(mode, currentState) {
         this.cameraMode = mode;
+        this.lastCamTime = 0;
         if (mode !== 'free' && currentState) {
             this.currentCamBearing = null;
             this.isModeTransitioning = true;
@@ -221,10 +224,17 @@ export class MapViewController {
 
         const targetBearing = (state.bearing - this.orbitAngleOffset + 360) % 360;
 
+        const now = performance.now();
+        const dt = this.lastCamTime ? Math.min((now - this.lastCamTime) / 1000, 0.1) : 0.016;
+        this.lastCamTime = now;
+
         if (this.currentCamBearing === null || duration > 0) {
             this.currentCamBearing = targetBearing;
         } else {
-            this.currentCamBearing = MapViewController.lerpAngle(this.currentCamBearing, targetBearing, 0.08);
+            // 約1秒かけて方向変化に滑らかに追従するスムージング（時定数 τ ≈ 0.35秒、1秒で約95%追従）
+            const decay = 2.8;
+            const t = 1 - Math.exp(-decay * dt);
+            this.currentCamBearing = MapViewController.lerpAngle(this.currentCamBearing, targetBearing, t);
         }
 
         if (this.map.queryTerrainElevation) {
