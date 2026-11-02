@@ -20,33 +20,38 @@
             <div class="header-top">
                 <h1>AeroVelo <span>3D</span></h1>
                 <div class="header-actions">
-                    <span class="version-badge" id="app-version">v1.2.0</span>
+                    <span class="version-badge" id="app-version">v1.2.1</span>
                     <button type="button" id="btn-modal-gpx" class="icon-btn" title="コース選定・GPX設定">📁</button>
+                    <button type="button" id="btn-modal-ble" class="icon-btn" title="スマートトレーナー設定">⚡</button>
+                    <button type="button" id="btn-modal-cam" class="icon-btn" title="カメラ・視点設定">📷</button>
                     <button type="button" id="btn-modal-test" class="icon-btn" title="TEST / 負荷キャリブレーション">🛠️</button>
                     <button type="button" id="btn-fullscreen" class="icon-btn" title="全画面表示 (F11)">⛶</button>
                 </div>
             </div>
         </header>
 
-        <!-- Progress & Playback Controls -->
-        <section class="control-group">
-            <div class="label-row">
-                <label for="progress-slider">コース進捗率</label>
-                <div class="input-wrap">
-                    <input type="number" id="progress-input" min="0" max="100" step="0.1" value="0.0">
-                    <span class="unit">%</span>
+        <!-- Progress & Playback Controls (1行コンパクト配置) -->
+        <section class="control-group progress-group">
+            <div class="progress-main-row">
+                <div class="progress-info-wrap">
+                    <span class="ctrl-title">進捗</span>
+                    <div class="input-wrap">
+                        <input type="number" id="progress-input" min="0" max="100" step="0.1" value="0.0">
+                        <span class="unit">%</span>
+                    </div>
+                </div>
+                <div class="inline-play-btns">
+                    <button id="btn-play" class="btn primary mini-ctrl-btn">再生</button>
+                    <button id="btn-reset" class="btn secondary mini-ctrl-btn">0%</button>
                 </div>
             </div>
             <input type="range" id="progress-slider" min="0" max="100" step="0.05" value="0">
         </section>
 
-        <section class="control-group">
-            <div class="buttons-row">
-                <button id="btn-play" class="btn primary">再生 (Auto Fly)</button>
-                <button id="btn-reset" class="btn secondary">リセット (0%)</button>
-            </div>
-            <div class="label-row" style="margin-top: 4px;">
-                <label for="speed-slider">走行速度</label>
+        <!-- Compact Speed Control -->
+        <section class="control-group speed-group">
+            <div class="label-row">
+                <label for="speed-slider">速度</label>
                 <span id="speed-val" class="sub-val">25 km/h</span>
             </div>
             <input type="range" id="speed-slider" min="1" max="50" step="1" value="25">
@@ -86,46 +91,6 @@
                 </div>
             </div>
         </section>
-
-        <!-- BLE Sensor Connect (Elite NERO / FTMS) -->
-        <section class="control-group ble-section">
-            <div class="ble-bar">
-                <button type="button" id="btn-ble-connect" class="ble-btn">
-                    <span class="ble-dot" id="ble-indicator"></span>
-                    <span id="ble-status-text">⚡ スマートトレーナー接続</span>
-                </button>
-                <button type="button" id="btn-ble-disconnect" class="ble-disconnect-btn" style="display: none;" title="切断">✕</button>
-            </div>
-        </section>
-
-        <!-- Camera Control: Track & Free -->
-        <section class="control-group camera-group">
-            <div class="btn-group">
-                <button id="cam-chase" class="btn toggle active">ライダー追従 (Track)</button>
-                <button id="cam-free" class="btn toggle">自由操作 (Free)</button>
-            </div>
-
-            <!-- Camera Adjustment Sliders -->
-            <div id="camera-adjust-box" class="camera-adjust-box">
-                <div class="label-row">
-                    <label for="cam-orbit-slider">アングル</label>
-                    <span id="cam-orbit-val" class="sub-val">0° (真後ろ)</span>
-                </div>
-                <input type="range" id="cam-orbit-slider" min="-180" max="180" step="5" value="0">
-
-                <div class="label-row" style="margin-top: 4px;">
-                    <label for="cam-pitch-slider">Pitch (仰角)</label>
-                    <span id="cam-pitch-val" class="sub-val">68°</span>
-                </div>
-                <input type="range" id="cam-pitch-slider" min="20" max="75" step="1" value="68">
-
-                <div class="label-row" style="margin-top: 4px;">
-                    <label for="cam-zoom-slider">Zoom (距離)</label>
-                    <span id="cam-zoom-val" class="sub-val">16.5</span>
-                </div>
-                <input type="range" id="cam-zoom-slider" min="13.0" max="18.5" step="0.1" value="16.5">
-            </div>
-        </section>
     </div>
 
     <!-- Modal 1: コース選定・GPX設定ダイアログ -->
@@ -163,7 +128,58 @@
         </div>
     </div>
 
-    <!-- Modal 2: TEST / 負荷キャリブレーションダイアログ -->
+    <!-- Modal 2: スマートトレーナー接続ダイアログ -->
+    <div id="modal-ble" class="modal-backdrop" style="display: none;">
+        <div class="modal-dialog">
+            <div class="modal-header">
+                <h3>⚡ スマートトレーナー接続</h3>
+                <button type="button" class="modal-close" data-close="modal-ble">✕</button>
+            </div>
+            <div class="modal-body">
+                <section class="control-group ble-section">
+                    <div class="ble-bar">
+                        <button type="button" id="btn-ble-connect" class="ble-btn">
+                            <span class="ble-dot" id="ble-indicator"></span>
+                            <span id="ble-status-text">⚡ スマートトレーナー接続</span>
+                        </button>
+                        <button type="button" id="btn-ble-disconnect" class="ble-disconnect-btn" style="display: none;" title="切断">✕</button>
+                    </div>
+                </section>
+                <p style="font-size: 0.62rem; color: var(--text-muted); margin-top: 4px; line-height: 1.4;">
+                    Bluetooth (FTMS規格) で Elite NERO や KICKR、Tacx 等とペアリングし、パワー・ケイデンス・速度の受信および勾配負荷の自動制御を行います。
+                </p>
+            </div>
+        </div>
+    </div>
+            <div class="modal-body">
+                <section class="control-group gpx-section">
+                    <div class="preset-row">
+                        <select id="preset-select" class="preset-select">
+                            <option value="gpx/hiyoshi_12.5km_D738.gpx" selected>🇯🇵 Hiyoshi (12.5km D+738m)</option>
+                            <option value="gpx/shimanami_77.2km_D1903.gpx">🇯🇵 Shimanami (77.2km D+1903m)</option>
+                            <option value="gpx/kashida_27.9km_D1095.gpx">🇯🇵 Kashida (27.9km D+1095m)</option>
+                        </select>
+                    </div>
+                    <div class="gpx-actions-row">
+                        <input type="file" id="gpx-file-input" accept=".gpx" style="display: none;">
+                        <div id="drop-zone" class="action-item drop-zone">
+                            <span class="action-label">Drop</span>
+                        </div>
+                        <button type="button" id="btn-browse" class="action-item action-btn">Explorer</button>
+                        <a href="https://gpx-edit-pro.ovh/editeur-gpx/?lang=ja" target="_blank" rel="noopener noreferrer" class="action-item action-link">Editor ↗</a>
+                    </div>
+                    <div class="gsi-row">
+                        <button type="button" id="btn-gsi-dem" class="gsi-btn" title="国土地理院 5mメッシュ(DEM5A)レーザー測量データで標高と斜度を精密再計算">
+                            <span class="gsi-indicator"></span>
+                            <span id="gsi-btn-text">5mメッシュ標高で補正</span>
+                        </button>
+                    </div>
+                </section>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 3: TEST / 負荷キャリブレーションダイアログ -->
     <div id="modal-test" class="modal-backdrop" style="display: none;">
         <div class="modal-dialog">
             <div class="modal-header">
@@ -225,34 +241,43 @@
         </div>
     </div>
 
-        <!-- Camera Control: Track & Free -->
-        <section class="control-group camera-group">
-            <div class="btn-group">
-                <button id="cam-chase" class="btn toggle active">ライダー追従 (Track)</button>
-                <button id="cam-free" class="btn toggle">自由操作 (Free)</button>
+    <!-- Modal 4: カメラ・視点設定ダイアログ -->
+    <div id="modal-cam" class="modal-backdrop" style="display: none;">
+        <div class="modal-dialog">
+            <div class="modal-header">
+                <h3>📷 カメラ・視点設定</h3>
+                <button type="button" class="modal-close" data-close="modal-cam">✕</button>
             </div>
+            <div class="modal-body">
+                <section class="control-group camera-group">
+                    <div class="btn-group">
+                        <button id="cam-chase" class="btn toggle active">ライダー追従 (Track)</button>
+                        <button id="cam-free" class="btn toggle">自由操作 (Free)</button>
+                    </div>
 
-            <!-- Camera Adjustment Sliders -->
-            <div id="camera-adjust-box" class="camera-adjust-box">
-                <div class="label-row">
-                    <label for="cam-orbit-slider">アングル (真後ろ基準)</label>
-                    <span id="cam-orbit-val" class="sub-val">0° (真後ろ)</span>
-                </div>
-                <input type="range" id="cam-orbit-slider" min="-180" max="180" step="5" value="0">
+                    <!-- Camera Adjustment Sliders -->
+                    <div id="camera-adjust-box" class="camera-adjust-box">
+                        <div class="label-row">
+                            <label for="cam-orbit-slider">アングル</label>
+                            <span id="cam-orbit-val" class="sub-val">0° (真後ろ)</span>
+                        </div>
+                        <input type="range" id="cam-orbit-slider" min="-180" max="180" step="5" value="0">
 
-                <div class="label-row" style="margin-top: 4px;">
-                    <label for="cam-pitch-slider">Pitch (仰角)</label>
-                    <span id="cam-pitch-val" class="sub-val">68°</span>
-                </div>
-                <input type="range" id="cam-pitch-slider" min="20" max="75" step="1" value="68">
+                        <div class="label-row" style="margin-top: 4px;">
+                            <label for="cam-pitch-slider">Pitch (仰角)</label>
+                            <span id="cam-pitch-val" class="sub-val">68°</span>
+                        </div>
+                        <input type="range" id="cam-pitch-slider" min="20" max="75" step="1" value="68">
 
-                <div class="label-row" style="margin-top: 4px;">
-                    <label for="cam-zoom-slider">Zoom (距離)</label>
-                    <span id="cam-zoom-val" class="sub-val">16.5</span>
-                </div>
-                <input type="range" id="cam-zoom-slider" min="13.0" max="18.5" step="0.1" value="16.5">
+                        <div class="label-row" style="margin-top: 4px;">
+                            <label for="cam-zoom-slider">Zoom (距離)</label>
+                            <span id="cam-zoom-val" class="sub-val">16.5</span>
+                        </div>
+                        <input type="range" id="cam-zoom-slider" min="13.0" max="18.5" step="0.1" value="16.5">
+                    </div>
+                </section>
             </div>
-        </section>
+        </div>
     </div>
 
     <!-- Mini Profile Elevation Chart Overlay -->

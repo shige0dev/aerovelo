@@ -398,6 +398,46 @@ input[type="range"]::-webkit-slider-thumb {
     box-shadow: 0 0 6px var(--accent-glow);
 }
 
+/* Progress Main Row: 進捗率入力の横に 再生 / 0% をインライン配置 */
+.progress-group {
+    padding: 3px 0;
+}
+
+.progress-main-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2px;
+}
+
+.progress-info-wrap {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.ctrl-title {
+    font-size: 0.62rem;
+    font-weight: 600;
+    color: var(--text-muted);
+}
+
+.inline-play-btns {
+    display: flex;
+    gap: 3px;
+}
+
+.mini-ctrl-btn {
+    min-height: 18px !important;
+    padding: 1px 6px !important;
+    font-size: 0.58rem !important;
+    border-radius: 3px !important;
+}
+
+.speed-group {
+    padding: 2px 0 3px;
+}
+
 /* Buttons (極小・省スペース化: 高さ削減) */
 .buttons-row {
     display: flex;

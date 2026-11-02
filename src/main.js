@@ -352,8 +352,12 @@ class App {
 
         // Modal Triggers
         this.btnModalGpx = document.getElementById('btn-modal-gpx');
+        this.btnModalBle = document.getElementById('btn-modal-ble');
+        this.btnModalCam = document.getElementById('btn-modal-cam');
         this.btnModalTest = document.getElementById('btn-modal-test');
         this.modalGpx = document.getElementById('modal-gpx');
+        this.modalBle = document.getElementById('modal-ble');
+        this.modalCam = document.getElementById('modal-cam');
         this.modalTest = document.getElementById('modal-test');
 
         // TEST / キャリブレーション UI
@@ -517,6 +521,16 @@ class App {
         if (this.btnModalGpx && this.modalGpx) {
             this.btnModalGpx.addEventListener('click', () => {
                 this.modalGpx.style.display = 'flex';
+            });
+        }
+        if (this.btnModalBle && this.modalBle) {
+            this.btnModalBle.addEventListener('click', () => {
+                this.modalBle.style.display = 'flex';
+            });
+        }
+        if (this.btnModalCam && this.modalCam) {
+            this.btnModalCam.addEventListener('click', () => {
+                this.modalCam.style.display = 'flex';
             });
         }
         if (this.btnModalTest && this.modalTest) {
