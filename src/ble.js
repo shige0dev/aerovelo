@@ -248,9 +248,10 @@ export class BleTrainerManager {
         if (flags & (1 << 1)) offset += 2;
 
         // Flag bit 2: Instantaneous Cadence present
+        // Eliteスマートトレーナー(NERO等)は標準0.5rpmではなく1rpm整数の生値を送信するためそのまま採用
         if (flags & (1 << 2)) {
             if (value.byteLength >= offset + 2) {
-                cadenceRpm = value.getUint16(offset, true) * 0.5; // 0.5 rpm
+                cadenceRpm = value.getUint16(offset, true); // 1 rpm
                 offset += 2;
             }
         }
