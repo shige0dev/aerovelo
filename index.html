@@ -20,7 +20,7 @@
             <div class="header-top">
                 <h1>AeroVelo <span>3D</span></h1>
                 <div class="header-actions">
-                    <span class="version-badge" id="app-version">v1.2.1</span>
+                    <span class="version-badge" id="app-version">v1.2.2</span>
                     <button type="button" id="btn-modal-gpx" class="icon-btn" title="コース選定・GPX設定">📁</button>
                     <button type="button" id="btn-modal-ble" class="icon-btn" title="スマートトレーナー設定">⚡</button>
                     <button type="button" id="btn-modal-cam" class="icon-btn" title="カメラ・視点設定">📷</button>
@@ -30,11 +30,11 @@
             </div>
         </header>
 
-        <!-- Progress & Playback Controls (1行コンパクト配置) -->
+        <!-- Progress, Elevation Profile & Playback Controls (合体配置) -->
         <section class="control-group progress-group">
             <div class="progress-main-row">
                 <div class="progress-info-wrap">
-                    <span class="ctrl-title">進捗</span>
+                    <span class="ctrl-title" id="profile-chart-title">進捗</span>
                     <div class="input-wrap">
                         <input type="number" id="progress-input" min="0" max="100" step="0.1" value="0.0">
                         <span class="unit">%</span>
@@ -45,7 +45,12 @@
                     <button id="btn-reset" class="btn secondary mini-ctrl-btn">0%</button>
                 </div>
             </div>
-            <input type="range" id="progress-slider" min="0" max="100" step="0.05" value="0">
+
+            <!-- スライダーの真上に合体した標高プロファイルグラフ -->
+            <div class="elevation-slider-wrapper">
+                <canvas id="elevation-canvas" width="220" height="42"></canvas>
+                <input type="range" id="progress-slider" min="0" max="100" step="0.05" value="0" class="overlay-slider">
+            </div>
         </section>
 
         <!-- Compact Speed Control -->
@@ -278,12 +283,6 @@
                 </section>
             </div>
         </div>
-    </div>
-
-    <!-- Mini Profile Elevation Chart Overlay -->
-    <div id="profile-container">
-        <div class="profile-header" id="profile-chart-title">標高プロファイル</div>
-        <canvas id="elevation-canvas" width="340" height="70"></canvas>
     </div>
 
     <script type="module" src="src/main.js"></script>
