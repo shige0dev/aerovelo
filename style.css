@@ -437,38 +437,23 @@ input[type="range"]::-webkit-slider-thumb {
 
 .bottom-bar-header {
     display: flex;
-    justify-content: space-between;
+    justify-content: flex-start;
     align-items: center;
     width: 100%;
 }
 
-.bottom-progress-info {
+.bottom-stats-row {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
+    flex-wrap: wrap;
 }
 
-.bottom-title {
-    font-size: 0.68rem;
-    font-weight: 700;
-    color: var(--accent);
-    letter-spacing: 0.04em;
-}
-
-.mini-wrap {
-    padding: 1px 4px;
-}
-
-.mini-wrap input {
-    width: 44px;
-    background: transparent;
-    border: none;
-    color: #ffffff;
-    font-size: 0.72rem;
-    font-weight: 700;
-    text-align: right;
-    outline: none;
-    font-family: monospace;
+.stat-progress {
+    color: var(--accent) !important;
+    font-weight: 700 !important;
+    border-color: rgba(0, 240, 255, 0.4) !important;
+    background: rgba(0, 240, 255, 0.1) !important;
 }
 
 .bottom-course-stats {

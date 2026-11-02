@@ -372,6 +372,8 @@ class App {
         this.isManualSlopeMode = false;
 
         // ボトムバー表示要素
+        this.bottomProgressVal = document.getElementById('bottom-progress-val');
+        this.bottomAltDisplay = document.getElementById('bottom-alt-display');
         this.bottomSlopeDisplay = document.getElementById('bottom-slope-display');
         this.bottomDistDisplay = document.getElementById('bottom-dist-display');
 
@@ -414,7 +416,13 @@ class App {
 
     updateTotalDistanceUI() {
         const totalKm = (this.course.totalDistance / 1000).toFixed(2);
-        this.elTotalDist.textContent = `/ ${totalKm} km`;
+        if (this.elTotalDist) {
+            this.elTotalDist.textContent = `/ ${totalKm} km`;
+        }
+        if (this.bottomDistDisplay) {
+            const curDistKm = ((this.currentProgress * this.course.totalDistance) / 1000).toFixed(2);
+            this.bottomDistDisplay.textContent = `${curDistKm} / ${totalKm} km`;
+        }
         if (this.elCourseNameDisplay) {
             const statusTag = this.course.isGsiCorrected ? ' [DEM5A]' : '';
             this.elCourseNameDisplay.textContent = `${this.course.name}${statusTag}`;
@@ -1069,14 +1077,20 @@ class App {
 
         // 小数点下2桁に統一して数値を揃える
         const distKm = (state.distance / 1000).toFixed(2);
-        this.elDistance.textContent = distKm;
-        this.elAltitude.textContent = state.alt.toFixed(2);
+        if (this.elDistance) this.elDistance.textContent = distKm;
+        if (this.elAltitude) this.elAltitude.textContent = state.alt.toFixed(2);
 
         const sign = state.slope >= 0 ? '+' : '';
         const slopeFormatted = `${sign}${state.slope.toFixed(2)}`;
-        this.elSlope.textContent = slopeFormatted;
+        if (this.elSlope) this.elSlope.textContent = slopeFormatted;
 
-        // ボトムバーの統計表示も更新
+        // ボトムバーの統計表示も更新（進捗%, 標高, 斜度, 距離）
+        if (this.bottomProgressVal) {
+            this.bottomProgressVal.textContent = (this.currentProgress * 100).toFixed(2);
+        }
+        if (this.bottomAltDisplay) {
+            this.bottomAltDisplay.textContent = `標高: ${state.alt.toFixed(2)}m`;
+        }
         if (this.bottomSlopeDisplay) {
             this.bottomSlopeDisplay.textContent = `斜度: ${slopeFormatted}%`;
         }

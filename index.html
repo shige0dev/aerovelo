@@ -60,34 +60,7 @@
                     </span>
                 </div>
 
-                <!-- 3行目: 距離 -->
-                <div class="metric-row">
-                    <span class="metric-label">距離</span>
-                    <span class="metric-value-wrap">
-                        <span class="metric-num" id="val-distance">0.00</span>
-                        <span class="metric-unit" id="val-total-distance">/ 0.00 km</span>
-                    </span>
-                </div>
-
-                <!-- 4行目: 標高 -->
-                <div class="metric-row">
-                    <span class="metric-label">標高</span>
-                    <span class="metric-value-wrap">
-                        <span class="metric-num" id="val-altitude">0.00</span>
-                        <span class="metric-unit">m</span>
-                    </span>
-                </div>
-
-                <!-- 5行目: 斜度 -->
-                <div class="metric-row">
-                    <span class="metric-label">斜度</span>
-                    <span class="metric-value-wrap" id="val-slope-wrap">
-                        <span class="metric-num" id="val-slope">+0.00</span>
-                        <span class="metric-unit">%</span>
-                    </span>
-                </div>
-
-                <!-- 6行目: Power -->
+                <!-- 3行目: Power -->
                 <div class="metric-row ble-metric-row" id="card-power">
                     <span class="metric-label">Power</span>
                     <span class="metric-value-wrap">
@@ -96,7 +69,7 @@
                     </span>
                 </div>
 
-                <!-- 7行目: Cadence -->
+                <!-- 4行目: Cadence -->
                 <div class="metric-row ble-metric-row" id="card-cadence">
                     <span class="metric-label">Cadence</span>
                     <span class="metric-value-wrap">
@@ -139,17 +112,14 @@
         </section>
     </div>
 
-    <!-- 画面最下段 全幅バー: 進捗 ＆ 勾配 (標高プロファイル) -->
+    <!-- 画面最下段 全幅バー: 勾配 (標高プロファイル) ＆ 進捗・標高・斜度・距離 -->
     <div id="bottom-bar">
         <div class="bottom-bar-header">
-            <div class="bottom-progress-info">
-                <span class="bottom-title">進捗</span>
-                <div class="input-wrap mini-wrap">
-                    <input type="number" id="progress-input" min="0" max="100" step="0.1" value="0.0">
-                    <span class="unit">%</span>
-                </div>
-            </div>
-            <div class="bottom-course-stats">
+            <div class="bottom-stats-row">
+                <span class="bottom-stat-tag stat-progress">
+                    <span id="bottom-progress-val">0.00</span>%
+                </span>
+                <span id="bottom-alt-display" class="bottom-stat-tag">標高: 0.00m</span>
                 <span id="bottom-slope-display" class="bottom-stat-tag">斜度: +0.00%</span>
                 <span id="bottom-dist-display" class="bottom-stat-tag">0.00 / 0.00 km</span>
             </div>
