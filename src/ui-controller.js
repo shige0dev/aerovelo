@@ -30,8 +30,11 @@ export class UIController {
             courseName: $('course-name-display'),
             btnFullscreen: $('btn-fullscreen'),
             camFreeBtn: $('cam-free'),
-            btnCamVectorMode: $('btn-cam-vector-mode'),
             btnCamSmoothMode: $('btn-cam-smooth-mode'),
+            camFwdMultSlider: $('cam-fwd-mult-slider'),
+            camFwdMultVal: $('cam-fwd-mult-val'),
+            camBwdMultSlider: $('cam-bwd-mult-slider'),
+            camBwdMultVal: $('cam-bwd-mult-val'),
             camAdjustBox: $('camera-adjust-box'),
             btnGsiDem: $('btn-gsi-dem'),
             gsiBtnText: $('gsi-btn-text'),
@@ -128,8 +131,19 @@ export class UIController {
         this.bindDialog('btn-toggle-cam-dialog', 'btn-close-cam-dialog', 'camera-dialog');
         this.bindDialog('btn-modal-settings', 'btn-close-settings', 'modal-settings');
         on(el.camFreeBtn, 'click', () => cb.onToggleCameraFree?.());
-        on(el.btnCamVectorMode, 'click', () => cb.onToggleVectorMode?.());
         on(el.btnCamSmoothMode, 'click', () => cb.onToggleSmoothMode?.());
+
+        // 前方・後方ベクトル距離（速度倍率）スライダー
+        on('cam-fwd-mult-slider', 'input', (e) => {
+            const v = parseFloat(e.target.value);
+            if ($('cam-fwd-mult-val')) $('cam-fwd-mult-val').textContent = `${v.toFixed(1)}x`;
+            cb.onVectorMultiplierChange?.({ fwdMult: v });
+        });
+        on('cam-bwd-mult-slider', 'input', (e) => {
+            const v = parseFloat(e.target.value);
+            if ($('cam-bwd-mult-val')) $('cam-bwd-mult-val').textContent = `${v.toFixed(1)}x`;
+            cb.onVectorMultiplierChange?.({ bwdMult: v });
+        });
 
         [
             ['cam-pitch-slider', 'cam-pitch-val', 'pitch', (v) => `${Math.round(v)}°`],
@@ -293,15 +307,6 @@ export class UIController {
             camAdjustBox.classList.toggle('disabled', isFree);
             camAdjustBox.querySelectorAll('input').forEach((input) => { input.disabled = isFree; });
         }
-    }
-
-    updateCamVectorMode(mode) {
-        const { btnCamVectorMode } = this.el;
-        if (!btnCamVectorMode) return;
-        const isBwdFwd = (mode === 'bwdfwd');
-        btnCamVectorMode.textContent = isBwdFwd ? 'Bwd+Fwd' : 'Fwd Only';
-        btnCamVectorMode.title = isBwdFwd ? '後方0.5V〜前方Vベクトル（車体姿勢＋先読み）' : '現在地〜前方Vベクトル（先読みのみ）';
-        btnCamVectorMode.classList.toggle('active', isBwdFwd);
     }
 
     updateCamSmoothMode(enabled) {

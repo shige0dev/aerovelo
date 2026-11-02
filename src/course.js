@@ -124,27 +124,37 @@ export class GeoCourseManager {
         };
     }
 
-    getStateAtProgress(progress, speedKmh = 25, vectorMode = 'fwd') {
+    getStateAtProgress(progress, speedKmh = 25, fwdMult = 1.0, bwdMult = 0.5) {
         const u = Math.max(0, Math.min(1, progress));
         const dist = u * this.totalDistance;
         const cur = this.sampleAtDist(dist);
 
-        // 方位角（Bearing）: 速度 (m) に応じた前方ベクトルまたは前後ベクトル
-        const lookDist = Math.max(1, speedKmh);
-        let p0, p1;
+        // 方位角（Bearing）: 速度 (m) × 個別倍率に応じた前後ベクトル
+        const v = Math.max(1, speedKmh);
+        const fwdDist = v * Math.max(0, fwdMult);
+        const bwdDist = v * Math.max(0, bwdMult);
 
-        if (vectorMode === 'bwdfwd') {
-            // 後方(0.5V) 〜 前方(V) ベクトル: 過去の軌跡（車体姿勢）を保ちつつ進行先を捉える
-            p0 = this.sampleAtDist(dist - lookDist * 0.5);
-            p1 = this.sampleAtDist(dist + lookDist);
-        } else {
-            // 前方のみ: 現在地 〜 前方(V) ベクトル
+        let p0, p1;
+        if (fwdDist === 0 && bwdDist === 0) {
+            // 両方0の場合は微小前方を参照してゼロ除算防止
             p0 = cur;
-            p1 = this.sampleAtDist(dist + lookDist);
-            if (dist + lookDist > this.totalDistance) {
-                p0 = this.sampleAtDist(Math.max(0, this.totalDistance - lookDist));
+            p1 = this.sampleAtDist(dist + 1);
+        } else if (bwdDist === 0) {
+            // 後方0: 現在地（走行点）〜 前方
+            p0 = cur;
+            p1 = this.sampleAtDist(dist + fwdDist);
+            if (dist + fwdDist > this.totalDistance) {
+                p0 = this.sampleAtDist(Math.max(0, this.totalDistance - fwdDist));
                 p1 = this.sampleAtDist(this.totalDistance);
             }
+        } else if (fwdDist === 0) {
+            // 前方0: 後方 〜 現在地（走行点）
+            p0 = this.sampleAtDist(dist - bwdDist);
+            p1 = cur;
+        } else {
+            // 前後指定: 後方 〜 前方
+            p0 = this.sampleAtDist(dist - bwdDist);
+            p1 = this.sampleAtDist(dist + fwdDist);
         }
 
         // 斜度（Slope）は前後25mの連続標高差から算出
@@ -162,7 +172,7 @@ export class GeoCourseManager {
             bearing: GeoCourseManager.calcBearing(p0.lon, p0.lat, p1.lon, p1.lat),
             slope,
             fwdPoint: { lon: p1.lon, lat: p1.lat },
-            bwdPoint: (vectorMode === 'bwdfwd') ? { lon: p0.lon, lat: p0.lat } : null
+            bwdPoint: { lon: p0.lon, lat: p0.lat }
         };
     }
 
