@@ -189,8 +189,12 @@ export class UIController {
         on(el.camFreeBtn, 'click', () => cb.onToggleCameraFree?.());
         on(el.compassBtn, 'click', () => cb.onResetNorth?.());
 
-        // 注視点 HIDE ボタン（ハイライト時＝消去中、消灯時＝表示中）
-        [['btn-toggle-fwd-marker', 'fwd'], ['btn-toggle-bwd-marker', 'bwd']].forEach(([id, key]) => {
+        // 等高線・注視点 HIDE ボタン（ハイライト時＝消去中、消灯時＝表示中）
+        [
+            ['btn-toggle-contour', 'contour'],
+            ['btn-toggle-fwd-marker', 'fwd'],
+            ['btn-toggle-bwd-marker', 'bwd']
+        ].forEach(([id, key]) => {
             let visible = true;
             const btn = $(id);
             on(btn, 'click', () => {

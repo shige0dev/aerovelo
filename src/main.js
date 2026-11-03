@@ -95,7 +95,8 @@ class App {
     parseAndApplyGPX(gpxText, fallbackName) {
         const { courseName, waypoints } = GPXParser.parse(gpxText);
         const finalName = courseName !== 'カスタムコース' ? courseName : fallbackName.replace(/\.gpx$/i, '');
-        this.course = new GeoCourseManager(waypoints, finalName);
+        const activeCourse = new GeoCourseManager(waypoints, finalName);
+        this.course = activeCourse;
         this.setPlayState(false);
         this.currentProgress = 0.0;
 
@@ -103,6 +104,14 @@ class App {
         this.chart.setCourse(this.course);
         this.mapView.setCourse(this.course, this.currentState());
         this.updateState(0.0);
+
+        // 3D画面の地形DEMタイルから標高を自動同期（画面の地形・等高線と標高・勾配を完全一致させる）
+        activeCourse.syncWithTerrainDem().then((synced) => {
+            if (synced && this.course === activeCourse && !activeCourse.isGsiCorrected) {
+                this.chart.setCourse(this.course);
+                this.updateState(this.currentProgress);
+            }
+        }).catch((err) => console.warn('Terrain DEM sync skipped:', err));
     }
 
     async loadDefaultGPX(url) {

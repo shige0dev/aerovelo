@@ -6,9 +6,10 @@
     <title>AeroVelo - 3D Terrain Virtual Cycling</title>
     <link rel="stylesheet" href="style.css">
     
-    <!-- MapLibre GL JS (3D Terrain & Satellite) -->
+    <!-- MapLibre GL JS (3D Terrain, Satellite & Real-time Contour Lines) -->
     <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
     <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+    <script src="https://unpkg.com/maplibre-contour@0.0.5/dist/index.min.js"></script>
 </head>
 <body>
     <!-- Fullscreen 3D Map Container -->
@@ -18,7 +19,7 @@
     <div id="top-bar">
         <div class="top-title-group">
             <h1 class="top-app-title">AeroVelo</h1>
-            <span class="version-badge" id="app-version">v1.9.3</span>
+            <span class="version-badge" id="app-version">v1.9.4</span>
         </div>
         <div class="top-course-group">
             <span id="course-name-display" class="top-course-title">読み込み中...</span>
@@ -113,6 +114,14 @@
             <button type="button" id="btn-close-cam-dialog" class="dialog-close" title="閉じる">✕</button>
         </div>
         <div id="camera-adjust-box" class="camera-adjust-box">
+            <div class="label-row" style="margin-bottom: 2px;">
+                <div class="label-with-btn">
+                    <label>Contour</label>
+                    <button type="button" id="btn-toggle-contour" class="btn mini-cam-free marker-toggle-btn" title="等高線 (5m/25m) の表示/非表示">HIDE</button>
+                </div>
+                <span class="sub-val">5m / 25m</span>
+            </div>
+
             <div class="label-row" style="margin-bottom: 2px;">
                 <label for="cam-smooth-slider">Smooth</label>
                 <span id="cam-smooth-val" class="sub-val">5 (標準)</span>

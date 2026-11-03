@@ -1,9 +1,11 @@
 /**
- * 3D Terrain Map & Chase Camera Controller (MapLibre GL JS)
- * Handles satellite/terrain rendering, route line layers, rider marker, and camera tracking.
+ * 3D Terrain Map, Real-time Contour Lines, & Chase Camera Controller (MapLibre GL JS)
+ * Handles satellite/terrain rendering, DEM contour isolines, route layers, and camera tracking.
  */
 
 import { clamp } from './course.js';
+
+const DEM_TILE_URL = 'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png';
 
 export class MapViewController {
     constructor(containerId = 'map', initialState = { lon: 138.583, lat: 35.474, bearing: 0 }, onCameraChange = null) {
@@ -20,7 +22,8 @@ export class MapViewController {
         };
         this.lastState = initialState;
         this.markers = { rider: null, fwd: null, bwd: null };
-        this.markerVisible = { fwd: true, bwd: true };
+        this.markerVisible = { fwd: true, bwd: true, contour: true };
+        this.demSource = null;
 
         this.initMap(initialState);
         this.setupMainScreenSwipe();
@@ -31,27 +34,114 @@ export class MapViewController {
     }
 
     initMap(startState) {
+        // maplibre-contour によるリアルタイム等高線生成プロトコル登録
+        if (window.mlcontour) {
+            try {
+                this.demSource = new window.mlcontour.DemSource({
+                    url: DEM_TILE_URL,
+                    encoding: 'terrarium',
+                    maxzoom: 14,
+                    worker: true
+                });
+                this.demSource.setupMaplibre(maplibregl);
+            } catch (err) {
+                console.warn('Contour DemSource setup error:', err);
+                this.demSource = null;
+            }
+        }
+
+        const sources = {
+            'satellite': {
+                type: 'raster',
+                tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
+                tileSize: 256,
+                attribution: 'Tiles &copy; Esri, Maxar, Earthstar Geographics'
+            },
+            'terrain-dem': {
+                type: 'raster-dem',
+                tiles: [this.demSource ? this.demSource.sharedDemProtocolUrl : DEM_TILE_URL],
+                encoding: 'terrarium',
+                tileSize: 256,
+                maxzoom: 14
+            }
+        };
+
+        const layers = [
+            { id: 'satellite-layer', type: 'raster', source: 'satellite', minzoom: 0, maxzoom: 22 }
+        ];
+
+        if (this.demSource) {
+            sources['contours'] = {
+                type: 'vector',
+                tiles: [
+                    this.demSource.contourProtocolUrl({
+                        multiplier: 1,
+                        thresholds: {
+                            11: [100, 500],
+                            12: [50, 250],
+                            13: [20, 100],
+                            14: [10, 50],
+                            15: [5, 25]
+                        },
+                        elevationKey: 'ele',
+                        levelKey: 'level',
+                        contourLayer: 'contours'
+                    })
+                ],
+                maxzoom: 16
+            };
+
+            layers.push(
+                {
+                    id: 'contour-lines',
+                    type: 'line',
+                    source: 'contours',
+                    'source-layer': 'contours',
+                    paint: {
+                        'line-color': [
+                            'match',
+                            ['get', 'level'],
+                            1, 'rgba(255, 215, 64, 0.80)',
+                            'rgba(255, 235, 150, 0.38)'
+                        ],
+                        'line-width': [
+                            'match',
+                            ['get', 'level'],
+                            1, 1.6,
+                            0.85
+                        ]
+                    }
+                },
+                {
+                    id: 'contour-labels',
+                    type: 'symbol',
+                    source: 'contours',
+                    'source-layer': 'contours',
+                    filter: ['>', ['get', 'level'], 0],
+                    layout: {
+                        'symbol-placement': 'line',
+                        'text-field': ['concat', ['get', 'ele'], 'm'],
+                        'text-font': ['Open Sans Regular'],
+                        'text-size': 10,
+                        'text-max-angle': 25
+                    },
+                    paint: {
+                        'text-color': '#fef08a',
+                        'text-halo-color': 'rgba(15, 23, 42, 0.92)',
+                        'text-halo-width': 1.5
+                    }
+                }
+            );
+        }
+
         this.map = new maplibregl.Map({
             container: this.containerId,
             fadeDuration: 0,
             style: {
                 version: 8,
-                sources: {
-                    'satellite': {
-                        type: 'raster',
-                        tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
-                        tileSize: 256,
-                        attribution: 'Tiles &copy; Esri, Maxar, Earthstar Geographics'
-                    },
-                    'terrain-dem': {
-                        type: 'raster-dem',
-                        tiles: ['https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'],
-                        encoding: 'terrarium',
-                        tileSize: 256,
-                        maxzoom: 14
-                    }
-                },
-                layers: [{ id: 'satellite-layer', type: 'raster', source: 'satellite', minzoom: 0, maxzoom: 22 }],
+                glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
+                sources,
+                layers,
                 sky: {
                     'sky-color': '#1e293b',
                     'sky-horizon-blend': 0.6,
@@ -69,7 +159,8 @@ export class MapViewController {
         });
 
         this.map.on('load', () => {
-            this.map.setTerrain({ source: 'terrain-dem', exaggeration: 1.15 });
+            // 3D地形の高さ倍率を 1.0 (実寸) に設定し、計算標高・等高線・視覚勾配を完全一致させる
+            this.map.setTerrain({ source: 'terrain-dem', exaggeration: 1.0 });
 
             const makeMarker = (cls, html) => {
                 const el = document.createElement('div');
@@ -157,6 +248,14 @@ export class MapViewController {
 
     setMarkerVisibility(visibility) {
         Object.assign(this.markerVisible, visibility);
+        if (typeof visibility.contour === 'boolean' && this.map) {
+            const val = visibility.contour ? 'visible' : 'none';
+            for (const id of ['contour-lines', 'contour-labels']) {
+                if (this.map.getLayer(id)) {
+                    this.map.setLayoutProperty(id, 'visibility', val);
+                }
+            }
+        }
         this.syncTargetMarkers();
     }
 
@@ -243,7 +342,7 @@ export class MapViewController {
     applyCameraTarget(state, duration = 0, isMoving = false) {
         if (!this.map || this.cam.mode === 'free' || !state) return;
 
-        let targetPitch = this.cam.pitch;
+        const targetPitch = this.cam.pitch;
         const targetBearing = (state.bearing - this.cam.orbit + 360) % 360;
 
         // スムージング度合い0（無効時）、初回ロード時、アニメーション指定時、または停止中（手動操作時）は即座に目標方向へ向く
@@ -256,16 +355,6 @@ export class MapViewController {
             const maxStep = 7.5 / scale;
             const step = clamp(diff * factor, -maxStep, maxStep);
             this.cam.bearing = (this.cam.bearing + step + 360) % 360;
-        }
-
-        if (this.map.queryTerrainElevation) {
-            const rad = (this.cam.bearing + 180) * (Math.PI / 180);
-            const camLon = state.lon + (50 * Math.sin(rad)) / (111320 * Math.cos(state.lat * Math.PI / 180));
-            const camLat = state.lat + (50 * Math.cos(rad)) / 110574;
-            const terrainAlt = this.map.queryTerrainElevation([camLon, camLat]);
-            if (terrainAlt !== null && terrainAlt > state.alt + 12) {
-                targetPitch = Math.min(targetPitch, 45);
-            }
         }
 
         const cameraOptions = {

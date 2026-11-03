@@ -3,7 +3,7 @@
  * 3D Route Interpolation, Distance, Bearing, and Road-Grade Calculation Engine
  */
 
-import { fetchGsi5mWaypoints } from './gpx-gsi.js';
+import { fetchGsi5mWaypoints, fetchTerrainDemElevations } from './gpx-gsi.js';
 
 const DEG_TO_RAD = Math.PI / 180;
 export const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
@@ -28,10 +28,12 @@ export class GeoCourseManager {
     constructor(waypoints = DEFAULT_LAKE_ROUTE, name = 'コース') {
         this.name = name;
         this.rawWaypoints = waypoints;
+        this.rawSamples = [];
         this.interpolatedPoints = [];
         this.totalDistance = 0;
         this.cumDistances = [];
         this.isGsiCorrected = false;
+        this.isTerrainSynced = false;
         this.initInterpolation();
     }
 
@@ -40,13 +42,30 @@ export class GeoCourseManager {
         return !!p0 && p0.lat >= 20 && p0.lat <= 46 && p0.lon >= 122 && p0.lon <= 154;
     }
 
+    /**
+     * 3Dマップと同一の Terrarium DEM タイルからコース標高を自動同期（画面の地形・等高線と100%一致）
+     */
+    async syncWithTerrainDem() {
+        if (this.isGsiCorrected) return false;
+        const elevations = await fetchTerrainDemElevations(this.rawSamples);
+        if (!elevations || this.isGsiCorrected) return false;
+
+        this.rawSamples = this.rawSamples.map((s, i) => ({ ...s, alt: elevations[i] }));
+        this.applyElevationFilter(this.rawSamples);
+        this.isTerrainSynced = true;
+        return true;
+    }
+
+    /**
+     * 国土地理院 5mメッシュ（DEM5A）から等距離サンプリングで標高・斜度を再計算
+     */
     async recalculateWithGSI5m(onProgress = null) {
         if (!this.isWithinJapan()) {
             throw new Error('国土地理院の標高メッシュは日本国内のコースのみ対応しています。');
         }
-        this.rawWaypoints = await fetchGsi5mWaypoints(this.rawWaypoints, this.totalDistance, onProgress);
+        this.rawSamples = await fetchGsi5mWaypoints(this.rawSamples, this.totalDistance, onProgress);
+        this.applyElevationFilter(this.rawSamples);
         this.isGsiCorrected = true;
-        this.initInterpolation();
         return true;
     }
 
@@ -77,7 +96,7 @@ export class GeoCourseManager {
         this.totalDistance = total;
 
         const SAMPLES = Math.min(4000, Math.max(1000, Math.round(total / 5)));
-        const rawSamples = [];
+        this.rawSamples = [];
         let segIdx = 0;
 
         for (let i = 0; i <= SAMPLES; i++) {
@@ -88,7 +107,7 @@ export class GeoCourseManager {
             const d0 = this.cumDistances[segIdx], d1 = this.cumDistances[segIdx + 1];
             const r = d1 > d0 ? (targetDist - d0) / (d1 - d0) : 0;
             const p0 = this.rawWaypoints[segIdx], p1 = this.rawWaypoints[segIdx + 1];
-            rawSamples.push({
+            this.rawSamples.push({
                 dist: targetDist,
                 lon: lerp(p0.lon, p1.lon, r),
                 lat: lerp(p0.lat, p1.lat, r),
@@ -96,14 +115,19 @@ export class GeoCourseManager {
             });
         }
 
-        const stepDist = total / SAMPLES;
+        this.applyElevationFilter(this.rawSamples);
+    }
 
-        // 1段目: メディアンフィルター（突発的な外れ値・崖/橋底のスパイクノイズを完全消去）
-        const medHalfWin = Math.max(2, Math.round(12 / (stepDist || 1)));
-        const medianFiltered = rawSamples.map((s, idx) => {
-            const start = Math.max(0, idx - medHalfWin), end = Math.min(SAMPLES, idx + medHalfWin);
+    applyElevationFilter(samples) {
+        const count = samples.length - 1;
+        const stepDist = this.totalDistance / (count || 1);
+
+        // 1段目: メディアンフィルター（前後8m・スパイクノイズ除去）
+        const medHalfWin = Math.max(1, Math.round(8 / (stepDist || 1)));
+        const medianFiltered = samples.map((s, idx) => {
+            const start = Math.max(0, idx - medHalfWin), end = Math.min(count, idx + medHalfWin);
             const windowAlts = [];
-            for (let k = start; k <= end; k++) windowAlts.push(rawSamples[k].alt);
+            for (let k = start; k <= end; k++) windowAlts.push(samples[k].alt);
             windowAlts.sort((a, b) => a - b);
             const mid = Math.floor(windowAlts.length / 2);
             const medAlt = (windowAlts.length % 2 === 1)
@@ -112,10 +136,10 @@ export class GeoCourseManager {
             return { dist: s.dist, lon: s.lon, lat: s.lat, alt: medAlt };
         });
 
-        // 2段目: 約30m区間（前後15m）の移動平均フィルター（微細な段差を均してシャープでリアルな道路勾配を生成）
-        const halfWin = Math.max(2, Math.round(15 / (stepDist || 1)));
+        // 2段目: 前後10m（計20m区間）の移動平均フィルター（段差を均しつつ勾配変化のレスポンスを維持）
+        const halfWin = Math.max(1, Math.round(10 / (stepDist || 1)));
         this.interpolatedPoints = medianFiltered.map((s, idx) => {
-            const start = Math.max(0, idx - halfWin), end = Math.min(SAMPLES, idx + halfWin);
+            const start = Math.max(0, idx - halfWin), end = Math.min(count, idx + halfWin);
             let sumAlt = 0;
             for (let k = start; k <= end; k++) sumAlt += medianFiltered[k].alt;
             return { dist: s.dist, lon: s.lon, lat: s.lat, alt: sumAlt / (end - start + 1) };
@@ -152,18 +176,17 @@ export class GeoCourseManager {
         let p1 = fwdDist === 0 ? cur : this.sampleAtDist(dist + fwdDist);
         let b0 = p0, b1 = p1;
 
-        // 始終端クランプや両方0で同一座標になった場合の安全フォールバック
         if (b1.dist <= b0.dist) {
             const span = Math.max(1, fwdDist || bwdDist);
             b0 = this.sampleAtDist(Math.max(0, dist - span * 0.5));
             b1 = this.sampleAtDist(Math.min(this.totalDistance, b0.dist + span));
         }
 
-        // 斜度（Slope）は前後25mの連続標高差から算出
-        const bwdSlope = this.sampleAtDist(dist - 25);
-        const fwdSlope = this.sampleAtDist(dist + 25);
+        // 斜度（Slope）: 後方2m〜前方12m（計14m・現在地から目の前の坂）の標高差から遅れなく算出
+        const bwdSlope = this.sampleAtDist(dist - 2);
+        const fwdSlope = this.sampleAtDist(dist + 12);
         const roadDist = fwdSlope.dist - bwdSlope.dist;
-        const slope = roadDist > 5 ? Math.round(((fwdSlope.alt - bwdSlope.alt) / roadDist) * 1000) / 10 : 0;
+        const slope = roadDist > 2 ? Math.round(((fwdSlope.alt - bwdSlope.alt) / roadDist) * 1000) / 10 : 0;
 
         return {
             u,
