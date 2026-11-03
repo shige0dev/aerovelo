@@ -7,57 +7,40 @@ import { clamp } from './course.js';
 import { decodeAndFillGsiTile, encodeTerrariumPixel } from './gpx-gsi.js';
 
 const DEM_AWS_BASE = 'https://s3.amazonaws.com/elevation-tiles-prod/terrarium';
-const DEM_TILE_URL = 'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png';
 const HYBRID_DEM_URL = 'gsi-dem://{z}/{x}/{y}';
 
-// 国土地理院 10mメッシュ (dem_png, z<=14) と AWS 30m メッシュを1:1座標で統合するプロトコル (gsi-dem://)
-let isGsiProtocolRegistered = false;
-function registerGsiDemProtocol() {
-    if (isGsiProtocolRegistered || !window.maplibregl?.addProtocol) return;
-    isGsiProtocolRegistered = true;
+// タイルメモリキャッシュ（3D地形とコンター生成で同一タイルを1回だけフェッチ・変換）
+const tileCache = new Map();
+const inFlightTiles = new Map();
 
-    maplibregl.addProtocol('gsi-dem', (params, callback) => {
-        let isCancelled = false;
-        const match = params.url.match(/gsi-dem:\/\/(\d+)\/(\d+)\/(\d+)/);
-        if (!match) {
-            callback(new Error('Invalid gsi-dem URL'));
-            return { cancel: () => {} };
-        }
-        const z = parseInt(match[1], 10);
-        const x = parseInt(match[2], 10);
-        const y = parseInt(match[3], 10);
+/**
+ * 国土地理院 10mメッシュ (dem_png z<=14) を取得し、水面補完＋Terrarium形式RGB (ArrayBuffer) に変換する共通関数
+ */
+async function fetchGsiTerrariumPng(z, x, y) {
+    const key = `${z}/${x}/${y}`;
+    if (tileCache.has(key)) return tileCache.get(key);
+    if (inFlightTiles.has(key)) return inFlightTiles.get(key);
 
-        // 日本のタイル範囲（経度122〜154、緯度20〜46）判定
+    const promise = (async () => {
+        // 日本国外または広域低ズーム(z < 9)または z > 14 は AWS Terrarium へフォールバック
         const n = 2 ** z;
         const lonMin = (x / n) * 360 - 180;
         const lonMax = ((x + 1) / n) * 360 - 180;
         const isJapan = lonMin < 154 && lonMax > 122;
 
-        const fallbackAws = () => {
-            if (isCancelled) return;
-            fetch(`${DEM_AWS_BASE}/${z}/${x}/${y}.png?_c=1`)
-                .then((res) => {
-                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                    return res.arrayBuffer();
-                })
-                .then((buf) => callback(null, buf, null, null))
-                .catch((err) => callback(err));
-        };
-
-        // 日本国外または広域低ズーム(z < 9)は AWS Terrarium へフォールバック
         if (!isJapan || z < 9 || z > 14) {
-            fallbackAws();
-            return { cancel: () => { isCancelled = true; } };
+            const res = await fetch(`${DEM_AWS_BASE}/${z}/${x}/${y}.png?_c=1`);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            return await res.arrayBuffer();
         }
 
         // 日本国内 (z=9〜14): 国土地理院 10mメッシュ統合タイル (dem_png) を 1:1 座標で取得・変換
-        const tryGsi = async () => {
+        try {
             const url = `https://cyberjapandata.gsi.go.jp/xyz/dem_png/${z}/${x}/${y}.png`;
             const res = await fetch(url);
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const blob = await res.blob();
             const img = await createImageBitmap(blob);
-            if (isCancelled) return;
 
             const canvas = document.createElement('canvas');
             canvas.width = 256;
@@ -70,8 +53,8 @@ function registerGsiDemProtocol() {
             // 水面(NoData)を周囲の水際標高でシームレスに補完し、Terrarium RGB形式へ変換
             const grid = decodeAndFillGsiTile(d);
             if (!grid) {
-                fallbackAws();
-                return;
+                const awsRes = await fetch(`${DEM_AWS_BASE}/${z}/${x}/${y}.png?_c=1`);
+                return await awsRes.arrayBuffer();
             }
 
             for (let i = 0; i < 65536; i++) {
@@ -84,15 +67,75 @@ function registerGsiDemProtocol() {
             }
 
             ctx.putImageData(imgData, 0, 0);
-            canvas.toBlob((outBlob) => {
-                if (isCancelled || !outBlob) return;
-                outBlob.arrayBuffer().then((buf) => callback(null, buf, null, null));
-            }, 'image/png');
-        };
+            const outBlob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+            if (!outBlob) throw new Error('toBlob failed');
+            return await outBlob.arrayBuffer();
+        } catch {
+            const awsRes = await fetch(`${DEM_AWS_BASE}/${z}/${x}/${y}.png?_c=1`);
+            return await awsRes.arrayBuffer();
+        }
+    })();
 
-        tryGsi().catch(() => fallbackAws());
-        return { cancel: () => { isCancelled = true; } };
-    });
+    inFlightTiles.set(key, promise);
+    try {
+        const buf = await promise;
+        tileCache.set(key, buf);
+        if (tileCache.size > 200) {
+            const oldest = tileCache.keys().next().value;
+            tileCache.delete(oldest);
+        }
+        return buf;
+    } finally {
+        inFlightTiles.delete(key);
+    }
+}
+
+// 国土地理院 10mメッシュを 3D地形 (MapLibre addProtocol) および等高線 (fetch hook) の双方に直結
+let isGsiProtocolRegistered = false;
+function registerGsiDemProtocol() {
+    if (isGsiProtocolRegistered) return;
+    isGsiProtocolRegistered = true;
+
+    // 1. window.fetch をフックして gsi-dem:// をインターセプト
+    // これにより mlcontour (worker: false) が呼ぶ fetch も完全に国土地理院 10m メッシュになる
+    const origFetch = window.fetch;
+    window.fetch = async function(input, init) {
+        const urlStr = typeof input === 'string' ? input : (input?.url || '');
+        const match = urlStr.match(/^gsi-dem:\/\/(\d+)\/(\d+)\/(\d+)/);
+        if (match) {
+            try {
+                const z = parseInt(match[1], 10);
+                const x = parseInt(match[2], 10);
+                const y = parseInt(match[3], 10);
+                const buf = await fetchGsiTerrariumPng(z, x, y);
+                return new Response(buf, {
+                    status: 200,
+                    headers: { 'Content-Type': 'image/png' }
+                });
+            } catch (err) {
+                return new Response(null, { status: 404, statusText: err.message });
+            }
+        }
+        return origFetch.apply(this, arguments);
+    };
+
+    // 2. MapLibre GL JS の addProtocol にも登録 (3D地形用)
+    if (window.maplibregl?.addProtocol) {
+        maplibregl.addProtocol('gsi-dem', (params, callback) => {
+            const match = params.url.match(/gsi-dem:\/\/(\d+)\/(\d+)\/(\d+)/);
+            if (!match) {
+                callback(new Error('Invalid gsi-dem URL'));
+                return { cancel: () => {} };
+            }
+            const z = parseInt(match[1], 10);
+            const x = parseInt(match[2], 10);
+            const y = parseInt(match[3], 10);
+            fetchGsiTerrariumPng(z, x, y)
+                .then((buf) => callback(null, buf, null, null))
+                .catch((err) => callback(err));
+            return { cancel: () => {} };
+        });
+    }
 }
 
 export class MapViewController {
@@ -125,15 +168,15 @@ export class MapViewController {
     }
 
     initMap(startState) {
-        // maplibre-contour による等高線生成プロトコル登録
-        // ※mlcontourのWeb Workerは外部HTTP(S)URLからTerrarium DEMを直接フェッチして超高速にベクトル等高線を生成
+        // maplibre-contour による国土地理院 10m メッシュ等高線生成プロトコル登録
+        // worker: false によりメインスレッドの fetch フックを通して gsi-dem:// (10mメッシュ) から直接生成
         if (window.mlcontour) {
             try {
                 this.demSource = new window.mlcontour.DemSource({
-                    url: DEM_TILE_URL,
+                    url: HYBRID_DEM_URL,
                     encoding: 'terrarium',
                     maxzoom: 14,
-                    worker: true
+                    worker: false
                 });
                 this.demSource.setupMaplibre(maplibregl);
             } catch (err) {
