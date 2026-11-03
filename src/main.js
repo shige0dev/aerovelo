@@ -1,11 +1,9 @@
-import { GeoCourseManager, DEFAULT_LAKE_ROUTE } from './course.js';
+import { GeoCourseManager, DEFAULT_LAKE_ROUTE, clamp } from './course.js';
 import { GPXParser } from './gpx-gsi.js';
 import { BleTrainerManager } from './ble.js';
 import { ElevationChart } from './elevation-chart.js';
 import { MapViewController } from './map-view.js';
 import { UIController } from './ui-controller.js';
-
-const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
 
 class App {
     constructor() {
@@ -22,7 +20,6 @@ class App {
         this.lfoStartTime = 0;
         this.camFwdMult = 2.0;
         this.camBwdMult = 1.0;
-        this.camSmoothStrength = 5;
 
         // Bluetooth Smart Trainer
         this.bleManager = new BleTrainerManager();
@@ -49,14 +46,10 @@ class App {
                 if (bwdMult !== undefined) this.camBwdMult = bwdMult;
                 this.updateState(this.currentProgress, true);
             },
-            onSmoothChange: (strength) => {
-                this.camSmoothStrength = strength;
-                this.mapView.setSmoothing(strength);
-            },
             onToggleMarker: (type, isVisible) => this.mapView.setMarkerVisibility({ [type]: isVisible }),
             onResetNorth: () => {
-                this.mapView.setCameraParams({ orbitAngleOffset: 0 }, this.currentState());
-                this.ui.syncCameraParams({ orbitAngleOffset: 0 });
+                this.mapView.setCameraParams({ orbit: 0 }, this.currentState());
+                this.ui.syncCameraParams({ orbit: 0 });
             },
             onCameraParamChange: (params) => this.mapView.setCameraParams(params, this.currentState()),
             onFullscreenChange: () => setTimeout(() => this.handleResize(), 100),
@@ -72,12 +65,7 @@ class App {
         this.chart.setCourse(this.course);
 
         const startState = this.currentState();
-        this.mapView = new MapViewController('map', startState, (params) => {
-            this.ui.syncCameraParams(params);
-            if (typeof params.bearing === 'number') {
-                this.ui.updateCompass(params.bearing);
-            }
-        });
+        this.mapView = new MapViewController('map', startState, (params) => this.ui.syncCameraParams(params));
         this.mapView.setCourse(this.course, startState);
 
         // 3. イベント配線 & メインループ開始
@@ -274,9 +262,7 @@ class App {
                         this.setPlayState(false);
                         this.updateState(1.0);
                         setTimeout(() => {
-                            if (!this.isPlaying) {
-                                this.setManualProgress(0.0);
-                            }
+                            if (!this.isPlaying) this.setManualProgress(0.0);
                         }, 500);
                     } else {
                         this.updateState(1.0);

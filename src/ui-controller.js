@@ -3,11 +3,22 @@
  * Encapsulates all DOM queries, HUD/Bottom-bar updates, modals, sliders, and file controls.
  */
 
+import { clamp } from './course.js';
+
 const $ = (id) => document.getElementById(id);
 const on = (elOrId, type, fn, opts) => {
     const el = typeof elOrId === 'string' ? $(elOrId) : elOrId;
     el?.addEventListener(type, fn, opts);
     return el;
+};
+
+const CAM_SLIDER_FORMATTERS = {
+    smooth: (v) => v === 0 ? 'OFF' : (v === 5 ? '5 (標準)' : `${v}`),
+    fwdMult: (v) => `${v.toFixed(1)}x`,
+    bwdMult: (v) => `${v.toFixed(1)}x`,
+    pitch: (v) => `${Math.round(v)}°`,
+    orbit: (v) => v === 0 ? '0°' : `${v > 0 ? '+' : ''}${Math.round(v)}°`,
+    zoom: (v) => v.toFixed(1)
 };
 
 export class UIController {
@@ -27,20 +38,28 @@ export class UIController {
             zoom: $('hud-zoom-val')
         };
 
+        // カメラスライダー＆数値表示の定義マップ
+        this.camControls = {
+            smooth: { slider: $('cam-smooth-slider'), val: $('cam-smooth-val') },
+            fwdMult: { slider: $('cam-fwd-mult-slider'), val: $('cam-fwd-mult-val') },
+            bwdMult: { slider: $('cam-bwd-mult-slider'), val: $('cam-bwd-mult-val') },
+            orbit: { slider: $('cam-orbit-slider'), val: $('cam-orbit-val') },
+            pitch: { slider: $('cam-pitch-slider'), val: $('cam-pitch-val') },
+            zoom: { slider: $('cam-zoom-slider'), val: $('cam-zoom-val') }
+        };
+
         this.el = {
             btnPlay: $('btn-play'),
             canvasSpeedVal: $('canvas-speed-val'),
             autorunSpeedBox: $('autorun-speed-box'),
             totalDistTag: $('bottom-total-dist-tag'),
-            rowSlopeCtrl: $('row-slope-ctrl'),
+            hudRowLoad: $('hud-row-load'),
             btnManualMode: $('btn-manual-mode'),
-            rowZoomCtrl: $('row-zoom-ctrl'),
+            hudRowZoom: $('hud-row-zoom'),
             courseName: $('course-name-display'),
             btnFullscreen: $('btn-fullscreen'),
             camFreeBtn: $('cam-free'),
             camAdjustBox: $('camera-adjust-box'),
-            camZoomSlider: $('cam-zoom-slider'),
-            camZoomVal: $('cam-zoom-val'),
             compassBtn: $('compass-btn'),
             compassDial: $('compass-dial'),
             btnGsiDem: $('btn-gsi-dem'),
@@ -69,7 +88,7 @@ export class UIController {
 
     /**
      * 要素の上下ドラッグ（Pointer Events）＆ホイールによる汎用数値スクラバー
-     * DOMからのテキスト逆読みを廃し、min/max/step/pxPerStepで疎結合に制御
+     * DOMからの文字列逆読みを廃し、min/max/step/pxPerStepで疎結合に制御
      */
     bindScrubber(element, { min, max, step, pxPerStep, isEnabled = () => true, getValue, onInput }) {
         if (!element) return;
@@ -77,8 +96,7 @@ export class UIController {
 
         const clampRound = (val) => {
             const stepped = Math.round(val / step) * step;
-            const fixed = Number(stepped.toFixed(2));
-            return Math.max(min, Math.min(max, fixed));
+            return clamp(Number(stepped.toFixed(2)), min, max);
         };
 
         on(element, 'pointerdown', (e) => {
@@ -149,18 +167,18 @@ export class UIController {
         });
 
         // 2. 上部HUD Load (負荷) スクラバー (常時有効・操作時にManualへ自動切替)
-        this.bindScrubber(el.rowSlopeCtrl, {
+        this.bindScrubber(el.hudRowLoad, {
             min: 0, max: 7, step: 0.1, pxPerStep: 3,
             getValue: () => cb.getManualSlope?.() ?? 0.0,
             onInput: (v) => cb.onManualSlopeInput?.(v, true)
         });
 
         // 3. 上部HUD Zoom スクラバー
-        this.bindScrubber(el.rowZoomCtrl, {
+        this.bindScrubber(el.hudRowZoom, {
             min: 13.0, max: 18.5, step: 0.1, pxPerStep: 4,
             getValue: () => this.currentZoom,
             onInput: (v) => {
-                this.syncZoomUI(v);
+                this.syncCameraParams({ zoom: v });
                 cb.onCameraParamChange?.({ zoom: v });
             }
         });
@@ -182,22 +200,18 @@ export class UIController {
             });
         });
 
-        // カメラ調整スライダー一括バインド
-        [
-            ['cam-smooth-slider', 'cam-smooth-val', (v) => v === 0 ? 'OFF' : (v === 5 ? '5 (標準)' : `${v}`), (v) => cb.onSmoothChange?.(v)],
-            ['cam-fwd-mult-slider', 'cam-fwd-mult-val', (v) => `${v.toFixed(1)}x`, (v) => cb.onVectorMultiplierChange?.({ fwdMult: v })],
-            ['cam-bwd-mult-slider', 'cam-bwd-mult-val', (v) => `${v.toFixed(1)}x`, (v) => cb.onVectorMultiplierChange?.({ bwdMult: v })],
-            ['cam-pitch-slider', 'cam-pitch-val', (v) => `${Math.round(v)}°`, (v) => cb.onCameraParamChange?.({ pitch: v })],
-            ['cam-orbit-slider', 'cam-orbit-val', (v) => v === 0 ? '0°' : `${v > 0 ? '+' : ''}${Math.round(v)}°`, (v) => cb.onCameraParamChange?.({ orbitAngleOffset: v })],
-            ['cam-zoom-slider', null, null, (v) => { this.syncZoomUI(v); cb.onCameraParamChange?.({ zoom: v }); }]
-        ].forEach(([sliderId, valId, fmt, handler]) => {
-            const valEl = valId ? $(valId) : null;
-            on(sliderId, 'input', (e) => {
+        // カメラ調整スライダー一括バインド (camControls と CAM_SLIDER_FORMATTERS を共有)
+        for (const [key, ctrl] of Object.entries(this.camControls)) {
+            on(ctrl.slider, 'input', (e) => {
                 const v = parseFloat(e.target.value);
-                if (valEl && fmt) valEl.textContent = fmt(v);
-                handler(v);
+                this.syncCameraParams({ [key]: v });
+                if (key === 'fwdMult' || key === 'bwdMult') {
+                    cb.onVectorMultiplierChange?.({ [key]: v });
+                } else {
+                    cb.onCameraParamChange?.({ [key]: v });
+                }
             });
-        });
+        }
 
         // 5. フルスクリーン
         if (el.btnFullscreen) {
@@ -338,34 +352,28 @@ export class UIController {
         }
     }
 
-    syncZoomUI(zoom) {
-        if (typeof zoom !== 'number' || isNaN(zoom)) return;
-        this.currentZoom = zoom;
-        const { camZoomSlider, camZoomVal } = this.el;
-        const valStr = zoom.toFixed(1);
-        this.setHud({ zoom: valStr });
-        if (camZoomSlider && Math.abs(parseFloat(camZoomSlider.value) - zoom) > 0.04) camZoomSlider.value = zoom;
-        if (camZoomVal) camZoomVal.textContent = valStr;
-    }
-
-    syncCameraParams({ pitch, zoom, orbitAngleOffset }) {
-        if (typeof pitch === 'number') {
-            const slider = $('cam-pitch-slider'), val = $('cam-pitch-val');
-            if (slider) slider.value = pitch;
-            if (val) val.textContent = `${Math.round(pitch)}°`;
+    /**
+     * カメラパラメータ表示・スライダー・HUD・コンパスの同期を一元化
+     */
+    syncCameraParams(params = {}) {
+        for (const [key, val] of Object.entries(params)) {
+            if (typeof val !== 'number' || isNaN(val)) continue;
+            if (key === 'bearing') {
+                if (this.el.compassDial) this.el.compassDial.style.transform = `rotate(${-val}deg)`;
+                continue;
+            }
+            if (key === 'zoom') {
+                this.currentZoom = val;
+                this.setHud({ zoom: CAM_SLIDER_FORMATTERS.zoom(val) });
+            }
+            const ctrl = this.camControls[key];
+            const fmt = CAM_SLIDER_FORMATTERS[key];
+            if (ctrl?.slider && Math.abs(parseFloat(ctrl.slider.value) - val) > 0.04) {
+                ctrl.slider.value = val;
+            }
+            if (ctrl?.val && fmt) {
+                ctrl.val.textContent = fmt(val);
+            }
         }
-        if (typeof zoom === 'number') {
-            this.syncZoomUI(zoom);
-        }
-        if (typeof orbitAngleOffset === 'number') {
-            const slider = $('cam-orbit-slider'), val = $('cam-orbit-val');
-            if (slider) slider.value = orbitAngleOffset;
-            if (val) val.textContent = orbitAngleOffset === 0 ? '0°' : `${orbitAngleOffset > 0 ? '+' : ''}${Math.round(orbitAngleOffset)}°`;
-        }
-    }
-
-    updateCompass(bearing) {
-        if (!this.el.compassDial || typeof bearing !== 'number') return;
-        this.el.compassDial.style.transform = `rotate(${-bearing}deg)`;
     }
 }

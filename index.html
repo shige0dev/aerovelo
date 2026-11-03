@@ -18,7 +18,7 @@
     <div id="top-bar">
         <div class="top-title-group">
             <h1 class="top-app-title">AeroVelo</h1>
-            <span class="version-badge" id="app-version">v1.9.2</span>
+            <span class="version-badge" id="app-version">v1.9.3</span>
         </div>
         <div class="top-course-group">
             <span id="course-name-display" class="top-course-title">読み込み中...</span>
@@ -74,7 +74,7 @@
                 <span class="hud-unit">%</span>
             </div>
         </div>
-        <div class="hud-item slope-hud-item" id="row-slope-ctrl" title="上下スワイプ・ホイールで負荷変更可能">
+        <div class="hud-item hud-scrubber" id="hud-row-load" title="上下スワイプ・ホイールで負荷変更可能">
             <div class="hud-label-group">
                 <span class="hud-label">Load</span>
                 <button type="button" id="btn-manual-mode" class="hud-manual-btn" title="手動固定負荷モード切替 (Auto/Manual)">Manual</button>
@@ -84,7 +84,7 @@
                 <span class="hud-unit">%</span>
             </div>
         </div>
-        <div class="hud-item slope-hud-item" id="row-zoom-ctrl" title="上下スワイプ・ホイールでズーム調整可能">
+        <div class="hud-item hud-scrubber" id="hud-row-zoom" title="上下スワイプ・ホイールでズーム調整可能">
             <span class="hud-label">Zoom</span>
             <div class="hud-value-box">
                 <span id="hud-zoom-val" class="hud-val">16.5</span>
@@ -104,13 +104,13 @@
     </div>
 
     <!-- カメラ調整フローティングダイアログ (他操作を遮らないモードレスダイアログ) -->
-    <div id="camera-dialog" class="floating-cam-dialog" style="display: none;">
-        <div class="floating-cam-header">
-            <div class="floating-cam-title-wrap">
-                <span class="floating-cam-title">CAMERA</span>
+    <div id="camera-dialog" class="floating-dialog" style="display: none;">
+        <div class="dialog-header">
+            <div class="dialog-title-wrap">
+                <span class="dialog-title">CAMERA</span>
                 <button type="button" id="cam-free" class="btn toggle mini-cam-free">FREE</button>
             </div>
-            <button type="button" id="btn-close-cam-dialog" class="floating-cam-close" title="閉じる">✕</button>
+            <button type="button" id="btn-close-cam-dialog" class="dialog-close" title="閉じる">✕</button>
         </div>
         <div id="camera-adjust-box" class="camera-adjust-box">
             <div class="label-row" style="margin-bottom: 2px;">
@@ -174,10 +174,10 @@
     </div>
 
     <!-- 統合設定フローティングダイアログ (⚙️ ボタン直上に展開、他操作を遮らないモードレスダイアログ) -->
-    <div id="modal-settings" class="floating-settings-dialog" style="display: none;">
-        <div class="floating-settings-header">
-            <span class="floating-settings-title">SETTINGS</span>
-            <button type="button" id="btn-close-settings" class="floating-settings-close" title="閉じる">✕</button>
+    <div id="modal-settings" class="floating-dialog" style="display: none;">
+        <div class="dialog-header">
+            <span class="dialog-title">SETTINGS</span>
+            <button type="button" id="btn-close-settings" class="dialog-close" title="閉じる">✕</button>
         </div>
         <div class="modal-body">
                 <!-- セクション 1: コース選定・GPX (枠線なし) -->

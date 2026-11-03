@@ -3,24 +3,31 @@
  * Handles satellite/terrain rendering, route line layers, rider marker, and camera tracking.
  */
 
+import { clamp } from './course.js';
+
 export class MapViewController {
-    constructor(containerId = 'map', initialState = { lon: 138.583, lat: 35.474, bearing: 0 }, onCameraParamChange = null) {
+    constructor(containerId = 'map', initialState = { lon: 138.583, lat: 35.474, bearing: 0 }, onCameraChange = null) {
         this.containerId = containerId;
-        this.onCameraParamChange = onCameraParamChange;
-        this.cameraMode = 'track'; // 'track' | 'free'
-        this.isModeTransitioning = false;
-        this.smoothStrength = 5; // 0 = なし (OFF), 1〜10 = スムージング度合い
-        this.currentCamBearing = null;
-        this.orbitAngleOffset = 0;
-        this.cameraParams = { pitch: 68, zoom: 16.5 };
+        this.onCameraChange = onCameraChange;
+        this.cam = {
+            mode: 'track', // 'track' | 'free'
+            isTransitioning: false,
+            smooth: 5,     // 0 = なし (OFF), 1〜10 = スムージング度合い
+            bearing: null,
+            orbit: 0,
+            pitch: 68,
+            zoom: 16.5
+        };
         this.lastState = initialState;
-        this.riderMarker = null;
-        this.fwdMarker = null;
-        this.bwdMarker = null;
-        this.showFwdMarker = true;
-        this.showBwdMarker = true;
+        this.markers = { rider: null, fwd: null, bwd: null };
+        this.markerVisible = { fwd: true, bwd: true };
+
         this.initMap(initialState);
-        this.setupMainScreenSwipe(); // 全画面上下スワイプでのカメラ角度ピッチ調整
+        this.setupMainScreenSwipe();
+    }
+
+    get cameraMode() {
+        return this.cam.mode;
     }
 
     initMap(startState) {
@@ -55,8 +62,8 @@ export class MapViewController {
                 }
             },
             center: [startState.lon, startState.lat],
-            zoom: this.cameraParams.zoom,
-            pitch: this.cameraParams.pitch,
+            zoom: this.cam.zoom,
+            pitch: this.cam.pitch,
             bearing: startState.bearing,
             maxPitch: 75
         });
@@ -73,23 +80,22 @@ export class MapViewController {
                     .addTo(this.map);
             };
 
-            this.riderMarker = makeMarker('rider-marker', '<div class="rider-beacon"></div><div class="rider-dot"></div>');
-            this.fwdMarker = makeMarker('target-marker fwd-marker', '<div class="target-dot" title="前方注視点"></div>');
-            this.bwdMarker = makeMarker('target-marker bwd-marker', '<div class="target-dot" title="後方注視点"></div>');
+            this.markers.rider = makeMarker('rider-marker', '<div class="rider-beacon"></div><div class="rider-dot"></div>');
+            this.markers.fwd = makeMarker('target-marker fwd-marker', '<div class="target-dot" title="前方注視点"></div>');
+            this.markers.bwd = makeMarker('target-marker bwd-marker', '<div class="target-dot" title="後方注視点"></div>');
 
             if (this.pendingCourse) {
                 this.setCourse(this.pendingCourse, this.pendingState);
                 this.pendingCourse = null;
             }
 
-            // 追従モード（track）時はMapLibre既定のパン操作を無効化（スワイプでのカメラ操作を優先）
-            if (this.cameraMode === 'track') {
+            if (this.cam.mode === 'track') {
                 this.map.dragPan.disable();
                 this.map.dragRotate.disable();
             }
 
             this.map.on('rotate', () => {
-                this.onCameraParamChange?.({ bearing: this.map.getBearing() });
+                this.onCameraChange?.({ bearing: this.map.getBearing() });
             });
         });
     }
@@ -99,7 +105,7 @@ export class MapViewController {
     }
 
     setCourse(course, initialState) {
-        this.currentCamBearing = null;
+        this.cam.bearing = null;
         if (!this.map) return;
 
         if (!this.map.isStyleLoaded()) {
@@ -140,93 +146,74 @@ export class MapViewController {
 
     syncTargetMarkers(state = this.lastState) {
         if (!state) return;
-        [
-            [this.fwdMarker, state.fwdPoint, this.showFwdMarker],
-            [this.bwdMarker, state.bwdPoint, this.showBwdMarker]
-        ].forEach(([marker, pt, show]) => {
-            if (!marker) return;
-            if (pt && show) {
-                marker.setLngLat([pt.lon, pt.lat]);
-                marker.getElement().style.display = 'flex';
-            } else {
-                marker.getElement().style.display = 'none';
-            }
-        });
+        for (const [key, pt] of [['fwd', state.fwdPoint], ['bwd', state.bwdPoint]]) {
+            const marker = this.markers[key];
+            if (!marker) continue;
+            const visible = !!(pt && this.markerVisible[key]);
+            if (visible) marker.setLngLat([pt.lon, pt.lat]);
+            marker.getElement().style.display = visible ? 'flex' : 'none';
+        }
     }
 
-    setMarkerVisibility({ fwd, bwd }) {
-        if (typeof fwd === 'boolean') this.showFwdMarker = fwd;
-        if (typeof bwd === 'boolean') this.showBwdMarker = bwd;
+    setMarkerVisibility(visibility) {
+        Object.assign(this.markerVisible, visibility);
         this.syncTargetMarkers();
     }
 
     updateRiderAndCamera(state, duration = 0, isMoving = false) {
         this.lastState = state;
-        this.riderMarker?.setLngLat([state.lon, state.lat]);
+        this.markers.rider?.setLngLat([state.lon, state.lat]);
         this.syncTargetMarkers(state);
 
-        if (!this.isModeTransitioning && this.cameraMode !== 'free') {
+        if (!this.cam.isTransitioning && this.cam.mode !== 'free') {
             this.applyCameraTarget(state, duration, isMoving);
         }
     }
 
     setCameraMode(mode, currentState) {
-        this.cameraMode = mode;
+        this.cam.mode = mode;
         if (this.map) {
-            if (mode === 'free') {
-                this.map.dragPan.enable();
-                this.map.dragRotate.enable();
-            } else {
-                this.map.dragPan.disable();
-                this.map.dragRotate.disable();
-            }
+            const action = mode === 'free' ? 'enable' : 'disable';
+            this.map.dragPan[action]();
+            this.map.dragRotate[action]();
         }
         if (mode !== 'free' && currentState) {
-            this.currentCamBearing = null;
-            this.isModeTransitioning = true;
+            this.cam.bearing = null;
+            this.cam.isTransitioning = true;
             this.applyCameraTarget(currentState, 2000);
-            setTimeout(() => { this.isModeTransitioning = false; }, 2000);
+            setTimeout(() => { this.cam.isTransitioning = false; }, 2000);
         }
     }
 
     setSmoothing(val) {
-        this.smoothStrength = Math.max(0, Math.min(10, Number(val) || 0));
+        this.cam.smooth = clamp(Number(val) || 0, 0, 10);
     }
 
     /**
-     * メイン画面スワイプによるカメラアングル（横）＆ピッチ（縦）調整
+     * メイン画面上下スワイプによるカメラピッチ調整
      */
     setupMainScreenSwipe() {
         const container = document.getElementById(this.containerId);
         if (!container) return;
 
-        let isDragging = false;
-        let startY = 0;
-        let startPitch = 0;
+        let isDragging = false, startY = 0, startPitch = 0;
 
         container.addEventListener('pointerdown', (e) => {
-            if (this.cameraMode !== 'track') return;
-            if (e.target.closest('#top-bar, #hud-metrics, #bottom-bar, .floating-cam-dialog, .floating-settings-dialog, .compass-widget')) return;
+            if (this.cam.mode !== 'track') return;
+            if (e.target.closest('#top-bar, #hud-metrics, #bottom-bar, .floating-dialog, .compass-widget')) return;
 
             isDragging = true;
             startY = e.clientY;
-            startPitch = this.cameraParams.pitch;
+            startPitch = this.cam.pitch;
             container.setPointerCapture?.(e.pointerId);
         });
 
         container.addEventListener('pointermove', (e) => {
-            if (!isDragging || this.cameraMode !== 'track') return;
-            const dy = e.clientY - startY;
-
-            // 上下スワイプ: ピッチ（カメラ角度）調整 (20° 〜 75°)
-            const nextPitch = Math.max(20, Math.min(75, Math.round(startPitch - dy * 0.25)));
-
-            this.cameraParams.pitch = nextPitch;
-            this.onCameraParamChange?.({ pitch: nextPitch });
-
-            if (this.lastState) {
-                this.applyCameraTarget(this.lastState, 0);
-            }
+            if (!isDragging || this.cam.mode !== 'track') return;
+            const nextPitch = clamp(Math.round(startPitch - (e.clientY - startY) * 0.25), 20, 75);
+            this.cam.pitch = nextPitch;
+            this.onCameraChange?.({ pitch: nextPitch });
+            if (this.lastState) this.applyCameraTarget(this.lastState, 0);
         });
 
         const endDrag = (e) => {
@@ -239,40 +226,40 @@ export class MapViewController {
         container.addEventListener('pointercancel', endDrag);
     }
 
-    setCameraParams({ pitch, zoom, orbitAngleOffset }, currentState) {
-        if (typeof pitch === 'number') this.cameraParams.pitch = pitch;
-        if (typeof zoom === 'number') this.cameraParams.zoom = zoom;
-        if (typeof orbitAngleOffset === 'number') this.orbitAngleOffset = orbitAngleOffset;
-        if (this.cameraMode !== 'free' && currentState) this.applyCameraTarget(currentState, 0);
+    setCameraParams({ pitch, zoom, orbit, smooth }, currentState) {
+        if (typeof pitch === 'number') this.cam.pitch = pitch;
+        if (typeof zoom === 'number') this.cam.zoom = zoom;
+        if (typeof orbit === 'number') this.cam.orbit = orbit;
+        if (typeof smooth === 'number') this.setSmoothing(smooth);
+        if (this.cam.mode !== 'free' && currentState) this.applyCameraTarget(currentState, 0);
     }
 
     resize(currentState) {
         if (!this.map) return;
         this.map.resize();
-        if (this.cameraMode !== 'free' && currentState) this.applyCameraTarget(currentState, 0);
+        if (this.cam.mode !== 'free' && currentState) this.applyCameraTarget(currentState, 0);
     }
 
     applyCameraTarget(state, duration = 0, isMoving = false) {
-        if (!this.map || this.cameraMode === 'free' || !state) return;
+        if (!this.map || this.cam.mode === 'free' || !state) return;
 
-        let targetPitch = this.cameraParams.pitch;
-        const targetBearing = (state.bearing - this.orbitAngleOffset + 360) % 360;
+        let targetPitch = this.cam.pitch;
+        const targetBearing = (state.bearing - this.cam.orbit + 360) % 360;
 
         // スムージング度合い0（無効時）、初回ロード時、アニメーション指定時、または停止中（手動操作時）は即座に目標方向へ向く
-        if (this.smoothStrength === 0 || this.currentCamBearing === null || duration > 0 || !isMoving) {
-            this.currentCamBearing = targetBearing;
+        if (this.cam.smooth === 0 || this.cam.bearing === null || duration > 0 || !isMoving) {
+            this.cam.bearing = targetBearing;
         } else {
-            // 走行中スムージング: 目標との角度差 (-180°〜+180°) に対しスムージング度合い (1〜10) に応じた速度で追従
-            // smoothStrength = 5 を標準基準 (係数 0.08, 上限 1.5°/frame) とする
-            const diff = ((targetBearing - this.currentCamBearing + 540) % 360) - 180;
-            const factor = 0.4 / (1 + this.smoothStrength * 0.8);
-            const maxStep = 7.5 / (1 + this.smoothStrength * 0.8);
-            const step = Math.max(-maxStep, Math.min(maxStep, diff * factor));
-            this.currentCamBearing = (this.currentCamBearing + step + 360) % 360;
+            const diff = ((targetBearing - this.cam.bearing + 540) % 360) - 180;
+            const scale = 1 + this.cam.smooth * 0.8;
+            const factor = 0.4 / scale;
+            const maxStep = 7.5 / scale;
+            const step = clamp(diff * factor, -maxStep, maxStep);
+            this.cam.bearing = (this.cam.bearing + step + 360) % 360;
         }
 
         if (this.map.queryTerrainElevation) {
-            const rad = (this.currentCamBearing + 180) * (Math.PI / 180);
+            const rad = (this.cam.bearing + 180) * (Math.PI / 180);
             const camLon = state.lon + (50 * Math.sin(rad)) / (111320 * Math.cos(state.lat * Math.PI / 180));
             const camLat = state.lat + (50 * Math.cos(rad)) / 110574;
             const terrainAlt = this.map.queryTerrainElevation([camLon, camLat]);
@@ -284,8 +271,8 @@ export class MapViewController {
         const cameraOptions = {
             center: [state.lon, state.lat],
             pitch: targetPitch,
-            bearing: this.currentCamBearing,
-            zoom: this.cameraParams.zoom,
+            bearing: this.cam.bearing,
+            zoom: this.cam.zoom,
             padding: this.getCameraPadding(),
             duration,
             essential: true
@@ -294,6 +281,6 @@ export class MapViewController {
         if (duration > 0) this.map.easeTo(cameraOptions);
         else this.map.jumpTo(cameraOptions);
 
-        this.onCameraParamChange?.({ bearing: this.currentCamBearing });
+        this.onCameraChange?.({ bearing: this.cam.bearing });
     }
 }

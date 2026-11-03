@@ -3,6 +3,8 @@
  * Handles 2D canvas rendering, ResizeObserver resolution sync, and pointer scrubbing.
  */
 
+import { clamp } from './course.js';
+
 export class ElevationChart {
     constructor(canvasId = 'elevation-canvas', onSeek = null) {
         this.canvas = document.getElementById(canvasId);
@@ -31,8 +33,7 @@ export class ElevationChart {
         const seek = (clientX) => {
             const rect = c.getBoundingClientRect();
             if (rect.width <= 0) return;
-            const progress = Math.max(0.0, Math.min(1.0, (clientX - rect.left) / rect.width));
-            this.onSeek?.(progress);
+            this.onSeek?.(clamp((clientX - rect.left) / rect.width, 0.0, 1.0));
         };
 
         c.addEventListener('pointerdown', (e) => {
@@ -73,7 +74,7 @@ export class ElevationChart {
     }
 
     setProgress(progress) {
-        this.currentProgress = Math.max(0.0, Math.min(1.0, isNaN(progress) ? 0.0 : progress));
+        this.currentProgress = clamp(isNaN(progress) ? 0.0 : progress, 0.0, 1.0);
         this.draw();
     }
 
@@ -88,47 +89,43 @@ export class ElevationChart {
         const padY = 10;
         const getY = (alt) => h - padY - ((alt - minAlt) / altSpan) * (h - padY * 2);
 
-        // 背景グラデーション塗りつぶし
+        // 標高プロファイルパスを構築（塗りつぶし・線描画で共通化）
+        const linePath = new Path2D();
+        for (let i = 0; i <= samples; i++) {
+            const x = (i / samples) * w, y = getY(elevations[i]);
+            if (i === 0) linePath.moveTo(x, y);
+            else linePath.lineTo(x, y);
+        }
+
+        const areaPath = new Path2D(linePath);
+        areaPath.lineTo(w, h);
+        areaPath.lineTo(0, h);
+        areaPath.closePath();
+
         const gradient = ctx.createLinearGradient(0, 0, 0, h);
         gradient.addColorStop(0, 'rgba(0, 240, 255, 0.50)');
         gradient.addColorStop(1, 'rgba(0, 240, 255, 0.05)');
-
-        ctx.beginPath();
-        ctx.moveTo(0, h);
-        for (let i = 0; i <= samples; i++) ctx.lineTo((i / samples) * w, getY(elevations[i]));
-        ctx.lineTo(w, h);
-        ctx.closePath();
         ctx.fillStyle = gradient;
-        ctx.fill();
+        ctx.fill(areaPath);
 
-        // 標高プロファイルライン
-        ctx.beginPath();
-        for (let i = 0; i <= samples; i++) {
-            const x = (i / samples) * w, y = getY(elevations[i]);
-            if (i === 0) ctx.moveTo(x, y);
-            else ctx.lineTo(x, y);
-        }
         ctx.strokeStyle = '#00f0ff';
         ctx.lineWidth = 2.5;
-        ctx.stroke();
+        ctx.stroke(linePath);
 
         // 現在位置の縦線スライダー＆ドット
         const riderX = this.currentProgress * w;
         const riderY = getY(this.course.sampleAtDist(this.currentProgress * this.course.totalDistance).alt);
 
-        ctx.beginPath();
-        ctx.moveTo(riderX, 0);
-        ctx.lineTo(riderX, h);
-        ctx.strokeStyle = 'rgba(0, 240, 255, 0.35)';
-        ctx.lineWidth = 6;
-        ctx.stroke();
-
-        ctx.beginPath();
-        ctx.moveTo(riderX, 0);
-        ctx.lineTo(riderX, h);
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 2;
-        ctx.stroke();
+        const drawVLine = (color, width) => {
+            ctx.beginPath();
+            ctx.moveTo(riderX, 0);
+            ctx.lineTo(riderX, h);
+            ctx.strokeStyle = color;
+            ctx.lineWidth = width;
+            ctx.stroke();
+        };
+        drawVLine('rgba(0, 240, 255, 0.35)', 6);
+        drawVLine('#ffffff', 2);
 
         ctx.beginPath();
         ctx.arc(riderX, riderY, 6, 0, Math.PI * 2);

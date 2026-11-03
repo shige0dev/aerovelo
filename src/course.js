@@ -6,7 +6,8 @@
 import { fetchGsi5mWaypoints } from './gpx-gsi.js';
 
 const DEG_TO_RAD = Math.PI / 180;
-const lerp = (a, b, t) => a + (b - a) * t;
+export const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+export const lerp = (a, b, t) => a + (b - a) * t;
 
 export const DEFAULT_LAKE_ROUTE = [
     { lon: 138.5830, lat: 35.4740, alt: 902 },
@@ -124,9 +125,9 @@ export class GeoCourseManager {
     sampleAtDist(targetDist) {
         const pts = this.interpolatedPoints;
         const sampleCount = pts.length - 1;
-        const clampedDist = Math.max(0, Math.min(this.totalDistance, targetDist));
+        const clampedDist = clamp(targetDist, 0, this.totalDistance);
         const exactIdx = (clampedDist / (this.totalDistance || 1)) * sampleCount;
-        const idx = Math.min(sampleCount - 1, Math.max(0, Math.floor(exactIdx)));
+        const idx = clamp(Math.floor(exactIdx), 0, sampleCount - 1);
         const r = exactIdx - idx;
         const pA = pts[idx], pB = pts[idx + 1];
         return {
@@ -138,7 +139,7 @@ export class GeoCourseManager {
     }
 
     getStateAtProgress(progress, speedKmh = 25, fwdMult = 2.0, bwdMult = 1.0) {
-        const u = Math.max(0, Math.min(1, progress));
+        const u = clamp(progress, 0, 1);
         const dist = u * this.totalDistance;
         const cur = this.sampleAtDist(dist);
 
