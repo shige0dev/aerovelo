@@ -143,6 +143,15 @@ input[type="range"]::-webkit-slider-thumb {
 .slope-hud-item.editable { border-color: rgba(0, 240, 255, 0.5); }
 .slope-hud-item:hover { background: rgba(0, 240, 255, 0.12); border-color: rgba(0, 240, 255, 0.7); }
 .ble-hud-item { border-color: rgba(0, 240, 255, 0.22); }
+.hud-zoom-item { cursor: ns-resize; touch-action: none; border-color: rgba(0, 240, 255, 0.35); }
+.hud-zoom-item:hover { background: rgba(0, 240, 255, 0.12); border-color: rgba(0, 240, 255, 0.7); }
+.hud-zoom-slider {
+    width: 52px !important; height: 3px !important; margin: 0 2px !important;
+    vertical-align: middle; cursor: pointer; flex: none;
+}
+.hud-zoom-slider::-webkit-slider-thumb {
+    width: 9px !important; height: 9px !important;
+}
 
 /* ========================================================
    Bottom Bar (画面最下段 全幅: 標高プロファイルCanvas)

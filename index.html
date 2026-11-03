@@ -18,7 +18,7 @@
     <div id="top-bar">
         <div class="top-title-group">
             <h1 class="top-app-title">AeroVelo</h1>
-            <span class="version-badge" id="app-version">v1.8.8</span>
+            <span class="version-badge" id="app-version">v1.8.9</span>
         </div>
         <div class="top-course-group">
             <span id="course-name-display" class="top-course-title">読み込み中...</span>
@@ -84,6 +84,13 @@
                 <span class="hud-unit">%</span>
             </div>
         </div>
+        <div class="hud-item hud-zoom-item editable" id="row-zoom-ctrl" title="ズーム調整（スライダーまたは上下ドラッグ/ホイール）">
+            <span class="hud-label">Zoom</span>
+            <input type="range" id="hud-zoom-slider" min="13.0" max="18.5" step="0.1" value="16.5" class="hud-zoom-slider">
+            <div class="hud-value-box">
+                <span id="hud-zoom-val" class="hud-val" style="width: 28px;">16.5</span>
+            </div>
+        </div>
     </div>
 
     <!-- カメラ調整フローティングダイアログ (他操作を遮らないモードレスダイアログ) -->
@@ -97,21 +104,22 @@
         </div>
         <div id="camera-adjust-box" class="camera-adjust-box">
             <div class="label-row" style="margin-bottom: 2px;">
-                <label>Filter</label>
-                <button type="button" id="btn-cam-smooth-mode" class="btn toggle active mini-cam-free" style="flex: none; min-height: 16px; padding: 1px 6px; font-size: 0.50rem;" title="カメラ旋回スムージングのON/OFF">Smooth ON</button>
+                <label for="cam-smooth-slider">Smooth</label>
+                <span id="cam-smooth-val" class="sub-val">5 (標準)</span>
             </div>
+            <input type="range" id="cam-smooth-slider" min="0" max="10" step="1" value="5">
 
             <div class="label-row" style="margin-top: 3px;">
                 <label for="cam-fwd-mult-slider">Fwd Look (前)</label>
-                <span id="cam-fwd-mult-val" class="sub-val">1.0x</span>
+                <span id="cam-fwd-mult-val" class="sub-val">2.0x</span>
             </div>
-            <input type="range" id="cam-fwd-mult-slider" min="0" max="3" step="0.1" value="1.0">
+            <input type="range" id="cam-fwd-mult-slider" min="0" max="3" step="0.1" value="2.0">
 
             <div class="label-row" style="margin-top: 3px;">
                 <label for="cam-bwd-mult-slider">Bwd Look (後)</label>
-                <span id="cam-bwd-mult-val" class="sub-val">0.5x</span>
+                <span id="cam-bwd-mult-val" class="sub-val">1.0x</span>
             </div>
-            <input type="range" id="cam-bwd-mult-slider" min="0" max="3" step="0.1" value="0.5">
+            <input type="range" id="cam-bwd-mult-slider" min="0" max="3" step="0.1" value="1.0">
 
             <div class="label-row" style="margin-top: 3px;">
                 <label for="cam-orbit-slider">Angle</label>

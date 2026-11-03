@@ -20,9 +20,9 @@ class App {
         this.manualSlope = 0.0;
         this.lfoPeriodSeconds = 60;
         this.lfoStartTime = 0;
-        this.camFwdMult = 1.0;
-        this.camBwdMult = 0.5;
-        this.isCamSmoothEnabled = true;
+        this.camFwdMult = 2.0;
+        this.camBwdMult = 1.0;
+        this.camSmoothStrength = 5;
 
         // Bluetooth Smart Trainer
         this.bleManager = new BleTrainerManager();
@@ -49,7 +49,10 @@ class App {
                 if (bwdMult !== undefined) this.camBwdMult = bwdMult;
                 this.updateState(this.currentProgress, true);
             },
-            onToggleSmoothMode: () => this.toggleCamSmoothMode(),
+            onSmoothChange: (strength) => {
+                this.camSmoothStrength = strength;
+                this.mapView.setSmoothing(strength);
+            },
             onCameraParamChange: (params) => this.mapView.setCameraParams(params, this.currentState()),
             onFullscreenChange: () => setTimeout(() => this.handleResize(), 100),
             onBleConnect: () => this.connectBle(),
@@ -155,13 +158,6 @@ class App {
         const nextMode = this.mapView.cameraMode === 'free' ? 'track' : 'free';
         this.ui.updateCameraModeUI(nextMode === 'free');
         this.mapView.setCameraMode(nextMode, this.currentState());
-    }
-
-    toggleCamSmoothMode() {
-        this.isCamSmoothEnabled = !this.isCamSmoothEnabled;
-        this.mapView.setSmoothing(this.isCamSmoothEnabled);
-        this.ui.updateCamSmoothMode(this.isCamSmoothEnabled);
-        this.updateState(this.currentProgress, true);
     }
 
     setLoadMode(mode) {

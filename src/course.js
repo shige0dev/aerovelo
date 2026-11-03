@@ -124,7 +124,7 @@ export class GeoCourseManager {
         };
     }
 
-    getStateAtProgress(progress, speedKmh = 25, fwdMult = 1.0, bwdMult = 0.5) {
+    getStateAtProgress(progress, speedKmh = 25, fwdMult = 2.0, bwdMult = 1.0) {
         const u = Math.max(0, Math.min(1, progress));
         const dist = u * this.totalDistance;
         const cur = this.sampleAtDist(dist);

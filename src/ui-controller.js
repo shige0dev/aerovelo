@@ -30,12 +30,18 @@ export class UIController {
             courseName: $('course-name-display'),
             btnFullscreen: $('btn-fullscreen'),
             camFreeBtn: $('cam-free'),
-            btnCamSmoothMode: $('btn-cam-smooth-mode'),
+            camSmoothSlider: $('cam-smooth-slider'),
+            camSmoothVal: $('cam-smooth-val'),
             camFwdMultSlider: $('cam-fwd-mult-slider'),
             camFwdMultVal: $('cam-fwd-mult-val'),
             camBwdMultSlider: $('cam-bwd-mult-slider'),
             camBwdMultVal: $('cam-bwd-mult-val'),
             camAdjustBox: $('camera-adjust-box'),
+            rowZoomCtrl: $('row-zoom-ctrl'),
+            hudZoomSlider: $('hud-zoom-slider'),
+            hudZoomVal: $('hud-zoom-val'),
+            camZoomSlider: $('cam-zoom-slider'),
+            camZoomVal: $('cam-zoom-val'),
             btnGsiDem: $('btn-gsi-dem'),
             gsiBtnText: $('gsi-btn-text'),
             btnBleConnect: $('btn-ble-connect'),
@@ -131,7 +137,14 @@ export class UIController {
         this.bindDialog('btn-toggle-cam-dialog', 'btn-close-cam-dialog', 'camera-dialog');
         this.bindDialog('btn-modal-settings', 'btn-close-settings', 'modal-settings');
         on(el.camFreeBtn, 'click', () => cb.onToggleCameraFree?.());
-        on(el.btnCamSmoothMode, 'click', () => cb.onToggleSmoothMode?.());
+
+        // スムージング度合いスライダー (0: OFF, 1〜10)
+        on('cam-smooth-slider', 'input', (e) => {
+            const v = parseInt(e.target.value, 10);
+            const text = v === 0 ? 'OFF' : (v === 5 ? '5 (標準)' : `${v}`);
+            if ($('cam-smooth-val')) $('cam-smooth-val').textContent = text;
+            cb.onSmoothChange?.(v);
+        });
 
         // 前方・後方ベクトル距離（速度倍率）スライダー
         on('cam-fwd-mult-slider', 'input', (e) => {
@@ -145,9 +158,37 @@ export class UIController {
             cb.onVectorMultiplierChange?.({ bwdMult: v });
         });
 
+        // HUD ズームコントロール（スライダー直接操作 ＆ 上下ドラッグ/ホイール操作）
+        on('hud-zoom-slider', 'input', (e) => {
+            const v = parseFloat(e.target.value);
+            this.syncZoomUI(v);
+            cb.onCameraParamChange?.({ zoom: v });
+        });
+        this.setupVerticalDrag(el.rowZoomCtrl, {
+            isEnabled: () => true,
+            getInitialValue: () => parseFloat($('hud-zoom-slider')?.value || 16.5),
+            onDragChange: (start, dy) => {
+                const v = Math.max(13.0, Math.min(18.5, Math.round((start + dy / 50) * 10) / 10));
+                this.syncZoomUI(v);
+                cb.onCameraParamChange?.({ zoom: v });
+            },
+            onWheelDelta: (dir) => {
+                const cur = parseFloat($('hud-zoom-slider')?.value || 16.5);
+                const v = Math.max(13.0, Math.min(18.5, Math.round((cur + dir * 0.1) * 10) / 10));
+                this.syncZoomUI(v);
+                cb.onCameraParamChange?.({ zoom: v });
+            }
+        });
+
+        // カメラダイアログ側の Zoom スライダー (HUDと連動)
+        on('cam-zoom-slider', 'input', (e) => {
+            const v = parseFloat(e.target.value);
+            this.syncZoomUI(v);
+            cb.onCameraParamChange?.({ zoom: v });
+        });
+
         [
             ['cam-pitch-slider', 'cam-pitch-val', 'pitch', (v) => `${Math.round(v)}°`],
-            ['cam-zoom-slider', 'cam-zoom-val', 'zoom', (v) => v.toFixed(1)],
             ['cam-orbit-slider', 'cam-orbit-val', 'orbitAngleOffset', (v) => v === 0 ? '0°' : `${v > 0 ? '+' : ''}${Math.round(v)}°`]
         ].forEach(([sliderId, valId, key, fmt]) => {
             const valEl = $(valId);
@@ -309,19 +350,35 @@ export class UIController {
         }
     }
 
-    updateCamSmoothMode(enabled) {
-        const { btnCamSmoothMode } = this.el;
-        if (!btnCamSmoothMode) return;
-        btnCamSmoothMode.textContent = enabled ? 'Smooth ON' : 'Smooth OFF';
-        btnCamSmoothMode.title = enabled ? 'カメラ旋回スムージング有効' : 'カメラ旋回スムージング無効（目標方向へダイレクト追従）';
-        btnCamSmoothMode.classList.toggle('active', enabled);
+    updateCamSmoothStrength(strength) {
+        const v = parseInt(strength, 10) || 0;
+        const text = v === 0 ? 'OFF' : (v === 5 ? '5 (標準)' : `${v}`);
+        if ($('cam-smooth-slider')) $('cam-smooth-slider').value = v;
+        if ($('cam-smooth-val')) $('cam-smooth-val').textContent = text;
     }
 
-    syncCameraParams({ pitch, orbitAngleOffset }) {
+    syncZoomUI(zoom) {
+        if (typeof zoom !== 'number' || isNaN(zoom)) return;
+        const valStr = zoom.toFixed(1);
+        const hudSlider = $('hud-zoom-slider');
+        const hudVal = $('hud-zoom-val');
+        const camSlider = $('cam-zoom-slider');
+        const camVal = $('cam-zoom-val');
+
+        if (hudSlider && Math.abs(parseFloat(hudSlider.value) - zoom) > 0.04) hudSlider.value = zoom;
+        if (hudVal) hudVal.textContent = valStr;
+        if (camSlider && Math.abs(parseFloat(camSlider.value) - zoom) > 0.04) camSlider.value = zoom;
+        if (camVal) camVal.textContent = valStr;
+    }
+
+    syncCameraParams({ pitch, zoom, orbitAngleOffset }) {
         if (typeof pitch === 'number') {
             const slider = $('cam-pitch-slider'), val = $('cam-pitch-val');
             if (slider) slider.value = pitch;
             if (val) val.textContent = `${Math.round(pitch)}°`;
+        }
+        if (typeof zoom === 'number') {
+            this.syncZoomUI(zoom);
         }
         if (typeof orbitAngleOffset === 'number') {
             const slider = $('cam-orbit-slider'), val = $('cam-orbit-val');

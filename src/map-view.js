@@ -9,7 +9,7 @@ export class MapViewController {
         this.onCameraParamChange = onCameraParamChange;
         this.cameraMode = 'track'; // 'track' | 'free'
         this.isModeTransitioning = false;
-        this.isSmoothingEnabled = true;
+        this.smoothStrength = 5; // 0 = なし (OFF), 1〜10 = スムージング度合い
         this.currentCamBearing = null;
         this.orbitAngleOffset = 0;
         this.cameraParams = { pitch: 68, zoom: 16.5 };
@@ -18,7 +18,7 @@ export class MapViewController {
         this.fwdMarker = null;
         this.bwdMarker = null;
         this.initMap(initialState);
-        this.setupMainScreenSwipe();
+        // this.setupMainScreenSwipe(); // 全画面スワイプでのアングル調整は一時停止
     }
 
     initMap(startState) {
@@ -184,8 +184,8 @@ export class MapViewController {
         }
     }
 
-    setSmoothing(enabled) {
-        this.isSmoothingEnabled = !!enabled;
+    setSmoothing(val) {
+        this.smoothStrength = Math.max(0, Math.min(10, Number(val) || 0));
     }
 
     /**
@@ -259,13 +259,16 @@ export class MapViewController {
         let targetPitch = this.cameraParams.pitch;
         const targetBearing = (state.bearing - this.orbitAngleOffset + 360) % 360;
 
-        // スムージング無効時、初回ロード時、アニメーション指定時、または停止中（手動操作時）は即座に目標方向へ向く
-        if (!this.isSmoothingEnabled || this.currentCamBearing === null || duration > 0 || !isMoving) {
+        // スムージング度合い0（無効時）、初回ロード時、アニメーション指定時、または停止中（手動操作時）は即座に目標方向へ向く
+        if (this.smoothStrength === 0 || this.currentCamBearing === null || duration > 0 || !isMoving) {
             this.currentCamBearing = targetBearing;
         } else {
-            // 走行中スムージング: 目標との角度差 (-180°〜+180°) に対し適正な速度（毎フレーム最大1.5°＝秒間90°）で追従
+            // 走行中スムージング: 目標との角度差 (-180°〜+180°) に対しスムージング度合い (1〜10) に応じた速度で追従
+            // smoothStrength = 5 を標準基準 (係数 0.08, 上限 1.5°/frame) とする
             const diff = ((targetBearing - this.currentCamBearing + 540) % 360) - 180;
-            const step = Math.max(-1.5, Math.min(1.5, diff * 0.08));
+            const factor = 0.4 / (1 + this.smoothStrength * 0.8);
+            const maxStep = 7.5 / (1 + this.smoothStrength * 0.8);
+            const step = Math.max(-maxStep, Math.min(maxStep, diff * factor));
             this.currentCamBearing = (this.currentCamBearing + step + 360) % 360;
         }
 
