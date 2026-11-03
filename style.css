@@ -140,17 +140,77 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 .slope-hud-item { cursor: ns-resize; touch-action: none; }
-.slope-hud-item.editable { border-color: rgba(0, 240, 255, 0.5); }
-.slope-hud-item:hover { background: rgba(0, 240, 255, 0.12); border-color: rgba(0, 240, 255, 0.7); }
 .ble-hud-item { border-color: rgba(0, 240, 255, 0.22); }
-.hud-zoom-item { cursor: ns-resize; touch-action: none; border-color: rgba(0, 240, 255, 0.35); }
-.hud-zoom-item:hover { background: rgba(0, 240, 255, 0.12); border-color: rgba(0, 240, 255, 0.7); }
+.hud-zoom-item { cursor: ns-resize; touch-action: none; }
 .hud-zoom-slider {
     width: 52px !important; height: 3px !important; margin: 0 2px !important;
     vertical-align: middle; cursor: pointer; flex: none;
 }
 .hud-zoom-slider::-webkit-slider-thumb {
     width: 9px !important; height: 9px !important;
+}
+
+/* スライダー横の小型アクションボタン（注視点 HIDE / SHOW トグル） */
+.slider-btn-row { display: flex; align-items: center; gap: 4px; width: 100%; }
+.slider-btn-row input[type="range"] { flex: 1; }
+.marker-toggle-btn {
+    flex: none !important; min-height: 16px !important; padding: 1px 5px !important;
+    font-size: 0.48rem !important; line-height: 1 !important;
+}
+.marker-toggle-btn.hidden {
+    background: rgba(239, 68, 68, 0.25) !important; border-color: rgba(239, 68, 68, 0.6) !important; color: #fca5a5 !important;
+}
+
+/* ========================================================
+   2D Simple Compass Widget (画面右上・方位磁針)
+   ======================================================== */
+.compass-widget {
+    position: absolute; top: 32px; right: 10px; width: 32px; height: 32px;
+    border-radius: 50%; background: rgba(15, 23, 42, 0.65);
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; z-index: 20; transition: transform 0.15s ease, border-color 0.15s ease;
+}
+.compass-widget:hover {
+    border-color: var(--accent);
+    box-shadow: 0 0 8px var(--accent-glow);
+    transform: scale(1.06);
+}
+.compass-dial {
+    width: 26px; height: 26px; position: relative; border-radius: 50%;
+    pointer-events: none;
+}
+/* 北針 (赤) */
+.compass-pointer-n {
+    position: absolute; top: 2px; left: 50%; transform: translateX(-50%);
+    width: 0; height: 0;
+    border-left: 3.5px solid transparent;
+    border-right: 3.5px solid transparent;
+    border-bottom: 9px solid #ef4444;
+    display: flex; justify-content: center;
+}
+.compass-n-label {
+    position: absolute; top: -7px; left: 50%; transform: translateX(-50%);
+    font-size: 0.46rem; font-weight: 900; color: #f87171;
+    font-family: var(--font-mono); line-height: 1; pointer-events: none;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+}
+/* 南針 (白/グレー) */
+.compass-pointer-s {
+    position: absolute; bottom: 2px; left: 50%; transform: translateX(-50%);
+    width: 0; height: 0;
+    border-left: 3.5px solid transparent;
+    border-right: 3.5px solid transparent;
+    border-top: 9px solid rgba(255, 255, 255, 0.45);
+}
+/* 中央ピボット */
+.compass-pivot {
+    position: absolute; top: 50%; left: 50%; width: 4px; height: 4px;
+    background: #cbd5e1; border-radius: 50%;
+    transform: translate(-50%, -50%);
+    box-shadow: 0 0 2px rgba(0, 0, 0, 0.8);
 }
 
 /* ========================================================

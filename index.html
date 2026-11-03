@@ -18,7 +18,7 @@
     <div id="top-bar">
         <div class="top-title-group">
             <h1 class="top-app-title">AeroVelo</h1>
-            <span class="version-badge" id="app-version">v1.8.10</span>
+            <span class="version-badge" id="app-version">v1.8.11</span>
         </div>
         <div class="top-course-group">
             <span id="course-name-display" class="top-course-title">読み込み中...</span>
@@ -93,6 +93,17 @@
         </div>
     </div>
 
+    <!-- 2D シンプルコンパス (画面右上・クリックで北向きリセット) -->
+    <div id="compass-btn" class="compass-widget" title="北（North）/ クリックで向きリセット">
+        <div id="compass-dial" class="compass-dial">
+            <div class="compass-pointer-n">
+                <span class="compass-n-label">N</span>
+            </div>
+            <div class="compass-pointer-s"></div>
+            <div class="compass-pivot"></div>
+        </div>
+    </div>
+
     <!-- カメラ調整フローティングダイアログ (他操作を遮らないモードレスダイアログ) -->
     <div id="camera-dialog" class="floating-cam-dialog" style="display: none;">
         <div class="floating-cam-header">
@@ -113,13 +124,19 @@
                 <label for="cam-fwd-mult-slider">Fwd Look (前)</label>
                 <span id="cam-fwd-mult-val" class="sub-val">2.0x</span>
             </div>
-            <input type="range" id="cam-fwd-mult-slider" min="0" max="3" step="0.1" value="2.0">
+            <div class="slider-btn-row">
+                <input type="range" id="cam-fwd-mult-slider" min="0" max="3" step="0.1" value="2.0">
+                <button type="button" id="btn-toggle-fwd-marker" class="btn mini-cam-free marker-toggle-btn" title="前方注視点マーカーの表示/非表示">HIDE</button>
+            </div>
 
             <div class="label-row" style="margin-top: 3px;">
                 <label for="cam-bwd-mult-slider">Bwd Look (後)</label>
                 <span id="cam-bwd-mult-val" class="sub-val">1.0x</span>
             </div>
-            <input type="range" id="cam-bwd-mult-slider" min="0" max="3" step="0.1" value="1.0">
+            <div class="slider-btn-row">
+                <input type="range" id="cam-bwd-mult-slider" min="0" max="3" step="0.1" value="1.0">
+                <button type="button" id="btn-toggle-bwd-marker" class="btn mini-cam-free marker-toggle-btn" title="後方注視点マーカーの表示/非表示">HIDE</button>
+            </div>
 
             <div class="label-row" style="margin-top: 3px;">
                 <label for="cam-orbit-slider">Angle</label>

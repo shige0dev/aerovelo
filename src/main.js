@@ -53,6 +53,11 @@ class App {
                 this.camSmoothStrength = strength;
                 this.mapView.setSmoothing(strength);
             },
+            onToggleMarker: (type, isVisible) => this.mapView.setMarkerVisibility({ [type]: isVisible }),
+            onResetNorth: () => {
+                this.mapView.setCameraParams({ orbitAngleOffset: 0 }, this.currentState());
+                this.ui.syncCameraParams({ orbitAngleOffset: 0 });
+            },
             onCameraParamChange: (params) => this.mapView.setCameraParams(params, this.currentState()),
             onFullscreenChange: () => setTimeout(() => this.handleResize(), 100),
             onBleConnect: () => this.connectBle(),
@@ -69,6 +74,9 @@ class App {
         const startState = this.currentState();
         this.mapView = new MapViewController('map', startState, (params) => {
             this.ui.syncCameraParams(params);
+            if (typeof params.bearing === 'number') {
+                this.ui.updateCompass(params.bearing);
+            }
         });
         this.mapView.setCourse(this.course, startState);
 

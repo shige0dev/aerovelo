@@ -17,6 +17,8 @@ export class MapViewController {
         this.riderMarker = null;
         this.fwdMarker = null;
         this.bwdMarker = null;
+        this.showFwdMarker = true;
+        this.showBwdMarker = true;
         this.initMap(initialState);
         // this.setupMainScreenSwipe(); // 全画面スワイプでのアングル調整は一時停止
     }
@@ -94,6 +96,10 @@ export class MapViewController {
                 this.map.dragPan.disable();
                 this.map.dragRotate.disable();
             }
+
+            this.map.on('rotate', () => {
+                this.onCameraParamChange?.({ bearing: this.map.getBearing() });
+            });
         });
     }
 
@@ -141,6 +147,15 @@ export class MapViewController {
         if (initialState) this.updateRiderAndCamera(initialState, 1500);
     }
 
+    setMarkerVisibility({ fwd, bwd }) {
+        if (typeof fwd === 'boolean') this.showFwdMarker = fwd;
+        if (typeof bwd === 'boolean') this.showBwdMarker = bwd;
+        if (this.lastState) {
+            if (this.fwdMarker) this.fwdMarker.getElement().style.display = this.showFwdMarker && this.lastState.fwdPoint ? 'flex' : 'none';
+            if (this.bwdMarker) this.bwdMarker.getElement().style.display = this.showBwdMarker && this.lastState.bwdPoint ? 'flex' : 'none';
+        }
+    }
+
     updateRiderAndCamera(state, duration = 0, isMoving = false) {
         this.lastState = state;
         this.riderMarker?.setLngLat([state.lon, state.lat]);
@@ -148,14 +163,14 @@ export class MapViewController {
         // 注視点マーカー更新 (前方: 赤, 後方: 紫)
         if (state.fwdPoint && this.fwdMarker) {
             this.fwdMarker.setLngLat([state.fwdPoint.lon, state.fwdPoint.lat]);
-            this.fwdMarker.getElement().style.display = 'flex';
+            this.fwdMarker.getElement().style.display = this.showFwdMarker ? 'flex' : 'none';
         } else if (this.fwdMarker) {
             this.fwdMarker.getElement().style.display = 'none';
         }
 
         if (state.bwdPoint && this.bwdMarker) {
             this.bwdMarker.setLngLat([state.bwdPoint.lon, state.bwdPoint.lat]);
-            this.bwdMarker.getElement().style.display = 'flex';
+            this.bwdMarker.getElement().style.display = this.showBwdMarker ? 'flex' : 'none';
         } else if (this.bwdMarker) {
             this.bwdMarker.getElement().style.display = 'none';
         }
@@ -294,5 +309,7 @@ export class MapViewController {
 
         if (duration > 0) this.map.easeTo(cameraOptions);
         else this.map.jumpTo(cameraOptions);
+
+        this.onCameraParamChange?.({ bearing: this.currentCamBearing });
     }
 }

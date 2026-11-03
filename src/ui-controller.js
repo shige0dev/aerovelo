@@ -42,6 +42,10 @@ export class UIController {
             hudZoomVal: $('hud-zoom-val'),
             camZoomSlider: $('cam-zoom-slider'),
             camZoomVal: $('cam-zoom-val'),
+            compassBtn: $('compass-btn'),
+            compassDial: $('compass-dial'),
+            btnToggleFwdMarker: $('btn-toggle-fwd-marker'),
+            btnToggleBwdMarker: $('btn-toggle-bwd-marker'),
             btnGsiDem: $('btn-gsi-dem'),
             gsiBtnText: $('gsi-btn-text'),
             btnBleConnect: $('btn-ble-connect'),
@@ -146,7 +150,7 @@ export class UIController {
             cb.onSmoothChange?.(v);
         });
 
-        // 前方・後方ベクトル距離（速度倍率）スライダー
+        // 前方・後方ベクトル距離（速度倍率）スライダー ＆ 注視点 HIDE/SHOW ボタン
         on('cam-fwd-mult-slider', 'input', (e) => {
             const v = parseFloat(e.target.value);
             if ($('cam-fwd-mult-val')) $('cam-fwd-mult-val').textContent = `${v.toFixed(1)}x`;
@@ -157,6 +161,27 @@ export class UIController {
             if ($('cam-bwd-mult-val')) $('cam-bwd-mult-val').textContent = `${v.toFixed(1)}x`;
             cb.onVectorMultiplierChange?.({ bwdMult: v });
         });
+
+        let fwdVisible = true, bwdVisible = true;
+        on(el.btnToggleFwdMarker, 'click', () => {
+            fwdVisible = !fwdVisible;
+            if (el.btnToggleFwdMarker) {
+                el.btnToggleFwdMarker.textContent = fwdVisible ? 'HIDE' : 'SHOW';
+                el.btnToggleFwdMarker.classList.toggle('hidden', !fwdVisible);
+            }
+            cb.onToggleMarker?.('fwd', fwdVisible);
+        });
+        on(el.btnToggleBwdMarker, 'click', () => {
+            bwdVisible = !bwdVisible;
+            if (el.btnToggleBwdMarker) {
+                el.btnToggleBwdMarker.textContent = bwdVisible ? 'HIDE' : 'SHOW';
+                el.btnToggleBwdMarker.classList.toggle('hidden', !bwdVisible);
+            }
+            cb.onToggleMarker?.('bwd', bwdVisible);
+        });
+
+        // 2D シンプルコンパスクリック（北向きリセット）
+        on(el.compassBtn, 'click', () => cb.onResetNorth?.());
 
         // HUD ズームコントロール（スライダー直接操作 ＆ 上下ドラッグ/ホイール操作）
         on('hud-zoom-slider', 'input', (e) => {
@@ -385,5 +410,11 @@ export class UIController {
             if (slider) slider.value = orbitAngleOffset;
             if (val) val.textContent = orbitAngleOffset === 0 ? '0°' : `${orbitAngleOffset > 0 ? '+' : ''}${Math.round(orbitAngleOffset)}°`;
         }
+    }
+
+    updateCompass(bearing) {
+        if (!this.el.compassDial || typeof bearing !== 'number') return;
+        // カメラの進行方向 (bearing) に応じて、北 (0°) を常に真北へ向けるため -bearing 度回転
+        this.el.compassDial.style.transform = `rotate(${-bearing}deg)`;
     }
 }
