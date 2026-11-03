@@ -163,6 +163,8 @@ export class MapViewController {
             if (this.cam.mode === 'track') {
                 this.map.dragPan.disable();
                 this.map.dragRotate.disable();
+                this.map.touchPitch?.disable();
+                this.map.touchZoomRotate?.disable();
             }
 
             this.map.on('rotate', () => {
@@ -250,6 +252,8 @@ export class MapViewController {
             const action = mode === 'free' ? 'enable' : 'disable';
             this.map.dragPan[action]();
             this.map.dragRotate[action]();
+            this.map.touchPitch?.[action]();
+            this.map.touchZoomRotate?.[action]();
         }
         if (mode !== 'free' && currentState) {
             this.cam.bearing = null;
@@ -264,13 +268,24 @@ export class MapViewController {
     }
 
     /**
-     * メイン画面上下スワイプによるカメラピッチ調整
+     * メイン画面上下スワイプによるカメラピッチ調整（スマホでの引っ掛かり・フレーム落ちを防止）
      */
     setupMainScreenSwipe() {
         const container = document.getElementById(this.containerId);
         if (!container) return;
 
         let isDragging = false, startY = 0, startPitch = 0;
+        let pendingPitch = null;
+        let rafId = null;
+
+        const flushPitchUpdate = () => {
+            rafId = null;
+            if (pendingPitch !== null && this.lastState) {
+                this.cam.pitch = pendingPitch;
+                this.onCameraChange?.({ pitch: pendingPitch });
+                this.applyCameraTarget(this.lastState, 0);
+            }
+        };
 
         container.addEventListener('pointerdown', (e) => {
             if (this.cam.mode !== 'track') return;
@@ -279,21 +294,33 @@ export class MapViewController {
             isDragging = true;
             startY = e.clientY;
             startPitch = this.cam.pitch;
+            pendingPitch = startPitch;
             container.setPointerCapture?.(e.pointerId);
-        });
+            e.preventDefault();
+        }, { passive: false });
 
         container.addEventListener('pointermove', (e) => {
             if (!isDragging || this.cam.mode !== 'track') return;
-            const nextPitch = clamp(Math.round(startPitch - (e.clientY - startY) * 0.25), 20, 75);
-            this.cam.pitch = nextPitch;
-            this.onCameraChange?.({ pitch: nextPitch });
-            if (this.lastState) this.applyCameraTarget(this.lastState, 0);
-        });
+            e.preventDefault();
+            const dy = e.clientY - startY;
+            // 0.1度刻みの滑らかな補間（感度: 0.2）
+            const nextPitch = clamp(Math.round((startPitch - dy * 0.2) * 10) / 10, 20, 75);
+            if (nextPitch !== pendingPitch) {
+                pendingPitch = nextPitch;
+                if (!rafId) {
+                    rafId = requestAnimationFrame(flushPitchUpdate);
+                }
+            }
+        }, { passive: false });
 
         const endDrag = (e) => {
             if (isDragging) {
                 isDragging = false;
-                container.releasePointerCapture?.(e.pointerId);
+                try { container.releasePointerCapture?.(e.pointerId); } catch {}
+                if (rafId) {
+                    cancelAnimationFrame(rafId);
+                    flushPitchUpdate();
+                }
             }
         };
         container.addEventListener('pointerup', endDrag);
