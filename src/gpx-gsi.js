@@ -1,5 +1,5 @@
 /**
- * GPX XML Parser, 3D Terrain DEM Tile Sampler, & GSI 5m DEM API Client
+ * GPX XML Parser, GSI 5m/10m DEM Tile Sampler, & AWS Terrarium Global DEM Sampler
  */
 
 export class GPXParser {
@@ -32,27 +32,167 @@ export class GPXParser {
 }
 
 /**
- * 3Dマップと同一の Terrarium DEM タイルからバイリニア補間でコース上の標高を高精度サンプリング
+ * 経度・緯度・ズームレベルから Webメルカトル タイル座標（tx, ty, px, py）を計算
+ */
+export function lonLatToTileCoords(lon, lat, z) {
+    const n = 2 ** z;
+    const xFloat = ((lon + 180) / 360) * n;
+    const latRad = (lat * Math.PI) / 180;
+    const yFloat = ((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2) * n;
+    const tx = Math.floor(xFloat), ty = Math.floor(yFloat);
+    return { tx, ty, px: (xFloat - tx) * 256, py: (yFloat - ty) * 256 };
+}
+
+/**
+ * 国土地理院 標高タイル（PNG）の RGB ピクセル値から標高(m)をデコード
+ * 仕様: X = 2^16*R + 2^8*G + B. X < 2^23 なら h = X * 0.01m, X = 2^23 なら無効値, X > 2^23 なら h = (X - 2^24) * 0.01m
+ */
+export function decodeGsiPixel(r, g, b) {
+    const x = (r << 16) | (g << 8) | b;
+    if (x === 8388608 || (r === 0 && g === 0 && b === 0)) return null; // 無効値
+    return x < 8388608 ? x * 0.01 : (x - 16777216) * 0.01;
+}
+
+/**
+ * 標高(m)から AWS Terrarium 形式の RGB ピクセル値をエンコード
+ * 仕様: h = (R*256 + G + B/256) - 32768
+ */
+export function encodeTerrariumPixel(h) {
+    if (h === null || isNaN(h)) return [0, 0, 0];
+    const v = Math.round((h + 32768) * 256);
+    const r = Math.max(0, Math.min(255, Math.floor(v / 65536)));
+    const g = Math.max(0, Math.min(255, Math.floor((v % 65536) / 256)));
+    const b = Math.max(0, Math.min(255, v % 256));
+    return [r, g, b];
+}
+
+/**
+ * 画像URLから ImageData を取得
+ */
+function fetchImagePixels(url) {
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => {
+            try {
+                const canvas = document.createElement('canvas');
+                canvas.width = 256;
+                canvas.height = 256;
+                const ctx = canvas.getContext('2d', { willReadFrequently: true });
+                ctx.drawImage(img, 0, 0, 256, 256);
+                resolve(ctx.getImageData(0, 0, 256, 256).data);
+            } catch {
+                resolve(null);
+            }
+        };
+        img.onerror = () => resolve(null);
+        img.src = url;
+    });
+}
+
+/**
+ * 🇯🇵 日本国内用：国土地理院 5mメッシュ（DEM5A PNG z=15）からコース標高を高精度サンプリング
+ * （未計測の山岳部は DEM10B z=14 または DEM z=14 へシームレスに自動フォールバック）
+ * @param {Array<{dist:number, lon:number, lat:number, alt:number}>} points
+ * @param {Function} onProgress
+ * @returns {Promise<{ elevations: number[], type: string }|null>}
+ */
+export async function fetchGsiDem5aElevations(points, onProgress = null) {
+    if (!points || points.length === 0) return null;
+
+    // ズーム15（1ピクセル≒約4〜5m）の必要タイルセットを抽出
+    const z15Set = new Set();
+    for (const p of points) {
+        const { tx, ty } = lonLatToTileCoords(p.lon, p.lat, 15);
+        z15Set.add(`${tx}/${ty}`);
+    }
+
+    const tileCache = new Map();
+    let completed = 0;
+    const totalTiles = z15Set.size;
+
+    const loadTile = async (key) => {
+        const [tx, ty] = key.split('/').map(Number);
+        // 優先度1: DEM5A (5m航空レーザー測量)
+        let data = await fetchImagePixels(`https://cyberjapandata.gsi.go.jp/xyz/dem5a_png/15/${tx}/${ty}.png`);
+        if (!data) {
+            // 優先度2: DEM5B (5m写真測量)
+            data = await fetchImagePixels(`https://cyberjapandata.gsi.go.jp/xyz/dem5b_png/15/${tx}/${ty}.png`);
+        }
+        if (!data) {
+            // 優先度3: DEM10B (10mメッシュ z=14 をサンプリング)
+            const z14x = Math.floor(tx / 2), z14y = Math.floor(ty / 2);
+            data = await fetchImagePixels(`https://cyberjapandata.gsi.go.jp/xyz/dem10b_png/14/${z14x}/${z14y}.png`);
+        }
+        if (!data) {
+            // 優先度4: DEM統合版 (z=14)
+            const z14x = Math.floor(tx / 2), z14y = Math.floor(ty / 2);
+            data = await fetchImagePixels(`https://cyberjapandata.gsi.go.jp/xyz/dem_png/14/${z14x}/${z14y}.png`);
+        }
+
+        tileCache.set(key, data);
+        completed++;
+        onProgress?.(Math.round((completed / totalTiles) * 100));
+    };
+
+    // 並行タイル取得（通常コース全体で5〜15枚程度、計約100〜200KB）
+    await Promise.all(Array.from(z15Set).map(loadTile));
+
+    const sampleTilePixel = (data, px, py) => {
+        if (!data) return null;
+        const fx = px - 0.5, fy = py - 0.5;
+        const x0 = Math.max(0, Math.min(255, Math.floor(fx)));
+        const y0 = Math.max(0, Math.min(255, Math.floor(fy)));
+        const x1 = Math.min(255, x0 + 1);
+        const y1 = Math.min(255, y0 + 1);
+        const dx = Math.max(0, Math.min(1, fx - x0));
+        const dy = Math.max(0, Math.min(1, fy - y0));
+
+        const getAlt = (x, y) => {
+            const idx = (y * 256 + x) * 4;
+            return decodeGsiPixel(data[idx], data[idx + 1], data[idx + 2]);
+        };
+
+        const e00 = getAlt(x0, y0);
+        const e10 = getAlt(x1, y0) ?? e00;
+        const e01 = getAlt(x0, y1) ?? e00;
+        const e11 = getAlt(x1, y1) ?? e10 ?? e00;
+
+        if (e00 === null) return null;
+        const top = e00 + (e10 - e00) * dx;
+        const bot = e01 + (e11 - e01) * dx;
+        return top + (bot - top) * dy;
+    };
+
+    let validCount = 0;
+    const elevations = points.map((p) => {
+        const { tx, ty, px, py } = lonLatToTileCoords(p.lon, p.lat, 15);
+        const data = tileCache.get(`${tx}/${ty}`);
+        const alt = sampleTilePixel(data, px, py);
+        if (alt !== null) {
+            validCount++;
+            return alt;
+        }
+        return p.alt;
+    });
+
+    if (validCount === 0) return null;
+    return { elevations, type: 'DEM5A' };
+}
+
+/**
+ * 🌍 海外用 / グローバルフォールバック：AWS Terrarium DEM（約30mメッシュ）からコース標高をサンプリング
  * @param {Array<{dist:number, lon:number, lat:number, alt:number}>} points
  * @returns {Promise<number[]|null>}
  */
 export async function fetchTerrainDemElevations(points) {
     if (!points || points.length === 0) return null;
 
-    const toTileCoords = (lon, lat, z) => {
-        const n = 2 ** z;
-        const xFloat = ((lon + 180) / 360) * n;
-        const latRad = (lat * Math.PI) / 180;
-        const yFloat = ((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2) * n;
-        const tx = Math.floor(xFloat), ty = Math.floor(yFloat);
-        return { tx, ty, px: (xFloat - tx) * 256, py: (yFloat - ty) * 256 };
-    };
-
     let zoom = 14;
     const countTiles = (z) => {
         const set = new Set();
         for (const p of points) {
-            const { tx, ty } = toTileCoords(p.lon, p.lat, z);
+            const { tx, ty } = lonLatToTileCoords(p.lon, p.lat, z);
             set.add(`${tx}/${ty}`);
         }
         return set;
@@ -64,28 +204,10 @@ export async function fetchTerrainDemElevations(points) {
     }
 
     const tilePixels = new Map();
-    const canvas = document.createElement('canvas');
-    canvas.width = 256;
-    canvas.height = 256;
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
-
-    const loadTile = (key) => new Promise((resolve) => {
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
-        img.onload = () => {
-            try {
-                ctx.clearRect(0, 0, 256, 256);
-                ctx.drawImage(img, 0, 0, 256, 256);
-                tilePixels.set(key, ctx.getImageData(0, 0, 256, 256).data);
-            } catch {
-                // ignore canvas taint error
-            }
-            resolve();
-        };
-        img.onerror = () => resolve();
-        // MapLibre本体の非CORSキャッシュとの衝突を防ぐためクエリパラメータを付与
-        img.src = `https://s3.amazonaws.com/elevation-tiles-prod/terrarium/${zoom}/${key}.png?_c=1`;
-    });
+    const loadTile = async (key) => {
+        const data = await fetchImagePixels(`https://s3.amazonaws.com/elevation-tiles-prod/terrarium/${zoom}/${key}.png?_c=1`);
+        if (data) tilePixels.set(key, data);
+    };
 
     await Promise.all(Array.from(tileKeys).map(loadTile));
     if (tilePixels.size === 0) return null;
@@ -98,7 +220,7 @@ export async function fetchTerrainDemElevations(points) {
     };
 
     return points.map((p) => {
-        const { tx, ty, px, py } = toTileCoords(p.lon, p.lat, zoom);
+        const { tx, ty, px, py } = lonLatToTileCoords(p.lon, p.lat, zoom);
         const data = tilePixels.get(`${tx}/${ty}`);
         if (!data) return p.alt;
 
@@ -114,66 +236,5 @@ export async function fetchTerrainDemElevations(points) {
         const top = e00 + (e10 - e00) * dx;
         const bot = e01 + (e11 - e01) * dx;
         return top + (bot - top) * dy;
-    });
-}
-
-/**
- * 国土地理院 標高API（DEM5A 5mレーザーメッシュ最優先）から等距離間隔でコース標高を取得・補間
- * @param {Array<{dist:number, lon:number, lat:number, alt:number}>} interpolatedPoints
- * @param {number} totalDistance
- * @param {Function} onProgress (pct, completed, total)
- */
-export async function fetchGsi5mWaypoints(interpolatedPoints, totalDistance, onProgress = null) {
-    const totalPts = interpolatedPoints.length;
-    const targetCount = Math.min(220, Math.max(80, Math.round(totalDistance / 50)));
-    const step = Math.max(1, Math.floor(totalPts / targetCount));
-
-    const sampledIndices = [];
-    for (let i = 0; i < totalPts; i += step) sampledIndices.push(i);
-    if (sampledIndices[sampledIndices.length - 1] !== totalPts - 1) {
-        sampledIndices.push(totalPts - 1);
-    }
-
-    const newAltitudes = new Array(sampledIndices.length);
-    const concurrency = 6;
-    let completed = 0;
-
-    const fetchOne = async (sIdx, ptIdx) => {
-        const pt = interpolatedPoints[ptIdx];
-        const url = `https://cyberjapandata2.gsi.go.jp/general/dem/scripts/getelevation.php?lon=${pt.lon.toFixed(6)}&lat=${pt.lat.toFixed(6)}&outtype=JSON`;
-        try {
-            const res = await fetch(url);
-            if (res.ok) {
-                const data = await res.json();
-                if (typeof data?.elevation === 'number') {
-                    newAltitudes[sIdx] = data.elevation;
-                    return;
-                }
-            }
-        } catch {
-            // 通信エラー時は元の標高値をフォールバック保持
-        }
-        newAltitudes[sIdx] = pt.alt;
-    };
-
-    for (let i = 0; i < sampledIndices.length; i += concurrency) {
-        const batch = sampledIndices.slice(i, i + concurrency).map((ptIdx, offset) => {
-            const sIdx = i + offset;
-            return fetchOne(sIdx, ptIdx).then(() => {
-                completed++;
-                onProgress?.(Math.round((completed / sampledIndices.length) * 100), completed, sampledIndices.length);
-            });
-        });
-        await Promise.all(batch);
-    }
-
-    // 等距離サンプル点から全補間ポイントへ線形補間マッピング
-    let s = 0;
-    return interpolatedPoints.map((pt, origIdx) => {
-        while (s < sampledIndices.length - 2 && origIdx > sampledIndices[s + 1]) s++;
-        const idx0 = sampledIndices[s], idx1 = sampledIndices[s + 1];
-        const ratio = idx1 > idx0 ? (origIdx - idx0) / (idx1 - idx0) : 0;
-        const alt = newAltitudes[s] + (newAltitudes[s + 1] - newAltitudes[s]) * ratio;
-        return { dist: pt.dist, lon: pt.lon, lat: pt.lat, alt: Math.round(alt * 100) / 100 };
     });
 }

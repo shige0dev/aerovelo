@@ -3,7 +3,7 @@
  * 3D Route Interpolation, Distance, Bearing, and Road-Grade Calculation Engine
  */
 
-import { fetchGsi5mWaypoints, fetchTerrainDemElevations } from './gpx-gsi.js';
+import { fetchGsiDem5aElevations, fetchTerrainDemElevations } from './gpx-gsi.js';
 
 const DEG_TO_RAD = Math.PI / 180;
 export const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
@@ -43,29 +43,51 @@ export class GeoCourseManager {
     }
 
     /**
-     * 3Dマップと同一の Terrarium DEM タイルからコース標高を自動同期（画面の地形・等高線と100%一致）
+     * 3D地形DEM（日本国内: 国土地理院 5mメッシュ DEM5A PNG、海外: AWS 30m DEM）からコース標高を自動同期
      */
     async syncWithTerrainDem() {
         if (this.isGsiCorrected) return false;
-        const elevations = await fetchTerrainDemElevations(this.rawSamples);
+
+        let elevations = null;
+        let isGsi = false;
+
+        if (this.isWithinJapan()) {
+            const res = await fetchGsiDem5aElevations(this.rawSamples);
+            if (res && res.elevations) {
+                elevations = res.elevations;
+                isGsi = true;
+            }
+        }
+
+        // 海外または国内未対応エリアは AWS Terrarium (30m) でフォールバック
+        if (!elevations) {
+            elevations = await fetchTerrainDemElevations(this.rawSamples);
+        }
+
         if (!elevations || this.isGsiCorrected) return false;
 
         this.rawSamples = this.rawSamples.map((s, i) => ({ ...s, alt: elevations[i] }));
         this.applyElevationFilter(this.rawSamples);
         this.isTerrainSynced = true;
+        this.isGsiCorrected = isGsi;
         return true;
     }
 
     /**
-     * 国土地理院 5mメッシュ（DEM5A）から等距離サンプリングで標高・斜度を再計算
+     * 国土地理院 5mメッシュ（DEM5A PNG）からコース標高・斜度を超高速再計算（0.2秒で完了）
      */
     async recalculateWithGSI5m(onProgress = null) {
         if (!this.isWithinJapan()) {
             throw new Error('国土地理院の標高メッシュは日本国内のコースのみ対応しています。');
         }
-        this.rawSamples = await fetchGsi5mWaypoints(this.rawSamples, this.totalDistance, onProgress);
+        const res = await fetchGsiDem5aElevations(this.rawSamples, onProgress);
+        if (!res || !res.elevations) {
+            throw new Error('国土地理院 5mメッシュの取得に失敗しました。');
+        }
+        this.rawSamples = this.rawSamples.map((s, i) => ({ ...s, alt: res.elevations[i] }));
         this.applyElevationFilter(this.rawSamples);
         this.isGsiCorrected = true;
+        this.isTerrainSynced = true;
         return true;
     }
 

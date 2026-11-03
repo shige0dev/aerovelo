@@ -1,11 +1,127 @@
 /**
- * 3D Terrain Map, Full-Screen 5m/2.5m Contour Lines, & Chase Camera Controller (MapLibre GL JS)
+ * 3D Terrain Map, GSI 5m/AWS 30m Hybrid DEM, 5m Contour Lines, & Chase Camera Controller (MapLibre GL JS)
  * Handles satellite/terrain rendering, DEM contour isolines, route layers, and camera tracking.
  */
 
 import { clamp } from './course.js';
+import { decodeGsiPixel, encodeTerrariumPixel } from './gpx-gsi.js';
 
-const DEM_TILE_URL = 'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png';
+const DEM_AWS_BASE = 'https://s3.amazonaws.com/elevation-tiles-prod/terrarium';
+const HYBRID_DEM_URL = 'gsi-dem://{z}/{x}/{y}';
+
+// 国土地理院 5m/10m メッシュと AWS 30m メッシュを融合するハイブリッドDEMプロトコル (gsi-dem://)
+let isGsiProtocolRegistered = false;
+function registerGsiDemProtocol() {
+    if (isGsiProtocolRegistered || !window.maplibregl?.addProtocol) return;
+    isGsiProtocolRegistered = true;
+
+    maplibregl.addProtocol('gsi-dem', (params, callback) => {
+        let isCancelled = false;
+        const match = params.url.match(/gsi-dem:\/\/(\d+)\/(\d+)\/(\d+)/);
+        if (!match) {
+            callback(new Error('Invalid gsi-dem URL'));
+            return { cancel: () => {} };
+        }
+        const z = parseInt(match[1], 10);
+        const x = parseInt(match[2], 10);
+        const y = parseInt(match[3], 10);
+
+        // 日本のタイル範囲（経度122〜154、緯度20〜46）判定
+        const n = 2 ** z;
+        const lonMin = (x / n) * 360 - 180;
+        const lonMax = ((x + 1) / n) * 360 - 180;
+        const isJapan = lonMin < 154 && lonMax > 122;
+
+        const fallbackAws = () => {
+            if (isCancelled) return;
+            fetch(`${DEM_AWS_BASE}/${z}/${x}/${y}.png?_c=1`)
+                .then((res) => {
+                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                    return res.arrayBuffer();
+                })
+                .then((buf) => callback(null, buf, null, null))
+                .catch((err) => callback(err));
+        };
+
+        // 日本国外または広域低ズーム(z < 11)は AWS Terrarium へ即座にフォールバック
+        if (!isJapan || z < 11) {
+            fallbackAws();
+            return { cancel: () => { isCancelled = true; } };
+        }
+
+        // 日本国内ズーム11〜15: 国土地理院 DEM タイル（dem5a_png / dem10b_png / dem_png）を取得・変換
+        const tryGsi = async () => {
+            const urls = [];
+            if (z >= 14) {
+                const z15x = z === 15 ? x : x * 2;
+                const z15y = z === 15 ? y : y * 2;
+                urls.push(`https://cyberjapandata.gsi.go.jp/xyz/dem5a_png/15/${z15x}/${z15y}.png`);
+                urls.push(`https://cyberjapandata.gsi.go.jp/xyz/dem5b_png/15/${z15x}/${z15y}.png`);
+            }
+            if (z >= 12) {
+                const shift = Math.max(0, 14 - z);
+                const z14x = Math.floor(x * (2 ** shift));
+                const z14y = Math.floor(y * (2 ** shift));
+                urls.push(`https://cyberjapandata.gsi.go.jp/xyz/dem10b_png/14/${z14x}/${z14y}.png`);
+                urls.push(`https://cyberjapandata.gsi.go.jp/xyz/dem_png/14/${z14x}/${z14y}.png`);
+            }
+
+            for (const url of urls) {
+                if (isCancelled) return;
+                try {
+                    const res = await fetch(url);
+                    if (!res.ok) continue;
+                    const blob = await res.blob();
+                    const img = await createImageBitmap(blob);
+                    if (isCancelled) return;
+
+                    const canvas = document.createElement('canvas');
+                    canvas.width = 256;
+                    canvas.height = 256;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, 256, 256);
+                    const imgData = ctx.getImageData(0, 0, 256, 256);
+                    const d = imgData.data;
+
+                    // GSI 24bit RGB 標高 -> MapLibre Terrarium RGB 形式へインメモリ一括変換
+                    let hasValid = false;
+                    for (let i = 0; i < d.length; i += 4) {
+                        const h = decodeGsiPixel(d[i], d[i + 1], d[i + 2]);
+                        if (h !== null) {
+                            hasValid = true;
+                            const [tr, tg, tb] = encodeTerrariumPixel(h);
+                            d[i] = tr;
+                            d[i + 1] = tg;
+                            d[i + 2] = tb;
+                            d[i + 3] = 255;
+                        } else {
+                            const [tr, tg, tb] = encodeTerrariumPixel(0);
+                            d[i] = tr;
+                            d[i + 1] = tg;
+                            d[i + 2] = tb;
+                            d[i + 3] = 255;
+                        }
+                    }
+
+                    if (hasValid) {
+                        ctx.putImageData(imgData, 0, 0);
+                        canvas.toBlob((outBlob) => {
+                            if (isCancelled) return;
+                            outBlob.arrayBuffer().then((buf) => callback(null, buf, null, null));
+                        }, 'image/png');
+                        return;
+                    }
+                } catch {
+                    // 次の優先度URLを試行
+                }
+            }
+            fallbackAws();
+        };
+
+        tryGsi().catch(() => fallbackAws());
+        return { cancel: () => { isCancelled = true; } };
+    });
+}
 
 export class MapViewController {
     constructor(containerId = 'map', initialState = { lon: 138.583, lat: 35.474, bearing: 0 }, onCameraChange = null) {
@@ -27,6 +143,7 @@ export class MapViewController {
         this.isMapLoaded = false;
         this.demSource = null;
 
+        registerGsiDemProtocol();
         this.initMap(initialState);
         this.setupMainScreenSwipe();
     }
@@ -36,13 +153,13 @@ export class MapViewController {
     }
 
     initMap(startState) {
-        // maplibre-contour による画面全体リアルタイム等高線生成プロトコル登録
+        // maplibre-contour によるハイブリッドDEM等高線生成プロトコル登録
         if (window.mlcontour) {
             try {
                 this.demSource = new window.mlcontour.DemSource({
-                    url: DEM_TILE_URL,
+                    url: HYBRID_DEM_URL,
                     encoding: 'terrarium',
-                    maxzoom: 14,
+                    maxzoom: 15,
                     worker: true
                 });
                 this.demSource.setupMaplibre(maplibregl);
@@ -61,10 +178,10 @@ export class MapViewController {
             },
             'terrain-dem': {
                 type: 'raster-dem',
-                tiles: [DEM_TILE_URL],
+                tiles: [HYBRID_DEM_URL],
                 encoding: 'terrarium',
                 tileSize: 256,
-                maxzoom: 14
+                maxzoom: 15
             }
         };
 
@@ -78,7 +195,6 @@ export class MapViewController {
                 tiles: [
                     this.demSource.contourProtocolUrl({
                         multiplier: 1,
-                        // z=14 のDEMタイルをオーバーズームして z=16 (カメラズーム16.5〜18.0) でも 404 を出さずに滑らかに生成
                         overzoom: 2,
                         thresholds: {
                             11: [25],
@@ -138,7 +254,7 @@ export class MapViewController {
 
         this.map.on('load', () => {
             this.isMapLoaded = true;
-            // 3D地形の高さ倍率を 1.0 (実寸) に設定し、計算標高・等高線・視覚勾配を完全一致させる
+            // 国土地理院 5mメッシュ起伏を実寸 1.0 で立体レンダリング
             this.map.setTerrain({ source: 'terrain-dem', exaggeration: 1.0 });
 
             const makeMarker = (cls, html) => {
@@ -303,7 +419,6 @@ export class MapViewController {
             if (!isDragging || this.cam.mode !== 'track') return;
             e.preventDefault();
             const dy = e.clientY - startY;
-            // 0.1度刻みの滑らかな補間（感度: 0.2）
             const nextPitch = clamp(Math.round((startPitch - dy * 0.2) * 10) / 10, 20, 75);
             if (nextPitch !== pendingPitch) {
                 pendingPitch = nextPitch;
@@ -347,7 +462,6 @@ export class MapViewController {
         const targetPitch = this.cam.pitch;
         const targetBearing = (state.bearing - this.cam.orbit + 360) % 360;
 
-        // スムージング度合い0（無効時）、初回ロード時、アニメーション指定時、または停止中（手動操作時）は即座に目標方向へ向く
         if (this.cam.smooth === 0 || this.cam.bearing === null || duration > 0 || !isMoving) {
             this.cam.bearing = targetBearing;
         } else {
