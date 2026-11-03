@@ -96,14 +96,28 @@ export class GeoCourseManager {
             });
         }
 
-        // 約60m区間の移動平均フィルター（GPS標高スパイクノイズ除去）
         const stepDist = total / SAMPLES;
-        const halfWin = Math.max(3, Math.round(30 / (stepDist || 1)));
 
-        this.interpolatedPoints = rawSamples.map((s, idx) => {
+        // 1段目: メディアンフィルター（突発的な外れ値・崖/橋底のスパイクノイズを完全消去）
+        const medHalfWin = Math.max(2, Math.round(12 / (stepDist || 1)));
+        const medianFiltered = rawSamples.map((s, idx) => {
+            const start = Math.max(0, idx - medHalfWin), end = Math.min(SAMPLES, idx + medHalfWin);
+            const windowAlts = [];
+            for (let k = start; k <= end; k++) windowAlts.push(rawSamples[k].alt);
+            windowAlts.sort((a, b) => a - b);
+            const mid = Math.floor(windowAlts.length / 2);
+            const medAlt = (windowAlts.length % 2 === 1)
+                ? windowAlts[mid]
+                : (windowAlts[mid - 1] + windowAlts[mid]) / 2;
+            return { dist: s.dist, lon: s.lon, lat: s.lat, alt: medAlt };
+        });
+
+        // 2段目: 約60m区間の移動平均フィルター（微細な段差を均して滑らかな道路勾配を生成）
+        const halfWin = Math.max(3, Math.round(30 / (stepDist || 1)));
+        this.interpolatedPoints = medianFiltered.map((s, idx) => {
             const start = Math.max(0, idx - halfWin), end = Math.min(SAMPLES, idx + halfWin);
             let sumAlt = 0;
-            for (let k = start; k <= end; k++) sumAlt += rawSamples[k].alt;
+            for (let k = start; k <= end; k++) sumAlt += medianFiltered[k].alt;
             return { dist: s.dist, lon: s.lon, lat: s.lat, alt: sumAlt / (end - start + 1) };
         });
     }
