@@ -7,6 +7,7 @@ import { clamp } from './course.js';
 import { decodeAndFillGsiTile, encodeTerrariumPixel } from './gpx-gsi.js';
 
 const DEM_AWS_BASE = 'https://s3.amazonaws.com/elevation-tiles-prod/terrarium';
+const DEM_TILE_URL = 'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png';
 const HYBRID_DEM_URL = 'gsi-dem://{z}/{x}/{y}';
 
 // 国土地理院 10mメッシュ (dem_png, z<=14) と AWS 30m メッシュを1:1座標で統合するプロトコル (gsi-dem://)
@@ -124,11 +125,12 @@ export class MapViewController {
     }
 
     initMap(startState) {
-        // maplibre-contour によるハイブリッドDEM等高線生成プロトコル登録
+        // maplibre-contour による等高線生成プロトコル登録
+        // ※mlcontourのWeb Workerは外部HTTP(S)URLからTerrarium DEMを直接フェッチして超高速にベクトル等高線を生成
         if (window.mlcontour) {
             try {
                 this.demSource = new window.mlcontour.DemSource({
-                    url: HYBRID_DEM_URL,
+                    url: DEM_TILE_URL,
                     encoding: 'terrarium',
                     maxzoom: 14,
                     worker: true
