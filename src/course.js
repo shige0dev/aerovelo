@@ -225,13 +225,13 @@ export class GeoCourseManager {
             return { dist: s.dist, lon: s.lon, lat: s.lat, alt: medAlt };
         });
 
-        // 10mメッシュ補正時は 5mコンターラインとのクロスポイント補間を適用
+        // 10mメッシュ補正時は 5mコンターラインとのクロスポイント直線補間を適用（すでに直線勾配化されているため移動平均は最小限の5mのみ）
         const basePoints = useContourCrossing
             ? this.buildContourCrossingSamples(medianFiltered)
             : medianFiltered;
 
-        // 2段目: 前後15m（計30m区間）の移動平均フィルター（段差を均し、実走感のある滑らかな道路勾配を生成）
-        const halfWin = Math.max(1, Math.round(15 / (stepDist || 1)));
+        const smoothRadiusMeters = useContourCrossing ? 5 : 10;
+        const halfWin = Math.max(1, Math.round(smoothRadiusMeters / (stepDist || 1)));
         this.interpolatedPoints = basePoints.map((s, idx) => {
             const start = Math.max(0, idx - halfWin), end = Math.min(count, idx + halfWin);
             let sumAlt = 0;
@@ -276,11 +276,11 @@ export class GeoCourseManager {
             b1 = this.sampleAtDist(Math.min(this.totalDistance, b0.dist + span));
         }
 
-        // 斜度（Slope）: 後方10m〜前方20m（計30m・目の前の道路勾配）の標高差から目視地形と完全に一致させて算出
-        const bwdSlope = this.sampleAtDist(dist - 10);
-        const fwdSlope = this.sampleAtDist(dist + 20);
+        // 斜度（Slope）: ルート標高自体が補正済みのため、余計な区間平均を行わず現在地直近（0m〜前方5m）から遅れゼロで直接算出
+        const bwdSlope = cur;
+        const fwdSlope = this.sampleAtDist(dist + 5);
         const roadDist = fwdSlope.dist - bwdSlope.dist;
-        const slope = roadDist > 5 ? Math.round(((fwdSlope.alt - bwdSlope.alt) / roadDist) * 1000) / 10 : 0;
+        const slope = roadDist > 0.5 ? Math.round(((fwdSlope.alt - bwdSlope.alt) / roadDist) * 1000) / 10 : 0;
 
         return {
             u,
