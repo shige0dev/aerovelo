@@ -55,6 +55,7 @@ export class UIController {
             totalDistTag: $('bottom-total-dist-tag'),
             hudRowLoad: $('hud-row-load'),
             btnManualMode: $('btn-manual-mode'),
+            btnSettingsManual: $('btn-settings-manual'),
             hudRowZoom: $('hud-row-zoom'),
             courseName: $('course-name-display'),
             btnFullscreen: $('btn-fullscreen'),
@@ -154,6 +155,7 @@ export class UIController {
         // Play / Pause & Manual Mode & LFO
         on(el.btnPlay, 'click', () => cb.onTogglePlay?.());
         on(el.btnManualMode, 'click', () => cb.onToggleManualMode?.());
+        on(el.btnSettingsManual, 'click', () => cb.onToggleManualMode?.());
         on(el.testSlopeSlider, 'input', (e) => cb.onManualSlopeInput?.(parseFloat(e.target.value), true));
         on(el.btnLfoToggle, 'click', () => cb.onToggleLfo?.());
         on('lfo-period-select', 'change', (e) => cb.onLfoPeriodChange?.(parseFloat(e.target.value) || 60));
@@ -175,7 +177,7 @@ export class UIController {
 
         // 3. 上部HUD Zoom スクラバー
         this.bindScrubber(el.hudRowZoom, {
-            min: 13.0, max: 18.5, step: 0.1, pxPerStep: 4,
+            min: 13.0, max: 18.0, step: 0.1, pxPerStep: 4,
             getValue: () => this.currentZoom,
             onInput: (v) => {
                 this.syncCameraParams({ zoom: v });
@@ -287,12 +289,13 @@ export class UIController {
 
     updateManualModeState(isManual) {
         this.el.btnManualMode?.classList.toggle('active', isManual);
+        this.el.btnSettingsManual?.classList.toggle('active', isManual);
     }
 
     updateLfoState(isRunning) {
         const { btnLfoToggle } = this.el;
         if (!btnLfoToggle) return;
-        btnLfoToggle.textContent = 'AUTOSCAN';
+        btnLfoToggle.textContent = 'AUTOSWEEP';
         btnLfoToggle.classList.toggle('running', isRunning);
     }
 

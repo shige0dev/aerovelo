@@ -18,7 +18,7 @@
     <div id="top-bar">
         <div class="top-title-group">
             <h1 class="top-app-title">AeroVelo</h1>
-            <span class="version-badge" id="app-version">v1.9.5</span>
+            <span class="version-badge" id="app-version">v1.9.6</span>
         </div>
         <div class="top-course-group">
             <span id="course-name-display" class="top-course-title">読み込み中...</span>
@@ -161,7 +161,7 @@
                 <label for="cam-zoom-slider">Zoom</label>
                 <span id="cam-zoom-val" class="sub-val">16.5</span>
             </div>
-            <input type="range" id="cam-zoom-slider" min="13.0" max="18.5" step="0.1" value="16.5">
+            <input type="range" id="cam-zoom-slider" min="13.0" max="18.0" step="0.1" value="16.5">
         </div>
     </div>
 
@@ -233,14 +233,17 @@
                     <div class="test-controls-box">
                         <!-- Manual Slope Slider (0%〜7%) -->
                         <div class="label-row">
-                            <label for="test-slope-slider">手動負荷 (Slope)</label>
+                            <div class="label-with-btn">
+                                <label for="test-slope-slider">負荷</label>
+                                <button type="button" id="btn-settings-manual" class="hud-manual-btn" title="マニュアル優先 (手動固定負荷モード切替)">Manual</button>
+                            </div>
                             <span id="test-slope-val" class="sub-val">0.0 %</span>
                         </div>
                         <input type="range" id="test-slope-slider" min="0" max="7" step="0.2" value="0">
 
-                        <!-- Auto Sweep (AUTOSCAN + 周期: 30秒, 60秒[デフォルト], 120秒) -->
+                        <!-- Auto Sweep (AUTOSWEEP + 周期: 30秒, 60秒[デフォルト], 120秒) -->
                         <div class="compact-scan-row">
-                            <button type="button" id="btn-lfo-toggle" class="btn secondary mini-scan-btn">AUTOSCAN</button>
+                            <button type="button" id="btn-lfo-toggle" class="btn secondary mini-scan-btn">AUTOSWEEP</button>
                             <div class="lfo-period-wrap">
                                 <select id="lfo-period-select" class="mini-select" title="スキャン周期">
                                     <option value="30">30s</option>
