@@ -105,7 +105,7 @@ input[type="range"]::-webkit-slider-thumb {
 }
 .hud-item {
     pointer-events: auto; display: flex; align-items: center; justify-content: space-between;
-    width: 130px; height: 20px; padding: 0 6px; box-sizing: border-box;
+    width: 114px; height: 20px; padding: 0 6px; box-sizing: border-box;
     background: rgba(15, 23, 42, 0.35); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
     border: 1px solid rgba(255, 255, 255, 0.16); border-radius: 3px;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
@@ -126,17 +126,15 @@ input[type="range"]::-webkit-slider-thumb {
     background: rgba(16, 185, 129, 0.25); border-color: var(--flat); color: #a7f3d0; box-shadow: 0 0 4px rgba(16, 185, 129, 0.3);
 }
 
-.hud-value-box { display: flex; align-items: baseline; justify-content: flex-end; }
+.hud-value-box { display: flex; align-items: baseline; justify-content: flex-end; gap: 2px; }
 .hud-val {
     font-size: 0.70rem; font-family: var(--font-mono); font-weight: 700; color: #f1f5f9;
     line-height: 1; white-space: nowrap; letter-spacing: -0.02em; text-align: right;
-    width: 46px; flex-shrink: 0;
     text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
 }
 .hud-unit {
     font-size: 0.36rem; color: rgba(255, 255, 255, 0.6); font-weight: 500; line-height: 1;
-    width: 22px; flex-shrink: 0; text-align: left; padding-left: 2px; box-sizing: border-box;
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+    white-space: nowrap; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
 }
 
 .slope-hud-item { cursor: ns-resize; touch-action: none; }
