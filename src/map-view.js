@@ -77,17 +77,16 @@ export class MapViewController {
                 type: 'vector',
                 tiles: [
                     this.demSource.contourProtocolUrl({
-                        // multiplier: 2 により標高を 0.5m 単位の整数に変換し、5 (=2.5m間隔) と 10 (=5.0m間隔) を正確に生成
-                        multiplier: 2,
-                        // z=14 のDEMタイルをオーバーズームして z=16 (カメラズーム16.5〜18.0) でも 404 を出さずに高精細生成
+                        multiplier: 1,
+                        // z=14 のDEMタイルをオーバーズームして z=16 (カメラズーム16.5〜18.0) でも 404 を出さずに滑らかに生成
                         overzoom: 2,
                         thresholds: {
-                            11: [20, 100], // 10m / 50m
-                            12: [10, 20],  // 5m / 10m
-                            13: [5, 10],   // 2.5m / 5m
-                            14: [5, 10],   // 2.5m / 5m
-                            15: [5, 10],   // 2.5m / 5m
-                            16: [5, 10]    // 2.5m / 5m
+                            11: [50],
+                            12: [20],
+                            13: [10],
+                            14: [10],
+                            15: [10],
+                            16: [10]
                         },
                         elevationKey: 'ele',
                         levelKey: 'level',
@@ -108,18 +107,8 @@ export class MapViewController {
                     'visibility': this.markerVisible.contour ? 'visible' : 'none'
                 },
                 paint: {
-                    'line-color': [
-                        'match',
-                        ['get', 'level'],
-                        1, 'rgba(255, 215, 64, 0.90)',  // 5.0m 間隔 (太線)
-                        'rgba(255, 235, 150, 0.50)'     // 2.5m 間隔 (細線)
-                    ],
-                    'line-width': [
-                        'match',
-                        ['get', 'level'],
-                        1, 1.8,
-                        0.9
-                    ]
+                    'line-color': 'rgba(255, 225, 110, 0.55)',
+                    'line-width': 0.8
                 }
             });
         }
