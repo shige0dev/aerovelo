@@ -3,7 +3,7 @@
  * 3D Route Interpolation, Distance, Bearing, and Road-Grade Calculation Engine
  */
 
-import { fetchGsi5mWaypoints, fetchTerrainDemElevations } from './gpx-gsi.js';
+import { fetchGsi5mWaypoints, fetchTerrainDemData } from './gpx-gsi.js';
 
 const DEG_TO_RAD = Math.PI / 180;
 export const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
@@ -43,17 +43,18 @@ export class GeoCourseManager {
     }
 
     /**
-     * 3Dマップと同一の Terrarium DEM タイルからコース標高を自動同期（画面の地形・等高線と100%一致）
+     * 3Dマップと同一の Terrarium DEM タイルからコース標高と 5m/2.5m 等高線 GeoJSON を自動計算・同期
      */
     async syncWithTerrainDem() {
-        if (this.isGsiCorrected) return false;
-        const elevations = await fetchTerrainDemElevations(this.rawSamples);
-        if (!elevations || this.isGsiCorrected) return false;
-
-        this.rawSamples = this.rawSamples.map((s, i) => ({ ...s, alt: elevations[i] }));
-        this.applyElevationFilter(this.rawSamples);
-        this.isTerrainSynced = true;
-        return true;
+        const res = await fetchTerrainDemData(this.rawSamples);
+        if (!res) return null;
+        this.contourGeoJSON = res.contourGeoJSON;
+        if (!this.isGsiCorrected) {
+            this.rawSamples = this.rawSamples.map((s, i) => ({ ...s, alt: res.elevations[i] }));
+            this.applyElevationFilter(this.rawSamples);
+            this.isTerrainSynced = true;
+        }
+        return res.contourGeoJSON;
     }
 
     /**

@@ -1,6 +1,6 @@
 /**
- * 3D Terrain Map, Real-time Contour Lines, & Chase Camera Controller (MapLibre GL JS)
- * Handles satellite/terrain rendering, DEM contour isolines, route layers, and camera tracking.
+ * 3D Terrain Map, 5m/2.5m Contour Lines, & Chase Camera Controller (MapLibre GL JS)
+ * Handles satellite/terrain rendering, Marching Squares GeoJSON contours, route layers, and camera tracking.
  */
 
 import { clamp } from './course.js';
@@ -22,8 +22,9 @@ export class MapViewController {
         };
         this.lastState = initialState;
         this.markers = { rider: null, fwd: null, bwd: null };
-        this.markerVisible = { fwd: true, bwd: true, contour: true };
-        this.demSource = null;
+        // 前後注視点マーカーは起動時 HIDE (false)、等高線は起動時表示 (true)
+        this.markerVisible = { fwd: false, bwd: false, contour: true };
+        this.pendingContours = null;
 
         this.initMap(initialState);
         this.setupMainScreenSwipe();
@@ -34,114 +35,29 @@ export class MapViewController {
     }
 
     initMap(startState) {
-        // maplibre-contour によるリアルタイム等高線生成プロトコル登録
-        if (window.mlcontour) {
-            try {
-                this.demSource = new window.mlcontour.DemSource({
-                    url: DEM_TILE_URL,
-                    encoding: 'terrarium',
-                    maxzoom: 14,
-                    worker: true
-                });
-                this.demSource.setupMaplibre(maplibregl);
-            } catch (err) {
-                console.warn('Contour DemSource setup error:', err);
-                this.demSource = null;
-            }
-        }
-
-        const sources = {
-            'satellite': {
-                type: 'raster',
-                tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
-                tileSize: 256,
-                attribution: 'Tiles &copy; Esri, Maxar, Earthstar Geographics'
-            },
-            'terrain-dem': {
-                type: 'raster-dem',
-                tiles: [this.demSource ? this.demSource.sharedDemProtocolUrl : DEM_TILE_URL],
-                encoding: 'terrarium',
-                tileSize: 256,
-                maxzoom: 14
-            }
-        };
-
-        const layers = [
-            { id: 'satellite-layer', type: 'raster', source: 'satellite', minzoom: 0, maxzoom: 22 }
-        ];
-
-        if (this.demSource) {
-            sources['contours'] = {
-                type: 'vector',
-                tiles: [
-                    this.demSource.contourProtocolUrl({
-                        multiplier: 1,
-                        thresholds: {
-                            11: [100, 500],
-                            12: [50, 250],
-                            13: [20, 100],
-                            14: [10, 50],
-                            15: [5, 25]
-                        },
-                        elevationKey: 'ele',
-                        levelKey: 'level',
-                        contourLayer: 'contours'
-                    })
-                ],
-                maxzoom: 16
-            };
-
-            layers.push(
-                {
-                    id: 'contour-lines',
-                    type: 'line',
-                    source: 'contours',
-                    'source-layer': 'contours',
-                    paint: {
-                        'line-color': [
-                            'match',
-                            ['get', 'level'],
-                            1, 'rgba(255, 215, 64, 0.80)',
-                            'rgba(255, 235, 150, 0.38)'
-                        ],
-                        'line-width': [
-                            'match',
-                            ['get', 'level'],
-                            1, 1.6,
-                            0.85
-                        ]
-                    }
-                },
-                {
-                    id: 'contour-labels',
-                    type: 'symbol',
-                    source: 'contours',
-                    'source-layer': 'contours',
-                    filter: ['>', ['get', 'level'], 0],
-                    layout: {
-                        'symbol-placement': 'line',
-                        'text-field': ['concat', ['get', 'ele'], 'm'],
-                        'text-font': ['Open Sans Regular'],
-                        'text-size': 10,
-                        'text-max-angle': 25
-                    },
-                    paint: {
-                        'text-color': '#fef08a',
-                        'text-halo-color': 'rgba(15, 23, 42, 0.92)',
-                        'text-halo-width': 1.5
-                    }
-                }
-            );
-        }
-
         this.map = new maplibregl.Map({
             container: this.containerId,
             fadeDuration: 0,
             style: {
                 version: 8,
-                glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
-                sources,
-                layers,
+                sources: {
+                    'satellite': {
+                        type: 'raster',
+                        tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
+                        tileSize: 256,
+                        attribution: 'Tiles &copy; Esri, Maxar, Earthstar Geographics'
+                    },
+                    'terrain-dem': {
+                        type: 'raster-dem',
+                        tiles: [DEM_TILE_URL],
+                        encoding: 'terrarium',
+                        tileSize: 256,
+                        maxzoom: 14
+                    }
+                },
+                layers: [
+                    { id: 'satellite-layer', type: 'raster', source: 'satellite', minzoom: 0, maxzoom: 22 }
+                ],
                 sky: {
                     'sky-color': '#1e293b',
                     'sky-horizon-blend': 0.6,
@@ -174,10 +90,15 @@ export class MapViewController {
             this.markers.rider = makeMarker('rider-marker', '<div class="rider-beacon"></div><div class="rider-dot"></div>');
             this.markers.fwd = makeMarker('target-marker fwd-marker', '<div class="target-dot" title="前方注視点"></div>');
             this.markers.bwd = makeMarker('target-marker bwd-marker', '<div class="target-dot" title="後方注視点"></div>');
+            this.syncTargetMarkers(startState);
 
             if (this.pendingCourse) {
                 this.setCourse(this.pendingCourse, this.pendingState);
                 this.pendingCourse = null;
+            }
+            if (this.pendingContours) {
+                this.setContours(this.pendingContours);
+                this.pendingContours = null;
             }
 
             if (this.cam.mode === 'track') {
@@ -193,6 +114,49 @@ export class MapViewController {
 
     getCameraPadding() {
         return { left: 0, top: Math.round(window.innerHeight * 0.35), right: 0, bottom: 0 };
+    }
+
+    /**
+     * マーチング・スクエア法で計算された 5m / 2.5m 等高線 GeoJSON を3D地形上に描画
+     */
+    setContours(contourGeoJSON) {
+        if (!contourGeoJSON || !this.map) return;
+
+        if (!this.map.isStyleLoaded()) {
+            this.pendingContours = contourGeoJSON;
+            return;
+        }
+
+        if (this.map.getSource('contours')) {
+            this.map.getSource('contours').setData(contourGeoJSON);
+        } else {
+            this.map.addSource('contours', { type: 'geojson', data: contourGeoJSON });
+            const beforeId = this.map.getLayer('route-glow') ? 'route-glow' : undefined;
+            this.map.addLayer({
+                id: 'contour-lines',
+                type: 'line',
+                source: 'contours',
+                layout: {
+                    'line-join': 'round',
+                    'line-cap': 'round',
+                    'visibility': this.markerVisible.contour ? 'visible' : 'none'
+                },
+                paint: {
+                    'line-color': [
+                        'match',
+                        ['get', 'level'],
+                        1, 'rgba(255, 215, 64, 0.85)',  // 5.0m 間隔
+                        'rgba(255, 235, 150, 0.45)'     // 2.5m 間隔
+                    ],
+                    'line-width': [
+                        'match',
+                        ['get', 'level'],
+                        1, 1.6,
+                        0.9
+                    ]
+                }
+            }, beforeId);
+        }
     }
 
     setCourse(course, initialState) {
@@ -248,13 +212,8 @@ export class MapViewController {
 
     setMarkerVisibility(visibility) {
         Object.assign(this.markerVisible, visibility);
-        if (typeof visibility.contour === 'boolean' && this.map) {
-            const val = visibility.contour ? 'visible' : 'none';
-            for (const id of ['contour-lines', 'contour-labels']) {
-                if (this.map.getLayer(id)) {
-                    this.map.setLayoutProperty(id, 'visibility', val);
-                }
-            }
+        if (typeof visibility.contour === 'boolean' && this.map?.getLayer('contour-lines')) {
+            this.map.setLayoutProperty('contour-lines', 'visibility', visibility.contour ? 'visible' : 'none');
         }
         this.syncTargetMarkers();
     }

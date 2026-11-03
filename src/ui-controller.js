@@ -195,8 +195,8 @@ export class UIController {
             ['btn-toggle-fwd-marker', 'fwd'],
             ['btn-toggle-bwd-marker', 'bwd']
         ].forEach(([id, key]) => {
-            let visible = true;
             const btn = $(id);
+            let visible = !btn?.classList.contains('active');
             on(btn, 'click', () => {
                 visible = !visible;
                 btn?.classList.toggle('active', !visible);
