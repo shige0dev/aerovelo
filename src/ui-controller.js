@@ -30,12 +30,6 @@ export class UIController {
             courseName: $('course-name-display'),
             btnFullscreen: $('btn-fullscreen'),
             camFreeBtn: $('cam-free'),
-            camSmoothSlider: $('cam-smooth-slider'),
-            camSmoothVal: $('cam-smooth-val'),
-            camFwdMultSlider: $('cam-fwd-mult-slider'),
-            camFwdMultVal: $('cam-fwd-mult-val'),
-            camBwdMultSlider: $('cam-bwd-mult-slider'),
-            camBwdMultVal: $('cam-bwd-mult-val'),
             camAdjustBox: $('camera-adjust-box'),
             rowZoomCtrl: $('row-zoom-ctrl'),
             hudZoomVal: $('hud-zoom-val'),
@@ -43,8 +37,6 @@ export class UIController {
             camZoomVal: $('cam-zoom-val'),
             compassBtn: $('compass-btn'),
             compassDial: $('compass-dial'),
-            btnToggleFwdMarker: $('btn-toggle-fwd-marker'),
-            btnToggleBwdMarker: $('btn-toggle-bwd-marker'),
             btnGsiDem: $('btn-gsi-dem'),
             gsiBtnText: $('gsi-btn-text'),
             btnBleConnect: $('btn-ble-connect'),
@@ -140,80 +132,50 @@ export class UIController {
         this.bindDialog('btn-toggle-cam-dialog', 'btn-close-cam-dialog', 'camera-dialog');
         this.bindDialog('btn-modal-settings', 'btn-close-settings', 'modal-settings');
         on(el.camFreeBtn, 'click', () => cb.onToggleCameraFree?.());
-
-        // スムージング度合いスライダー (0: OFF, 1〜10)
-        on('cam-smooth-slider', 'input', (e) => {
-            const v = parseInt(e.target.value, 10);
-            const text = v === 0 ? 'OFF' : (v === 5 ? '5 (標準)' : `${v}`);
-            if ($('cam-smooth-val')) $('cam-smooth-val').textContent = text;
-            cb.onSmoothChange?.(v);
-        });
-
-        // 前方・後方ベクトル距離（速度倍率）スライダー ＆ 注視点 HIDE/SHOW ボタン
-        on('cam-fwd-mult-slider', 'input', (e) => {
-            const v = parseFloat(e.target.value);
-            if ($('cam-fwd-mult-val')) $('cam-fwd-mult-val').textContent = `${v.toFixed(1)}x`;
-            cb.onVectorMultiplierChange?.({ fwdMult: v });
-        });
-        on('cam-bwd-mult-slider', 'input', (e) => {
-            const v = parseFloat(e.target.value);
-            if ($('cam-bwd-mult-val')) $('cam-bwd-mult-val').textContent = `${v.toFixed(1)}x`;
-            cb.onVectorMultiplierChange?.({ bwdMult: v });
-        });
-
-        let fwdVisible = true, bwdVisible = true;
-        on(el.btnToggleFwdMarker, 'click', () => {
-            fwdVisible = !fwdVisible;
-            if (el.btnToggleFwdMarker) {
-                // テキストは常に「HIDE」固定。ハイライト時＝消えている、消灯(グレーアウト)時＝表示中
-                el.btnToggleFwdMarker.classList.toggle('active', !fwdVisible);
-            }
-            cb.onToggleMarker?.('fwd', fwdVisible);
-        });
-        on(el.btnToggleBwdMarker, 'click', () => {
-            bwdVisible = !bwdVisible;
-            if (el.btnToggleBwdMarker) {
-                el.btnToggleBwdMarker.classList.toggle('active', !bwdVisible);
-            }
-            cb.onToggleMarker?.('bwd', bwdVisible);
-        });
-
-        // 2D シンプルコンパスクリック（北向きリセット）
         on(el.compassBtn, 'click', () => cb.onResetNorth?.());
+
+        // 注視点 HIDE ボタン（ハイライト時＝消去中、消灯時＝表示中）
+        [['btn-toggle-fwd-marker', 'fwd'], ['btn-toggle-bwd-marker', 'bwd']].forEach(([id, key]) => {
+            let visible = true;
+            const btn = $(id);
+            on(btn, 'click', () => {
+                visible = !visible;
+                btn?.classList.toggle('active', !visible);
+                cb.onToggleMarker?.(key, visible);
+            });
+        });
 
         // HUD ズームコントロール（数値の上下ドラッグ ＆ ホイール操作）
         this.setupVerticalDrag(el.rowZoomCtrl, {
             isEnabled: () => true,
-            getInitialValue: () => parseFloat($('hud-zoom-val')?.textContent || 16.5),
+            getInitialValue: () => parseFloat(el.hudZoomVal?.textContent || 16.5),
             onDragChange: (start, dy) => {
                 const v = Math.max(13.0, Math.min(18.5, Math.round((start + dy / 35) * 10) / 10));
                 this.syncZoomUI(v);
                 cb.onCameraParamChange?.({ zoom: v });
             },
             onWheelDelta: (dir) => {
-                const cur = parseFloat($('hud-zoom-val')?.textContent || 16.5);
+                const cur = parseFloat(el.hudZoomVal?.textContent || 16.5);
                 const v = Math.max(13.0, Math.min(18.5, Math.round((cur + dir * 0.1) * 10) / 10));
                 this.syncZoomUI(v);
                 cb.onCameraParamChange?.({ zoom: v });
             }
         });
 
-        // カメラダイアログ側の Zoom スライダー (HUDと連動)
-        on('cam-zoom-slider', 'input', (e) => {
-            const v = parseFloat(e.target.value);
-            this.syncZoomUI(v);
-            cb.onCameraParamChange?.({ zoom: v });
-        });
-
+        // カメラ調整スライダー一括バインド
         [
-            ['cam-pitch-slider', 'cam-pitch-val', 'pitch', (v) => `${Math.round(v)}°`],
-            ['cam-orbit-slider', 'cam-orbit-val', 'orbitAngleOffset', (v) => v === 0 ? '0°' : `${v > 0 ? '+' : ''}${Math.round(v)}°`]
-        ].forEach(([sliderId, valId, key, fmt]) => {
-            const valEl = $(valId);
+            ['cam-smooth-slider', 'cam-smooth-val', (v) => v === 0 ? 'OFF' : (v === 5 ? '5 (標準)' : `${v}`), (v) => cb.onSmoothChange?.(v)],
+            ['cam-fwd-mult-slider', 'cam-fwd-mult-val', (v) => `${v.toFixed(1)}x`, (v) => cb.onVectorMultiplierChange?.({ fwdMult: v })],
+            ['cam-bwd-mult-slider', 'cam-bwd-mult-val', (v) => `${v.toFixed(1)}x`, (v) => cb.onVectorMultiplierChange?.({ bwdMult: v })],
+            ['cam-pitch-slider', 'cam-pitch-val', (v) => `${Math.round(v)}°`, (v) => cb.onCameraParamChange?.({ pitch: v })],
+            ['cam-orbit-slider', 'cam-orbit-val', (v) => v === 0 ? '0°' : `${v > 0 ? '+' : ''}${Math.round(v)}°`, (v) => cb.onCameraParamChange?.({ orbitAngleOffset: v })],
+            ['cam-zoom-slider', null, null, (v) => { this.syncZoomUI(v); cb.onCameraParamChange?.({ zoom: v }); }]
+        ].forEach(([sliderId, valId, fmt, handler]) => {
+            const valEl = valId ? $(valId) : null;
             on(sliderId, 'input', (e) => {
                 const v = parseFloat(e.target.value);
-                if (valEl) valEl.textContent = fmt(v);
-                cb.onCameraParamChange?.({ [key]: v });
+                if (valEl && fmt) valEl.textContent = fmt(v);
+                handler(v);
             });
         });
 
@@ -299,7 +261,6 @@ export class UIController {
 
     updateManualModeState(isManual) {
         this.el.btnManualMode?.classList.toggle('active', isManual);
-        this.el.rowSlopeCtrl?.classList.toggle('editable', isManual);
     }
 
     updateLfoState(isRunning) {
@@ -317,28 +278,28 @@ export class UIController {
         if (testSlopeVal) testSlopeVal.textContent = `${clampedSlope > 0 ? '+' : ''}${formatted} %`;
     }
 
+    setSpeedDisplay(speedKmh) {
+        const spdStr = Number(speedKmh).toFixed(2);
+        if (this.el.speedVal) this.el.speedVal.textContent = spdStr;
+        if (this.el.canvasSpeedVal) this.el.canvasSpeedVal.textContent = spdStr;
+    }
+
     updateMetrics(state, speedKmh) {
-        const { altVal, slopeVal, distVal, speedVal, canvasSpeedVal } = this.el;
+        const { altVal, slopeVal, distVal } = this.el;
         if (altVal) altVal.textContent = state.alt.toFixed(2);
         if (slopeVal) {
             slopeVal.textContent = `${state.slope >= 0 ? '+' : ''}${state.slope.toFixed(2)}`;
             slopeVal.style.color = state.slope > 7 ? 'var(--climb)' : state.slope < 0 ? 'var(--descent)' : '#f1f5f9';
         }
         if (distVal) distVal.textContent = (state.distance / 1000).toFixed(2);
-        const spdStr = speedKmh.toFixed(2);
-        if (speedVal) speedVal.textContent = spdStr;
-        if (canvasSpeedVal) canvasSpeedVal.textContent = spdStr;
+        this.setSpeedDisplay(speedKmh);
     }
 
     updateBleMetrics({ power, cadence, speed }) {
-        const { valPower, valCadence, speedVal, canvasSpeedVal } = this.el;
+        const { valPower, valCadence } = this.el;
         if (power != null && valPower) valPower.textContent = Number(power).toFixed(2);
         if (cadence != null && valCadence) valCadence.textContent = Number(cadence).toFixed(2);
-        if (speed != null) {
-            const spdStr = Number(speed).toFixed(2);
-            if (speedVal) speedVal.textContent = spdStr;
-            if (canvasSpeedVal) canvasSpeedVal.textContent = spdStr;
-        }
+        if (speed != null) this.setSpeedDisplay(speed);
     }
 
     updateBleConnectionState(state, deviceName = '') {
@@ -368,23 +329,13 @@ export class UIController {
         }
     }
 
-    updateCamSmoothStrength(strength) {
-        const v = parseInt(strength, 10) || 0;
-        const text = v === 0 ? 'OFF' : (v === 5 ? '5 (標準)' : `${v}`);
-        if ($('cam-smooth-slider')) $('cam-smooth-slider').value = v;
-        if ($('cam-smooth-val')) $('cam-smooth-val').textContent = text;
-    }
-
     syncZoomUI(zoom) {
         if (typeof zoom !== 'number' || isNaN(zoom)) return;
+        const { hudZoomVal, camZoomSlider, camZoomVal } = this.el;
         const valStr = zoom.toFixed(1);
-        const hudVal = $('hud-zoom-val');
-        const camSlider = $('cam-zoom-slider');
-        const camVal = $('cam-zoom-val');
-
-        if (hudVal) hudVal.textContent = valStr;
-        if (camSlider && Math.abs(parseFloat(camSlider.value) - zoom) > 0.04) camSlider.value = zoom;
-        if (camVal) camVal.textContent = valStr;
+        if (hudZoomVal) hudZoomVal.textContent = valStr;
+        if (camZoomSlider && Math.abs(parseFloat(camZoomSlider.value) - zoom) > 0.04) camZoomSlider.value = zoom;
+        if (camZoomVal) camZoomVal.textContent = valStr;
     }
 
     syncCameraParams({ pitch, zoom, orbitAngleOffset }) {

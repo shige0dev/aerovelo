@@ -141,7 +141,6 @@ input[type="range"]::-webkit-slider-thumb {
 
 .slope-hud-item { cursor: ns-resize; touch-action: none; }
 .ble-hud-item { border-color: rgba(0, 240, 255, 0.22); }
-.hud-zoom-item { cursor: ns-resize; touch-action: none; }
 
 /* スライダー横の小型アクションボタン（注視点 HIDE ボタン）
    通常: グレーアウト（非ハイライト＝表示中）
@@ -272,42 +271,30 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 /* ========================================================
-   フローティングカメラダイアログ (右上ボタン直下 170px)
+   フローティングダイアログ共通 & 個別 (カメラ 170px / 設定 240px)
    ======================================================== */
-.floating-cam-dialog {
-    position: absolute; top: 30px; right: 8px; width: 170px;
+.floating-cam-dialog, .floating-settings-dialog {
+    position: absolute; top: 30px; right: 8px;
     background: var(--panel-bg); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-    border: 1px solid var(--panel-border); border-radius: 8px; padding: 6px; z-index: 25;
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.7); display: flex; flex-direction: column; gap: 4px;
+    border: 1px solid var(--panel-border); border-radius: 8px; z-index: 25;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.7); display: flex; flex-direction: column;
 }
-.floating-cam-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255, 255, 255, 0.1); padding-bottom: 3px; }
+.floating-cam-dialog { width: 170px; padding: 6px; gap: 4px; }
+.floating-settings-dialog { width: 240px; max-height: calc(100vh - 45px); padding: 8px 10px; gap: 6px; animation: dialog-pop 0.15s ease-out; }
+@keyframes dialog-pop { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
+.floating-cam-header, .floating-settings-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255, 255, 255, 0.1); padding-bottom: 3px; }
 .floating-cam-title-wrap { display: flex; align-items: center; gap: 4px; }
-.floating-cam-title { font-size: 0.6rem; font-weight: 700; color: var(--muted); letter-spacing: 0.05em; }
+.floating-cam-title, .floating-settings-title { font-size: 0.6rem; font-weight: 700; color: var(--muted); letter-spacing: 0.05em; }
 .mini-cam-free { min-height: 16px !important; padding: 0 4px !important; font-size: 0.54rem !important; }
-.floating-cam-close { background: transparent; border: none; color: var(--muted); font-size: 0.72rem; cursor: pointer; line-height: 1; padding: 0 2px; }
-.floating-cam-close:hover { color: var(--climb); }
+.floating-cam-close, .floating-settings-close { background: transparent; border: none; color: var(--muted); font-size: 0.74rem; cursor: pointer; line-height: 1; padding: 0 2px; }
+.floating-cam-close:hover, .floating-settings-close:hover { color: var(--climb); }
 
 .camera-adjust-box {
     margin-top: 2px; background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 5px; padding: 5px 6px; display: flex; flex-direction: column; gap: 3px; transition: opacity 0.2s ease;
 }
 .camera-adjust-box.disabled { opacity: 0.28; pointer-events: none; }
-
-/* ========================================================
-   統合設定フローティングダイアログ (右上ボタン直下 240px)
-   ======================================================== */
-.floating-settings-dialog {
-    position: absolute; top: 30px; right: 8px; width: 240px; max-height: calc(100vh - 45px);
-    background: var(--panel-bg); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-    border: 1px solid var(--panel-border); border-radius: 8px; padding: 8px 10px; z-index: 25;
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.7); display: flex; flex-direction: column; gap: 6px;
-    animation: dialog-pop 0.15s ease-out;
-}
-@keyframes dialog-pop { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
-.floating-settings-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255, 255, 255, 0.1); padding-bottom: 4px; }
-.floating-settings-title { font-size: 0.62rem; font-weight: 700; color: var(--muted); letter-spacing: 0.05em; }
-.floating-settings-close { background: transparent; border: none; color: var(--muted); font-size: 0.76rem; cursor: pointer; line-height: 1; padding: 0 2px; }
-.floating-settings-close:hover { color: var(--climb); }
 
 .modal-body { display: flex; flex-direction: column; gap: 8px; overflow-y: auto; padding-right: 2px; }
 .settings-section { display: flex; flex-direction: column; gap: 4px; padding-bottom: 6px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); }

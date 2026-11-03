@@ -62,7 +62,7 @@ export class ElevationChart {
         let minAlt = Infinity, maxAlt = -Infinity;
 
         for (let i = 0; i <= samples; i++) {
-            const alt = course.getStateAtProgress(i / samples).alt;
+            const alt = course.sampleAtDist((i / samples) * course.totalDistance).alt;
             elevations[i] = alt;
             if (alt < minAlt) minAlt = alt;
             if (alt > maxAlt) maxAlt = alt;
@@ -114,7 +114,7 @@ export class ElevationChart {
 
         // 現在位置の縦線スライダー＆ドット
         const riderX = this.currentProgress * w;
-        const riderY = getY(this.course.getStateAtProgress(this.currentProgress).alt);
+        const riderY = getY(this.course.sampleAtDist(this.currentProgress * this.course.totalDistance).alt);
 
         ctx.beginPath();
         ctx.moveTo(riderX, 0);

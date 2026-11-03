@@ -3,8 +3,7 @@
  * 3D Route Interpolation, Distance, Bearing, and Road-Grade Calculation Engine
  */
 
-import { GPXParser, fetchGsi5mWaypoints } from './gpx-gsi.js';
-export { GPXParser };
+import { fetchGsi5mWaypoints } from './gpx-gsi.js';
 
 const DEG_TO_RAD = Math.PI / 180;
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -143,32 +142,20 @@ export class GeoCourseManager {
         const dist = u * this.totalDistance;
         const cur = this.sampleAtDist(dist);
 
-        // 方位角（Bearing）: 速度 (m) × 個別倍率に応じた前後ベクトル
+        // 方位角（Bearing）: 速度 (m) × 個別倍率に応じた前後ベクトル（0の場合は現在地に一致）
         const v = Math.max(1, speedKmh);
         const fwdDist = v * Math.max(0, fwdMult);
         const bwdDist = v * Math.max(0, bwdMult);
 
-        let p0, p1;
-        if (fwdDist === 0 && bwdDist === 0) {
-            // 両方0の場合は微小前方を参照してゼロ除算防止
-            p0 = cur;
-            p1 = this.sampleAtDist(dist + 1);
-        } else if (bwdDist === 0) {
-            // 後方0: 現在地（走行点）〜 前方
-            p0 = cur;
-            p1 = this.sampleAtDist(dist + fwdDist);
-            if (dist + fwdDist > this.totalDistance) {
-                p0 = this.sampleAtDist(Math.max(0, this.totalDistance - fwdDist));
-                p1 = this.sampleAtDist(this.totalDistance);
-            }
-        } else if (fwdDist === 0) {
-            // 前方0: 後方 〜 現在地（走行点）
-            p0 = this.sampleAtDist(dist - bwdDist);
-            p1 = cur;
-        } else {
-            // 前後指定: 後方 〜 前方
-            p0 = this.sampleAtDist(dist - bwdDist);
-            p1 = this.sampleAtDist(dist + fwdDist);
+        let p0 = bwdDist === 0 ? cur : this.sampleAtDist(dist - bwdDist);
+        let p1 = fwdDist === 0 ? cur : this.sampleAtDist(dist + fwdDist);
+        let b0 = p0, b1 = p1;
+
+        // 始終端クランプや両方0で同一座標になった場合の安全フォールバック
+        if (b1.dist <= b0.dist) {
+            const span = Math.max(1, fwdDist || bwdDist);
+            b0 = this.sampleAtDist(Math.max(0, dist - span * 0.5));
+            b1 = this.sampleAtDist(Math.min(this.totalDistance, b0.dist + span));
         }
 
         // 斜度（Slope）は前後25mの連続標高差から算出
@@ -183,7 +170,7 @@ export class GeoCourseManager {
             lon: cur.lon,
             lat: cur.lat,
             alt: cur.alt,
-            bearing: GeoCourseManager.calcBearing(p0.lon, p0.lat, p1.lon, p1.lat),
+            bearing: GeoCourseManager.calcBearing(b0.lon, b0.lat, b1.lon, b1.lat),
             slope,
             fwdPoint: { lon: p1.lon, lat: p1.lat },
             bwdPoint: { lon: p0.lon, lat: p0.lat }
