@@ -143,15 +143,28 @@ input[type="range"]::-webkit-slider-thumb {
 .ble-hud-item { border-color: rgba(0, 240, 255, 0.22); }
 .hud-zoom-item { cursor: ns-resize; touch-action: none; }
 
-/* スライダー横の小型アクションボタン（注視点 HIDE / SHOW トグル） */
+/* スライダー横の小型アクションボタン（注視点 HIDE ボタン）
+   通常: グレーアウト（非ハイライト＝表示中）
+   ハイライト: 点灯（HIDE有効＝注視点消去中） */
 .slider-btn-row { display: flex; align-items: center; gap: 4px; width: 100%; }
 .slider-btn-row input[type="range"] { flex: 1; }
 .marker-toggle-btn {
     flex: none !important; min-height: 16px !important; padding: 1px 5px !important;
     font-size: 0.48rem !important; line-height: 1 !important;
+    background: rgba(255, 255, 255, 0.05) !important;
+    color: rgba(255, 255, 255, 0.38) !important;
+    border-color: rgba(255, 255, 255, 0.12) !important;
+    cursor: pointer; transition: all 0.15s ease;
 }
-.marker-toggle-btn.hidden {
-    background: rgba(239, 68, 68, 0.25) !important; border-color: rgba(239, 68, 68, 0.6) !important; color: #fca5a5 !important;
+.marker-toggle-btn:hover {
+    color: rgba(255, 255, 255, 0.75) !important;
+    border-color: rgba(255, 255, 255, 0.28) !important;
+}
+.marker-toggle-btn.active {
+    background: rgba(239, 68, 68, 0.35) !important;
+    border-color: #ef4444 !important;
+    color: #fee2e2 !important;
+    box-shadow: 0 0 6px rgba(239, 68, 68, 0.4) !important;
 }
 
 /* ========================================================

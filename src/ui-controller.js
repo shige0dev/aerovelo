@@ -165,16 +165,15 @@ export class UIController {
         on(el.btnToggleFwdMarker, 'click', () => {
             fwdVisible = !fwdVisible;
             if (el.btnToggleFwdMarker) {
-                el.btnToggleFwdMarker.textContent = fwdVisible ? 'HIDE' : 'SHOW';
-                el.btnToggleFwdMarker.classList.toggle('hidden', !fwdVisible);
+                // テキストは常に「HIDE」固定。ハイライト時＝消えている、消灯(グレーアウト)時＝表示中
+                el.btnToggleFwdMarker.classList.toggle('active', !fwdVisible);
             }
             cb.onToggleMarker?.('fwd', fwdVisible);
         });
         on(el.btnToggleBwdMarker, 'click', () => {
             bwdVisible = !bwdVisible;
             if (el.btnToggleBwdMarker) {
-                el.btnToggleBwdMarker.textContent = bwdVisible ? 'HIDE' : 'SHOW';
-                el.btnToggleBwdMarker.classList.toggle('hidden', !bwdVisible);
+                el.btnToggleBwdMarker.classList.toggle('active', !bwdVisible);
             }
             cb.onToggleMarker?.('bwd', bwdVisible);
         });
