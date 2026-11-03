@@ -186,7 +186,20 @@ export class MapViewController {
                     maxzoom: 14,
                     worker: false
                 });
-                this.demSource.setupMaplibre(maplibregl);
+                // MapLibre WorkerへのTransferによってmlcontour内部キャッシュのPBF ArrayBufferが
+                // Detached(0バイト化)されるのを防ぐため、常に .slice(0) で複製を渡すラッパーを介して登録
+                this.demSource.setupMaplibre({
+                    addProtocol: (customProtocol, loadFn) => {
+                        maplibregl.addProtocol(customProtocol, (params, callback) => {
+                            return loadFn(params, (err, buf, cacheControl, expires) => {
+                                const safeBuf = (buf && buf.byteLength > 0 && typeof buf.slice === 'function')
+                                    ? buf.slice(0)
+                                    : buf;
+                                callback(err, safeBuf, cacheControl, expires);
+                            });
+                        });
+                    }
+                });
             } catch (err) {
                 console.warn('Contour DemSource setup error:', err);
                 this.demSource = null;
@@ -247,7 +260,8 @@ export class MapViewController {
                     'visibility': this.markerVisible.contour ? 'visible' : 'none'
                 },
                 paint: {
-                    'line-color': 'rgba(255, 225, 110, 0.55)',
+                    'line-color': 'rgba(255, 225, 110, 1.0)',
+                    'line-opacity': this.markerVisible.contour ? 0.55 : 0,
                     'line-width': 0.8
                 }
             });
@@ -371,7 +385,10 @@ export class MapViewController {
     setMarkerVisibility(visibility) {
         Object.assign(this.markerVisible, visibility);
         if (typeof visibility.contour === 'boolean' && this.map?.getLayer('contour-lines')) {
-            this.map.setLayoutProperty('contour-lines', 'visibility', visibility.contour ? 'visible' : 'none');
+            if (visibility.contour && this.map.getLayoutProperty('contour-lines', 'visibility') === 'none') {
+                this.map.setLayoutProperty('contour-lines', 'visibility', 'visible');
+            }
+            this.map.setPaintProperty('contour-lines', 'line-opacity', visibility.contour ? 0.55 : 0);
         }
         this.syncTargetMarkers();
     }
