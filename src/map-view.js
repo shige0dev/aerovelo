@@ -1,15 +1,15 @@
 /**
- * 3D Terrain Map, GSI 5m/AWS 30m Hybrid DEM, 5m Contour Lines, & Chase Camera Controller (MapLibre GL JS)
+ * 3D Terrain Map, GSI 10m / AWS 30m Hybrid DEM, 5m Contour Lines, & Chase Camera Controller (MapLibre GL JS)
  * Handles satellite/terrain rendering, DEM contour isolines, route layers, and camera tracking.
  */
 
 import { clamp } from './course.js';
-import { decodeGsiPixel, encodeTerrariumPixel } from './gpx-gsi.js';
+import { decodeAndFillGsiTile, encodeTerrariumPixel } from './gpx-gsi.js';
 
 const DEM_AWS_BASE = 'https://s3.amazonaws.com/elevation-tiles-prod/terrarium';
 const HYBRID_DEM_URL = 'gsi-dem://{z}/{x}/{y}';
 
-// 国土地理院 5m/10m メッシュと AWS 30m メッシュを融合するハイブリッドDEMプロトコル (gsi-dem://)
+// 国土地理院 10mメッシュ (dem_png, z<=14) と AWS 30m メッシュを1:1座標で統合するプロトコル (gsi-dem://)
 let isGsiProtocolRegistered = false;
 function registerGsiDemProtocol() {
     if (isGsiProtocolRegistered || !window.maplibregl?.addProtocol) return;
@@ -43,79 +43,50 @@ function registerGsiDemProtocol() {
                 .catch((err) => callback(err));
         };
 
-        // 日本国外または広域低ズーム(z < 11)は AWS Terrarium へ即座にフォールバック
-        if (!isJapan || z < 11) {
+        // 日本国外または広域低ズーム(z < 9)は AWS Terrarium へフォールバック
+        if (!isJapan || z < 9 || z > 14) {
             fallbackAws();
             return { cancel: () => { isCancelled = true; } };
         }
 
-        // 日本国内ズーム11〜15: 国土地理院 DEM タイル（dem5a_png / dem10b_png / dem_png）を取得・変換
+        // 日本国内 (z=9〜14): 国土地理院 10mメッシュ統合タイル (dem_png) を 1:1 座標で取得・変換
         const tryGsi = async () => {
-            const urls = [];
-            if (z >= 14) {
-                const z15x = z === 15 ? x : x * 2;
-                const z15y = z === 15 ? y : y * 2;
-                urls.push(`https://cyberjapandata.gsi.go.jp/xyz/dem5a_png/15/${z15x}/${z15y}.png`);
-                urls.push(`https://cyberjapandata.gsi.go.jp/xyz/dem5b_png/15/${z15x}/${z15y}.png`);
+            const url = `https://cyberjapandata.gsi.go.jp/xyz/dem_png/${z}/${x}/${y}.png`;
+            const res = await fetch(url);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const blob = await res.blob();
+            const img = await createImageBitmap(blob);
+            if (isCancelled) return;
+
+            const canvas = document.createElement('canvas');
+            canvas.width = 256;
+            canvas.height = 256;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, 256, 256);
+            const imgData = ctx.getImageData(0, 0, 256, 256);
+            const d = imgData.data;
+
+            // 水面(NoData)を周囲の水際標高でシームレスに補完し、Terrarium RGB形式へ変換
+            const grid = decodeAndFillGsiTile(d);
+            if (!grid) {
+                fallbackAws();
+                return;
             }
-            if (z >= 12) {
-                const shift = Math.max(0, 14 - z);
-                const z14x = Math.floor(x * (2 ** shift));
-                const z14y = Math.floor(y * (2 ** shift));
-                urls.push(`https://cyberjapandata.gsi.go.jp/xyz/dem10b_png/14/${z14x}/${z14y}.png`);
-                urls.push(`https://cyberjapandata.gsi.go.jp/xyz/dem_png/14/${z14x}/${z14y}.png`);
+
+            for (let i = 0; i < 65536; i++) {
+                const [tr, tg, tb] = encodeTerrariumPixel(grid[i]);
+                const idx = i * 4;
+                d[idx] = tr;
+                d[idx + 1] = tg;
+                d[idx + 2] = tb;
+                d[idx + 3] = 255;
             }
 
-            for (const url of urls) {
-                if (isCancelled) return;
-                try {
-                    const res = await fetch(url);
-                    if (!res.ok) continue;
-                    const blob = await res.blob();
-                    const img = await createImageBitmap(blob);
-                    if (isCancelled) return;
-
-                    const canvas = document.createElement('canvas');
-                    canvas.width = 256;
-                    canvas.height = 256;
-                    const ctx = canvas.getContext('2d');
-                    ctx.drawImage(img, 0, 0, 256, 256);
-                    const imgData = ctx.getImageData(0, 0, 256, 256);
-                    const d = imgData.data;
-
-                    // GSI 24bit RGB 標高 -> MapLibre Terrarium RGB 形式へインメモリ一括変換
-                    let hasValid = false;
-                    for (let i = 0; i < d.length; i += 4) {
-                        const h = decodeGsiPixel(d[i], d[i + 1], d[i + 2]);
-                        if (h !== null) {
-                            hasValid = true;
-                            const [tr, tg, tb] = encodeTerrariumPixel(h);
-                            d[i] = tr;
-                            d[i + 1] = tg;
-                            d[i + 2] = tb;
-                            d[i + 3] = 255;
-                        } else {
-                            const [tr, tg, tb] = encodeTerrariumPixel(0);
-                            d[i] = tr;
-                            d[i + 1] = tg;
-                            d[i + 2] = tb;
-                            d[i + 3] = 255;
-                        }
-                    }
-
-                    if (hasValid) {
-                        ctx.putImageData(imgData, 0, 0);
-                        canvas.toBlob((outBlob) => {
-                            if (isCancelled) return;
-                            outBlob.arrayBuffer().then((buf) => callback(null, buf, null, null));
-                        }, 'image/png');
-                        return;
-                    }
-                } catch {
-                    // 次の優先度URLを試行
-                }
-            }
-            fallbackAws();
+            ctx.putImageData(imgData, 0, 0);
+            canvas.toBlob((outBlob) => {
+                if (isCancelled || !outBlob) return;
+                outBlob.arrayBuffer().then((buf) => callback(null, buf, null, null));
+            }, 'image/png');
         };
 
         tryGsi().catch(() => fallbackAws());
@@ -159,7 +130,7 @@ export class MapViewController {
                 this.demSource = new window.mlcontour.DemSource({
                     url: HYBRID_DEM_URL,
                     encoding: 'terrarium',
-                    maxzoom: 15,
+                    maxzoom: 14,
                     worker: true
                 });
                 this.demSource.setupMaplibre(maplibregl);
@@ -181,7 +152,7 @@ export class MapViewController {
                 tiles: [HYBRID_DEM_URL],
                 encoding: 'terrarium',
                 tileSize: 256,
-                maxzoom: 15
+                maxzoom: 14
             }
         };
 
@@ -254,7 +225,7 @@ export class MapViewController {
 
         this.map.on('load', () => {
             this.isMapLoaded = true;
-            // 国土地理院 5mメッシュ起伏を実寸 1.0 で立体レンダリング
+            // 国土地理院 10mメッシュ (dem_png) / 海外 30mメッシュ起伏を実寸 1.0 で立体レンダリング
             this.map.setTerrain({ source: 'terrain-dem', exaggeration: 1.0 });
 
             const makeMarker = (cls, html) => {

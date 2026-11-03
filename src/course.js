@@ -3,7 +3,7 @@
  * 3D Route Interpolation, Distance, Bearing, and Road-Grade Calculation Engine
  */
 
-import { fetchGsiDem5aElevations, fetchTerrainDemElevations } from './gpx-gsi.js';
+import { fetchGsiDem10mElevations, fetchTerrainDemElevations } from './gpx-gsi.js';
 
 const DEG_TO_RAD = Math.PI / 180;
 export const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
@@ -43,7 +43,7 @@ export class GeoCourseManager {
     }
 
     /**
-     * 3D地形DEM（日本国内: 国土地理院 5mメッシュ DEM5A PNG、海外: AWS 30m DEM）からコース標高を自動同期
+     * 3D地形DEM（日本国内: 国土地理院 10mメッシュ dem_png、海外: AWS 30m DEM）からコース標高を自動同期
      */
     async syncWithTerrainDem() {
         if (this.isGsiCorrected) return false;
@@ -52,7 +52,7 @@ export class GeoCourseManager {
         let isGsi = false;
 
         if (this.isWithinJapan()) {
-            const res = await fetchGsiDem5aElevations(this.rawSamples);
+            const res = await fetchGsiDem10mElevations(this.rawSamples);
             if (res && res.elevations) {
                 elevations = res.elevations;
                 isGsi = true;
@@ -74,15 +74,15 @@ export class GeoCourseManager {
     }
 
     /**
-     * 国土地理院 5mメッシュ（DEM5A PNG）からコース標高・斜度を超高速再計算（0.2秒で完了）
+     * 国土地理院 10mメッシュ（dem_png / DEM10B）からコース標高・斜度を超高速再計算
      */
-    async recalculateWithGSI5m(onProgress = null) {
+    async recalculateWithGSI10m(onProgress = null) {
         if (!this.isWithinJapan()) {
             throw new Error('国土地理院の標高メッシュは日本国内のコースのみ対応しています。');
         }
-        const res = await fetchGsiDem5aElevations(this.rawSamples, onProgress);
+        const res = await fetchGsiDem10mElevations(this.rawSamples, onProgress);
         if (!res || !res.elevations) {
-            throw new Error('国土地理院 5mメッシュの取得に失敗しました。');
+            throw new Error('国土地理院 10mメッシュの取得に失敗しました。');
         }
         this.rawSamples = this.rawSamples.map((s, i) => ({ ...s, alt: res.elevations[i] }));
         this.applyElevationFilter(this.rawSamples);

@@ -107,7 +107,8 @@ class App {
 
         // 3D画面の地形DEMタイルからコース標高を自動同期
         activeCourse.syncWithTerrainDem().then((synced) => {
-            if (synced && this.course === activeCourse && !activeCourse.isGsiCorrected) {
+            if (synced && this.course === activeCourse) {
+                this.ui.updateCourseMeta(this.course, this.currentProgress);
                 this.chart.setCourse(this.course);
                 this.updateState(this.currentProgress);
             }
@@ -141,13 +142,13 @@ class App {
         if (this.course.isGsiCorrected) return;
         try {
             this.ui.setGsiLoading(true, 0);
-            await this.course.recalculateWithGSI5m((pct) => this.ui.setGsiLoading(true, pct));
+            await this.course.recalculateWithGSI10m((pct) => this.ui.setGsiLoading(true, pct));
             this.ui.updateCourseMeta(this.course, this.currentProgress);
             this.chart.setCourse(this.course);
             this.updateState(this.currentProgress);
         } catch (err) {
             console.error('GSI DEM error:', err);
-            alert(`5mメッシュ標高の取得に失敗しました: ${err.message}`);
+            alert(`10mメッシュ標高の取得に失敗しました: ${err.message}`);
             this.ui.updateCourseMeta(this.course, this.currentProgress);
         }
     }

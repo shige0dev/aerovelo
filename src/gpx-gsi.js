@@ -1,5 +1,5 @@
 /**
- * GPX XML Parser, GSI 5m/10m DEM Tile Sampler, & AWS Terrarium Global DEM Sampler
+ * GPX XML Parser, GSI 10m DEM Tile Sampler (dem_png z=14), & AWS Terrarium Global DEM Sampler
  */
 
 export class GPXParser {
@@ -49,8 +49,87 @@ export function lonLatToTileCoords(lon, lat, z) {
  */
 export function decodeGsiPixel(r, g, b) {
     const x = (r << 16) | (g << 8) | b;
-    if (x === 8388608 || (r === 0 && g === 0 && b === 0)) return null; // 無効値
+    if (x === 8388608 || (r === 0 && g === 0 && b === 0)) return null; // 無効値 (NoData)
     return x < 8388608 ? x * 0.01 : (x - 16777216) * 0.01;
+}
+
+/**
+ * 256x256 の国土地理院 DEM PNG ピクセル配列 (RGBA) を標高配列 Float32Array(65536) にデコードし、
+ * 水面等の無効値 (NoData) ピクセルを周囲の水際標高（沿岸部は0m）でシームレスに補完する
+ */
+export function decodeAndFillGsiTile(rgba) {
+    const N = 256;
+    const grid = new Float32Array(N * N);
+    let validCount = 0;
+    let minValid = Infinity;
+
+    for (let i = 0; i < N * N; i++) {
+        const idx = i * 4;
+        const h = decodeGsiPixel(rgba[idx], rgba[idx + 1], rgba[idx + 2]);
+        if (h !== null) {
+            grid[i] = h;
+            validCount++;
+            if (h < minValid) minValid = h;
+        } else {
+            grid[i] = NaN;
+        }
+    }
+
+    if (validCount === 0) return null;
+    if (validCount === N * N) return grid;
+
+    // 沿岸・海域タイル（最小有効標高 5m 以下）の無効値は海面 (0m) で埋める
+    if (minValid <= 5) {
+        for (let i = 0; i < N * N; i++) {
+            if (isNaN(grid[i])) grid[i] = 0;
+        }
+        return grid;
+    }
+
+    // 内陸・山間部タイルの水面（ダム湖・河川等の NoData）は 4方向の直近水際標高の最小値で平坦に補完
+    const fillVal = new Float32Array(N * N);
+    fillVal.fill(Infinity);
+
+    for (let y = 0; y < N; y++) {
+        const row = y * N;
+        let last = Infinity;
+        for (let x = 0; x < N; x++) {
+            const v = grid[row + x];
+            if (!isNaN(v)) last = v;
+            else if (last < fillVal[row + x]) fillVal[row + x] = last;
+        }
+        last = Infinity;
+        for (let x = N - 1; x >= 0; x--) {
+            const v = grid[row + x];
+            if (!isNaN(v)) last = v;
+            else if (last < fillVal[row + x]) fillVal[row + x] = last;
+        }
+    }
+
+    for (let x = 0; x < N; x++) {
+        let last = Infinity;
+        for (let y = 0; y < N; y++) {
+            const idx = y * N + x;
+            const v = grid[idx];
+            if (!isNaN(v)) last = v;
+            else if (last < fillVal[idx]) fillVal[idx] = last;
+        }
+        last = Infinity;
+        for (let y = N - 1; y >= 0; y--) {
+            const idx = y * N + x;
+            const v = grid[idx];
+            if (!isNaN(v)) last = v;
+            else if (last < fillVal[idx]) fillVal[idx] = last;
+        }
+    }
+
+    for (let i = 0; i < N * N; i++) {
+        if (isNaN(grid[i])) {
+            grid[i] = fillVal[i] < Infinity ? fillVal[i] : minValid;
+        }
+    }
+
+    return grid;
 }
 
 /**
@@ -58,7 +137,7 @@ export function decodeGsiPixel(r, g, b) {
  * 仕様: h = (R*256 + G + B/256) - 32768
  */
 export function encodeTerrariumPixel(h) {
-    if (h === null || isNaN(h)) return [0, 0, 0];
+    if (h === null || isNaN(h)) return [128, 0, 0];
     const v = Math.round((h + 32768) * 256);
     const r = Math.max(0, Math.min(255, Math.floor(v / 65536)));
     const g = Math.max(0, Math.min(255, Math.floor((v % 65536) / 256)));
@@ -67,7 +146,7 @@ export function encodeTerrariumPixel(h) {
 }
 
 /**
- * 画像URLから ImageData を取得
+ * 画像URLから ImageData.data を取得
  */
 function fetchImagePixels(url) {
     return new Promise((resolve) => {
@@ -91,55 +170,39 @@ function fetchImagePixels(url) {
 }
 
 /**
- * 🇯🇵 日本国内用：国土地理院 5mメッシュ（DEM5A PNG z=15）からコース標高を高精度サンプリング
- * （未計測の山岳部は DEM10B z=14 または DEM z=14 へシームレスに自動フォールバック）
+ * 🇯🇵 日本国内用：国土地理院 10mメッシュ（dem_png / DEM10B z=14）からコース標高を統一サンプリング
+ * （全国100%網羅・ズーム14統一により位置ズレゼロ・水面陥没ゼロ）
  * @param {Array<{dist:number, lon:number, lat:number, alt:number}>} points
  * @param {Function} onProgress
  * @returns {Promise<{ elevations: number[], type: string }|null>}
  */
-export async function fetchGsiDem5aElevations(points, onProgress = null) {
+export async function fetchGsiDem10mElevations(points, onProgress = null) {
     if (!points || points.length === 0) return null;
 
-    // ズーム15（1ピクセル≒約4〜5m）の必要タイルセットを抽出
-    const z15Set = new Set();
+    const ZOOM = 14;
+    const z14Set = new Set();
     for (const p of points) {
-        const { tx, ty } = lonLatToTileCoords(p.lon, p.lat, 15);
-        z15Set.add(`${tx}/${ty}`);
+        const { tx, ty } = lonLatToTileCoords(p.lon, p.lat, ZOOM);
+        z14Set.add(`${tx}/${ty}`);
     }
 
     const tileCache = new Map();
     let completed = 0;
-    const totalTiles = z15Set.size;
+    const totalTiles = z14Set.size;
 
     const loadTile = async (key) => {
         const [tx, ty] = key.split('/').map(Number);
-        // 優先度1: DEM5A (5m航空レーザー測量)
-        let data = await fetchImagePixels(`https://cyberjapandata.gsi.go.jp/xyz/dem5a_png/15/${tx}/${ty}.png`);
-        if (!data) {
-            // 優先度2: DEM5B (5m写真測量)
-            data = await fetchImagePixels(`https://cyberjapandata.gsi.go.jp/xyz/dem5b_png/15/${tx}/${ty}.png`);
-        }
-        if (!data) {
-            // 優先度3: DEM10B (10mメッシュ z=14 をサンプリング)
-            const z14x = Math.floor(tx / 2), z14y = Math.floor(ty / 2);
-            data = await fetchImagePixels(`https://cyberjapandata.gsi.go.jp/xyz/dem10b_png/14/${z14x}/${z14y}.png`);
-        }
-        if (!data) {
-            // 優先度4: DEM統合版 (z=14)
-            const z14x = Math.floor(tx / 2), z14y = Math.floor(ty / 2);
-            data = await fetchImagePixels(`https://cyberjapandata.gsi.go.jp/xyz/dem_png/14/${z14x}/${z14y}.png`);
-        }
-
-        tileCache.set(key, data);
+        const rgba = await fetchImagePixels(`https://cyberjapandata.gsi.go.jp/xyz/dem_png/${ZOOM}/${tx}/${ty}.png`);
+        const grid = rgba ? decodeAndFillGsiTile(rgba) : null;
+        tileCache.set(key, grid);
         completed++;
         onProgress?.(Math.round((completed / totalTiles) * 100));
     };
 
-    // 並行タイル取得（通常コース全体で5〜15枚程度、計約100〜200KB）
-    await Promise.all(Array.from(z15Set).map(loadTile));
+    await Promise.all(Array.from(z14Set).map(loadTile));
 
-    const sampleTilePixel = (data, px, py) => {
-        if (!data) return null;
+    const sampleTileGrid = (grid, px, py) => {
+        if (!grid) return null;
         const fx = px - 0.5, fy = py - 0.5;
         const x0 = Math.max(0, Math.min(255, Math.floor(fx)));
         const y0 = Math.max(0, Math.min(255, Math.floor(fy)));
@@ -148,17 +211,11 @@ export async function fetchGsiDem5aElevations(points, onProgress = null) {
         const dx = Math.max(0, Math.min(1, fx - x0));
         const dy = Math.max(0, Math.min(1, fy - y0));
 
-        const getAlt = (x, y) => {
-            const idx = (y * 256 + x) * 4;
-            return decodeGsiPixel(data[idx], data[idx + 1], data[idx + 2]);
-        };
+        const e00 = grid[y0 * 256 + x0];
+        const e10 = grid[y0 * 256 + x1];
+        const e01 = grid[y1 * 256 + x0];
+        const e11 = grid[y1 * 256 + x1];
 
-        const e00 = getAlt(x0, y0);
-        const e10 = getAlt(x1, y0) ?? e00;
-        const e01 = getAlt(x0, y1) ?? e00;
-        const e11 = getAlt(x1, y1) ?? e10 ?? e00;
-
-        if (e00 === null) return null;
         const top = e00 + (e10 - e00) * dx;
         const bot = e01 + (e11 - e01) * dx;
         return top + (bot - top) * dy;
@@ -166,10 +223,10 @@ export async function fetchGsiDem5aElevations(points, onProgress = null) {
 
     let validCount = 0;
     const elevations = points.map((p) => {
-        const { tx, ty, px, py } = lonLatToTileCoords(p.lon, p.lat, 15);
-        const data = tileCache.get(`${tx}/${ty}`);
-        const alt = sampleTilePixel(data, px, py);
-        if (alt !== null) {
+        const { tx, ty, px, py } = lonLatToTileCoords(p.lon, p.lat, ZOOM);
+        const grid = tileCache.get(`${tx}/${ty}`);
+        const alt = sampleTileGrid(grid, px, py);
+        if (alt !== null && !isNaN(alt)) {
             validCount++;
             return alt;
         }
@@ -177,7 +234,7 @@ export async function fetchGsiDem5aElevations(points, onProgress = null) {
     });
 
     if (validCount === 0) return null;
-    return { elevations, type: 'DEM5A' };
+    return { elevations, type: 'DEM10B' };
 }
 
 /**

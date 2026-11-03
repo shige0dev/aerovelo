@@ -256,7 +256,7 @@ export class UIController {
         this.setHud({ dist: ((currentProgress * course.totalDistance) / 1000).toFixed(2) });
 
         if (el.courseName) {
-            const title = `${course.name}${course.isGsiCorrected ? ' [DEM5A]' : ''}`;
+            const title = `${course.name}${course.isGsiCorrected ? ' [DEM10B]' : ''}`;
             el.courseName.textContent = title;
             el.courseName.title = `${title} (${totalKm} km)`;
         }
@@ -265,7 +265,7 @@ export class UIController {
             el.btnGsiDem.classList.toggle('active', course.isGsiCorrected);
             el.btnGsiDem.classList.remove('loading');
             if (el.gsiBtnText) {
-                el.gsiBtnText.textContent = course.isGsiCorrected ? '5mメッシュ補正済 (DEM5A)' : '5mメッシュ標高で補正';
+                el.gsiBtnText.textContent = course.isGsiCorrected ? '10mメッシュ補正済 (DEM10B)' : '10mメッシュ標高で補正';
             }
         }
     }
