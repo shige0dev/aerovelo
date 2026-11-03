@@ -105,14 +105,17 @@ class App {
         this.mapView.setCourse(this.course, this.currentState());
         this.updateState(0.0);
 
-        // 3D画面の地形DEMタイルからコース標高を自動同期
-        activeCourse.syncWithTerrainDem().then((synced) => {
-            if (synced && this.course === activeCourse) {
-                this.ui.updateCourseMeta(this.course, this.currentProgress);
-                this.chart.setCourse(this.course);
-                this.updateState(this.currentProgress);
-            }
-        }).catch((err) => console.warn('Terrain DEM sync skipped:', err));
+        // 標高データ(<ele>)が含まれているGPX（実走データ等）はそのまま採用し、
+        // 標高データが空(すべて0m)のGPXのみ地形DEMから自動補完する
+        if (!activeCourse.hasElevationData()) {
+            activeCourse.syncWithTerrainDem().then((synced) => {
+                if (synced && this.course === activeCourse) {
+                    this.ui.updateCourseMeta(this.course, this.currentProgress);
+                    this.chart.setCourse(this.course);
+                    this.updateState(this.currentProgress);
+                }
+            }).catch((err) => console.warn('Terrain DEM sync skipped:', err));
+        }
     }
 
     async loadDefaultGPX(url) {

@@ -43,10 +43,17 @@ export class GeoCourseManager {
     }
 
     /**
-     * 3D地形DEM（日本国内: 国土地理院 10mメッシュ dem_png、海外: AWS 30m DEM）からコース標高を自動同期
+     * GPXファイル自体に有効な標高データ (<ele>) が含まれているかを判定
+     */
+    hasElevationData() {
+        return Array.isArray(this.rawWaypoints) && this.rawWaypoints.some((p) => Math.abs(p.alt) > 0.01);
+    }
+
+    /**
+     * 標高データを持たない空GPX用の自動フォールバック同期
      */
     async syncWithTerrainDem() {
-        if (this.isGsiCorrected) return false;
+        if (this.isGsiCorrected || this.hasElevationData()) return false;
 
         let elevations = null;
         let isGsi = false;
@@ -59,7 +66,6 @@ export class GeoCourseManager {
             }
         }
 
-        // 海外または国内未対応エリアは AWS Terrarium (30m) でフォールバック
         if (!elevations) {
             elevations = await fetchTerrainDemElevations(this.rawSamples);
         }
@@ -67,14 +73,15 @@ export class GeoCourseManager {
         if (!elevations || this.isGsiCorrected) return false;
 
         this.rawSamples = this.rawSamples.map((s, i) => ({ ...s, alt: elevations[i] }));
-        this.applyElevationFilter(this.rawSamples);
+        this.applyElevationFilter(this.rawSamples, true);
         this.isTerrainSynced = true;
         this.isGsiCorrected = isGsi;
         return true;
     }
 
     /**
-     * 国土地理院 10mメッシュ（dem_png / DEM10B）からコース標高・斜度を超高速再計算
+     * 「10mメッシュ標高で補正」ボタン押下時：
+     * 国土地理院 10mメッシュ（dem_png / DEM10B）＋ 5mコンター・クロスポイント方式で標高・斜度を再計算
      */
     async recalculateWithGSI10m(onProgress = null) {
         if (!this.isWithinJapan()) {
@@ -85,7 +92,7 @@ export class GeoCourseManager {
             throw new Error('国土地理院 10mメッシュの取得に失敗しました。');
         }
         this.rawSamples = this.rawSamples.map((s, i) => ({ ...s, alt: res.elevations[i] }));
-        this.applyElevationFilter(this.rawSamples);
+        this.applyElevationFilter(this.rawSamples, true);
         this.isGsiCorrected = true;
         this.isTerrainSynced = true;
         return true;
@@ -140,11 +147,71 @@ export class GeoCourseManager {
         this.applyElevationFilter(this.rawSamples);
     }
 
-    applyElevationFilter(samples) {
+    /**
+     * 5mコンターライン（等高線）とのクロスポイント（交点）を抽出し、交点間を一定勾配で直線補間する
+     * 同一5mコンター帯内での山肌・法面・トンネル上の局所的なうねり（<5m）を排除し、目視のコンター間隔と斜度を一致させる
+     */
+    buildContourCrossingSamples(points) {
+        const n = points.length;
+        if (n < 2) return points;
+
+        const STEP = 5;
+        const anchors = [{ idx: 0, alt: points[0].alt }];
+        let lastLevel = Math.round(points[0].alt / STEP) * STEP;
+        let dir = 0;
+        let maxAlt = points[0].alt, maxIdx = 0;
+        let minAlt = points[0].alt, minIdx = 0;
+
+        for (let i = 1; i < n - 1; i++) {
+            const alt = points[i].alt;
+            if (alt > maxAlt) { maxAlt = alt; maxIdx = i; }
+            if (alt < minAlt) { minAlt = alt; minIdx = i; }
+
+            if (alt >= lastLevel + STEP) {
+                if (dir === -1 && minIdx > anchors[anchors.length - 1].idx && (lastLevel - minAlt) >= 3.5) {
+                    anchors.push({ idx: minIdx, alt: minAlt });
+                }
+                while (lastLevel + STEP <= alt) {
+                    lastLevel += STEP;
+                }
+                anchors.push({ idx: i, alt: lastLevel });
+                dir = 1;
+                maxAlt = alt; maxIdx = i;
+                minAlt = alt; minIdx = i;
+            } else if (alt <= lastLevel - STEP) {
+                if (dir === 1 && maxIdx > anchors[anchors.length - 1].idx && (maxAlt - lastLevel) >= 3.5) {
+                    anchors.push({ idx: maxIdx, alt: maxAlt });
+                }
+                while (lastLevel - STEP >= alt) {
+                    lastLevel -= STEP;
+                }
+                anchors.push({ idx: i, alt: lastLevel });
+                dir = -1;
+                maxAlt = alt; maxIdx = i;
+                minAlt = alt; minIdx = i;
+            }
+        }
+
+        anchors.push({ idx: n - 1, alt: points[n - 1].alt });
+
+        const result = points.map((p) => ({ ...p }));
+        for (let k = 0; k < anchors.length - 1; k++) {
+            const a0 = anchors[k], a1 = anchors[k + 1];
+            const d0 = points[a0.idx].dist, d1 = points[a1.idx].dist;
+            const span = d1 - d0;
+            for (let i = a0.idx; i <= a1.idx; i++) {
+                const t = span > 0 ? (points[i].dist - d0) / span : 0;
+                result[i].alt = lerp(a0.alt, a1.alt, t);
+            }
+        }
+        return result;
+    }
+
+    applyElevationFilter(samples, useContourCrossing = false) {
         const count = samples.length - 1;
         const stepDist = this.totalDistance / (count || 1);
 
-        // 1段目: メディアンフィルター（前後12m・スパイクノイズや法面外れ値を確実に除去）
+        // 1段目: メディアンフィルター（前後12m・スパイクノイズ除去）
         const medHalfWin = Math.max(1, Math.round(12 / (stepDist || 1)));
         const medianFiltered = samples.map((s, idx) => {
             const start = Math.max(0, idx - medHalfWin), end = Math.min(count, idx + medHalfWin);
@@ -158,12 +225,17 @@ export class GeoCourseManager {
             return { dist: s.dist, lon: s.lon, lat: s.lat, alt: medAlt };
         });
 
-        // 2段目: 前後15m（計30m区間）の移動平均フィルター（10mメッシュの境界段差を均し、実走感のある滑らかな道路勾配を生成）
+        // 10mメッシュ補正時は 5mコンターラインとのクロスポイント補間を適用
+        const basePoints = useContourCrossing
+            ? this.buildContourCrossingSamples(medianFiltered)
+            : medianFiltered;
+
+        // 2段目: 前後15m（計30m区間）の移動平均フィルター（段差を均し、実走感のある滑らかな道路勾配を生成）
         const halfWin = Math.max(1, Math.round(15 / (stepDist || 1)));
-        this.interpolatedPoints = medianFiltered.map((s, idx) => {
+        this.interpolatedPoints = basePoints.map((s, idx) => {
             const start = Math.max(0, idx - halfWin), end = Math.min(count, idx + halfWin);
             let sumAlt = 0;
-            for (let k = start; k <= end; k++) sumAlt += medianFiltered[k].alt;
+            for (let k = start; k <= end; k++) sumAlt += basePoints[k].alt;
             return { dist: s.dist, lon: s.lon, lat: s.lat, alt: sumAlt / (end - start + 1) };
         });
     }
