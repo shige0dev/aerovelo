@@ -93,9 +93,9 @@ class App {
     // --- Course & GPX Management ---
 
     parseAndApplyGPX(gpxText, fallbackName) {
-        const { courseName, waypoints } = GPXParser.parse(gpxText);
+        const { courseName, waypoints, isWebEditor } = GPXParser.parse(gpxText);
         const finalName = courseName !== 'カスタムコース' ? courseName : fallbackName.replace(/\.gpx$/i, '');
-        const activeCourse = new GeoCourseManager(waypoints, finalName);
+        const activeCourse = new GeoCourseManager(waypoints, finalName, isWebEditor);
         this.course = activeCourse;
         this.setPlayState(false);
         this.currentProgress = 0.0;
@@ -105,13 +105,14 @@ class App {
         this.mapView.setCourse(this.course, this.currentState());
         this.updateState(0.0);
 
-        // 標高データ(<ele>)が含まれているGPX（実走データ等）はそのまま採用し、
-        // 標高データが空(すべて0m)のGPXのみ地形DEMから自動補完する
-        if (!activeCourse.hasElevationData()) {
+        // 実走GPX（標高あり）はそのまま採用。
+        // 標高なしGPX・Webエディタ製GPX・プリセットは標高が粗いため10mメッシュで自動補正する
+        if (activeCourse.needsAutoDemCorrection()) {
             activeCourse.syncWithTerrainDem().then((synced) => {
                 if (synced && this.course === activeCourse) {
                     this.ui.updateCourseMeta(this.course, this.currentProgress);
                     this.chart.setCourse(this.course);
+                    this.mapView.setCourse(this.course, null);
                     this.updateState(this.currentProgress);
                 }
             }).catch((err) => console.warn('Terrain DEM sync skipped:', err));
@@ -148,6 +149,7 @@ class App {
             await this.course.recalculateWithGSI10m((pct) => this.ui.setGsiLoading(true, pct));
             this.ui.updateCourseMeta(this.course, this.currentProgress);
             this.chart.setCourse(this.course);
+            this.mapView.setCourse(this.course, null);
             this.updateState(this.currentProgress);
         } catch (err) {
             console.error('GSI DEM error:', err);

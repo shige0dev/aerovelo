@@ -347,24 +347,34 @@ export class MapViewController {
             geometry: { type: 'LineString', coordinates: course.toGeoJSONCoordinates() }
         };
 
+        // 勾配で彩度・明度を変える line-gradient（line-progress は経路長比率 0〜1）
+        const gradientExpr = ['interpolate', ['linear'], ['line-progress']];
+        let lastP = -1;
+        for (const [p, color] of course.getRouteColorStops()) {
+            if (p <= lastP) continue;
+            gradientExpr.push(p, color);
+            lastP = p;
+        }
+
         if (this.map.getSource('route')) {
             this.map.getSource('route').setData(geojsonData);
+            this.map.setPaintProperty('route-line', 'line-gradient', gradientExpr);
         } else {
-            this.map.addSource('route', { type: 'geojson', data: geojsonData });
+            this.map.addSource('route', { type: 'geojson', data: geojsonData, lineMetrics: true });
             const layout = { 'line-join': 'round', 'line-cap': 'round' };
             this.map.addLayer({
                 id: 'route-glow',
                 type: 'line',
                 source: 'route',
                 layout,
-                paint: { 'line-color': '#00f0ff', 'line-width': 8, 'line-opacity': 0.6, 'line-blur': 3 }
+                paint: { 'line-color': '#000000', 'line-width': 9, 'line-opacity': 0.45, 'line-blur': 2 }
             });
             this.map.addLayer({
                 id: 'route-line',
                 type: 'line',
                 source: 'route',
                 layout,
-                paint: { 'line-color': '#ffffff', 'line-width': 4 }
+                paint: { 'line-width': 5, 'line-gradient': gradientExpr }
             });
         }
 

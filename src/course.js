@@ -25,9 +25,10 @@ export const DEFAULT_LAKE_ROUTE = [
 ];
 
 export class GeoCourseManager {
-    constructor(waypoints = DEFAULT_LAKE_ROUTE, name = 'コース') {
+    constructor(waypoints = DEFAULT_LAKE_ROUTE, name = 'コース', isWebEditor = false) {
         this.name = name;
         this.rawWaypoints = waypoints;
+        this.isWebEditor = isWebEditor;
         this.rawSamples = [];
         this.interpolatedPoints = [];
         this.totalDistance = 0;
@@ -50,10 +51,17 @@ export class GeoCourseManager {
     }
 
     /**
-     * 標高データを持たない空GPX用の自動フォールバック同期
+     * Webエディタ製や標高なし等、10mメッシュ自動補正をかけるべきコースかを判定
+     */
+    needsAutoDemCorrection() {
+        return !this.hasElevationData() || this.isWebEditor || /hiyoshi|shimanami|kashida/i.test(this.name);
+    }
+
+    /**
+     * 3D地形DEM（日本国内: 国土地理院 10mメッシュ dem_png、海外: AWS 30m DEM）からコース標高を自動同期
      */
     async syncWithTerrainDem() {
-        if (this.isGsiCorrected || this.hasElevationData()) return false;
+        if (this.isGsiCorrected) return false;
 
         let elevations = null;
         let isGsi = false;
@@ -73,7 +81,7 @@ export class GeoCourseManager {
         if (!elevations || this.isGsiCorrected) return false;
 
         this.rawSamples = this.rawSamples.map((s, i) => ({ ...s, alt: elevations[i] }));
-        this.applyElevationFilter(this.rawSamples, true);
+        this.applyRoadGradeSmoothing(this.rawSamples);
         this.isTerrainSynced = true;
         this.isGsiCorrected = isGsi;
         return true;
@@ -81,7 +89,7 @@ export class GeoCourseManager {
 
     /**
      * 「10mメッシュ標高で補正」ボタン押下時：
-     * 国土地理院 10mメッシュ（dem_png / DEM10B）＋ 5mコンター・クロスポイント方式で標高・斜度を再計算
+     * 国土地理院 10mメッシュ（dem_png / DEM10B）＋ 道路勾配制約フィルタで標高・斜度を再計算
      */
     async recalculateWithGSI10m(onProgress = null) {
         if (!this.isWithinJapan()) {
@@ -92,7 +100,7 @@ export class GeoCourseManager {
             throw new Error('国土地理院 10mメッシュの取得に失敗しました。');
         }
         this.rawSamples = this.rawSamples.map((s, i) => ({ ...s, alt: res.elevations[i] }));
-        this.applyElevationFilter(this.rawSamples, true);
+        this.applyRoadGradeSmoothing(this.rawSamples);
         this.isGsiCorrected = true;
         this.isTerrainSynced = true;
         return true;
@@ -144,99 +152,61 @@ export class GeoCourseManager {
             });
         }
 
-        this.applyElevationFilter(this.rawSamples);
+        this.applyRoadGradeSmoothing(this.rawSamples);
     }
 
     /**
-     * 5mコンターライン（等高線）とのクロスポイント（交点）を抽出し、交点間を一定勾配で直線補間する
-     * 同一5mコンター帯内での山肌・法面・トンネル上の局所的なうねり（<5m）を排除し、目視のコンター間隔と斜度を一致させる
+     * 道路工学設計に基づく標高・勾配スムージング
+     * 1. メディアンフィルター (前後15m): 崖沿い・法面の外れ値をカット
+     * 2. 道路最大勾配制限 (12%双方向パス): トンネル上の山頂や橋の下の谷底等の非道路スパイクを前後の路面標高で自動架橋
+     * 3. 移動平均フィルター (前後20m): 道路設計に即した滑らかでリアルな縦断勾配を生成
      */
-    buildContourCrossingSamples(points) {
-        const n = points.length;
-        if (n < 2) return points;
-
-        const STEP = 5;
-        const anchors = [{ idx: 0, alt: points[0].alt }];
-        let lastLevel = Math.round(points[0].alt / STEP) * STEP;
-        let dir = 0;
-        let maxAlt = points[0].alt, maxIdx = 0;
-        let minAlt = points[0].alt, minIdx = 0;
-
-        for (let i = 1; i < n - 1; i++) {
-            const alt = points[i].alt;
-            if (alt > maxAlt) { maxAlt = alt; maxIdx = i; }
-            if (alt < minAlt) { minAlt = alt; minIdx = i; }
-
-            if (alt >= lastLevel + STEP) {
-                if (dir === -1 && minIdx > anchors[anchors.length - 1].idx && (lastLevel - minAlt) >= 3.5) {
-                    anchors.push({ idx: minIdx, alt: minAlt });
-                }
-                while (lastLevel + STEP <= alt) {
-                    lastLevel += STEP;
-                }
-                anchors.push({ idx: i, alt: lastLevel });
-                dir = 1;
-                maxAlt = alt; maxIdx = i;
-                minAlt = alt; minIdx = i;
-            } else if (alt <= lastLevel - STEP) {
-                if (dir === 1 && maxIdx > anchors[anchors.length - 1].idx && (maxAlt - lastLevel) >= 3.5) {
-                    anchors.push({ idx: maxIdx, alt: maxAlt });
-                }
-                while (lastLevel - STEP >= alt) {
-                    lastLevel -= STEP;
-                }
-                anchors.push({ idx: i, alt: lastLevel });
-                dir = -1;
-                maxAlt = alt; maxIdx = i;
-                minAlt = alt; minIdx = i;
-            }
-        }
-
-        anchors.push({ idx: n - 1, alt: points[n - 1].alt });
-
-        const result = points.map((p) => ({ ...p }));
-        for (let k = 0; k < anchors.length - 1; k++) {
-            const a0 = anchors[k], a1 = anchors[k + 1];
-            const d0 = points[a0.idx].dist, d1 = points[a1.idx].dist;
-            const span = d1 - d0;
-            for (let i = a0.idx; i <= a1.idx; i++) {
-                const t = span > 0 ? (points[i].dist - d0) / span : 0;
-                result[i].alt = lerp(a0.alt, a1.alt, t);
-            }
-        }
-        return result;
-    }
-
-    applyElevationFilter(samples, useContourCrossing = false) {
+    applyRoadGradeSmoothing(samples) {
         const count = samples.length - 1;
+        if (count < 2) {
+            this.interpolatedPoints = samples.slice();
+            return;
+        }
         const stepDist = this.totalDistance / (count || 1);
 
-        // 1段目: メディアンフィルター（前後12m・スパイクノイズ除去）
-        const medHalfWin = Math.max(1, Math.round(12 / (stepDist || 1)));
-        const medianFiltered = samples.map((s, idx) => {
-            const start = Math.max(0, idx - medHalfWin), end = Math.min(count, idx + medHalfWin);
-            const windowAlts = [];
-            for (let k = start; k <= end; k++) windowAlts.push(samples[k].alt);
-            windowAlts.sort((a, b) => a - b);
-            const mid = Math.floor(windowAlts.length / 2);
-            const medAlt = (windowAlts.length % 2 === 1)
-                ? windowAlts[mid]
-                : (windowAlts[mid - 1] + windowAlts[mid]) / 2;
-            return { dist: s.dist, lon: s.lon, lat: s.lat, alt: medAlt };
-        });
+        // 1. メディアンフィルター (前後15m)
+        const medHalf = Math.max(1, Math.round(15 / (stepDist || 1)));
+        const medAlts = new Float64Array(count + 1);
+        for (let i = 0; i <= count; i++) {
+            const start = Math.max(0, i - medHalf);
+            const end = Math.min(count, i + medHalf);
+            const w = [];
+            for (let k = start; k <= end; k++) w.push(samples[k].alt);
+            w.sort((a, b) => a - b);
+            medAlts[i] = w[Math.floor(w.length / 2)];
+        }
 
-        // 10mメッシュ補正時は 5mコンターラインとのクロスポイント直線補間を適用（すでに直線勾配化されているため移動平均は最小限の5mのみ）
-        const basePoints = useContourCrossing
-            ? this.buildContourCrossingSamples(medianFiltered)
-            : medianFiltered;
+        // 2. 道路物理勾配制限パス (前後双方向で最大許容勾配 12% に制約)
+        const MAX_GRADE = 0.12;
+        const forward = new Float64Array(count + 1);
+        forward[0] = medAlts[0];
+        for (let i = 1; i <= count; i++) {
+            const dx = samples[i].dist - samples[i - 1].dist;
+            const maxDelta = MAX_GRADE * dx;
+            forward[i] = Math.max(forward[i - 1] - maxDelta, Math.min(forward[i - 1] + maxDelta, medAlts[i]));
+        }
 
-        const smoothRadiusMeters = useContourCrossing ? 5 : 10;
-        const halfWin = Math.max(1, Math.round(smoothRadiusMeters / (stepDist || 1)));
-        this.interpolatedPoints = basePoints.map((s, idx) => {
-            const start = Math.max(0, idx - halfWin), end = Math.min(count, idx + halfWin);
-            let sumAlt = 0;
-            for (let k = start; k <= end; k++) sumAlt += basePoints[k].alt;
-            return { dist: s.dist, lon: s.lon, lat: s.lat, alt: sumAlt / (end - start + 1) };
+        const backward = new Float64Array(count + 1);
+        backward[count] = forward[count];
+        for (let i = count - 1; i >= 0; i--) {
+            const dx = samples[i + 1].dist - samples[i].dist;
+            const maxDelta = MAX_GRADE * dx;
+            backward[i] = Math.max(backward[i + 1] - maxDelta, Math.min(backward[i + 1] + maxDelta, forward[i]));
+        }
+
+        // 3. 移動平均フィルター (前後20m)
+        const avgHalf = Math.max(1, Math.round(20 / (stepDist || 1)));
+        this.interpolatedPoints = samples.map((s, idx) => {
+            const start = Math.max(0, idx - avgHalf);
+            const end = Math.min(count, idx + avgHalf);
+            let sum = 0;
+            for (let k = start; k <= end; k++) sum += backward[k];
+            return { dist: s.dist, lon: s.lon, lat: s.lat, alt: sum / (end - start + 1) };
         });
     }
 
@@ -276,11 +246,12 @@ export class GeoCourseManager {
             b1 = this.sampleAtDist(Math.min(this.totalDistance, b0.dist + span));
         }
 
-        // 斜度（Slope）: ルート標高自体が補正済みのため、余計な区間平均を行わず現在地直近（0m〜前方5m）から遅れゼロで直接算出
-        const bwdSlope = cur;
-        const fwdSlope = this.sampleAtDist(dist + 5);
+        // 斜度（Slope）: 前後15m（計30mスパン）の標高差から安定かつ遅れなく算出
+        // コンターに平行な平坦路では確実に±1.5%以内に収まり、10mメッシュの微小段差ノイズを完全に除去
+        const bwdSlope = this.sampleAtDist(dist - 15);
+        const fwdSlope = this.sampleAtDist(dist + 15);
         const roadDist = fwdSlope.dist - bwdSlope.dist;
-        const slope = roadDist > 0.5 ? Math.round(((fwdSlope.alt - bwdSlope.alt) / roadDist) * 1000) / 10 : 0;
+        const slope = roadDist > 5 ? Math.round(((fwdSlope.alt - bwdSlope.alt) / roadDist) * 1000) / 10 : 0;
 
         return {
             u,
@@ -293,6 +264,36 @@ export class GeoCourseManager {
             fwdPoint: { lon: p1.lon, lat: p1.lat },
             bwdPoint: { lon: p0.lon, lat: p0.lat }
         };
+    }
+
+    /**
+     * MapLibre line-gradient 用の勾配カラーストップ配列を生成
+     * 進行度 0.0〜1.0 の各地点の斜度に応じた明度・彩度カラーをマッピング
+     */
+    getRouteColorStops() {
+        const STOPS = clamp(Math.round(this.totalDistance / 20), 64, 1000);
+        const stops = [];
+        for (let i = 0; i <= STOPS; i++) {
+            const progress = i / STOPS;
+            const state = this.getStateAtProgress(progress);
+            const color = GeoCourseManager.slopeToColor(state.slope);
+            stops.push([progress, color]);
+        }
+        return stops;
+    }
+
+    /**
+     * 勾配（Slope %）→ 走行ラインカラー（彩度・明度で表現）
+     * - 平坦 (0%): 白（彩度 0%・明度 100%）
+     * - 上り: 赤系の色相固定で、勾配が増すほど彩度↑・明度↓（10%以上で最大）
+     * - 下り: 青系の色相固定で、勾配が増すほど彩度↑・明度↓（-10%以下で最大）
+     */
+    static slopeToColor(slope) {
+        const t = clamp(Math.abs(slope) / 10, 0, 1);
+        const hue = slope >= 0 ? 0 : 210;
+        const sat = Math.round(t * 100);
+        const light = Math.round(100 - t * 50);
+        return `hsl(${hue}, ${sat}%, ${light}%)`;
     }
 
     toGeoJSONCoordinates() {
