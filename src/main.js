@@ -262,8 +262,17 @@ class App {
                 const distMoved = ((this.speedKmh * 1000) / 3600) * dt;
                 const nextProgress = this.currentProgress + distMoved / this.course.totalDistance;
                 if (nextProgress >= 1.0) {
-                    this.updateState(1.0);
-                    if (this.isPlaying) this.setPlayState(false);
+                    if (this.isPlaying) {
+                        this.setPlayState(false);
+                        this.updateState(1.0);
+                        setTimeout(() => {
+                            if (!this.isPlaying) {
+                                this.setManualProgress(0.0);
+                            }
+                        }, 500);
+                    } else {
+                        this.updateState(1.0);
+                    }
                 } else {
                     this.updateState(nextProgress);
                 }
