@@ -112,8 +112,8 @@ export class GeoCourseManager {
             return { dist: s.dist, lon: s.lon, lat: s.lat, alt: medAlt };
         });
 
-        // 2段目: 約60m区間の移動平均フィルター（微細な段差を均して滑らかな道路勾配を生成）
-        const halfWin = Math.max(3, Math.round(30 / (stepDist || 1)));
+        // 2段目: 約30m区間（前後15m）の移動平均フィルター（微細な段差を均してシャープでリアルな道路勾配を生成）
+        const halfWin = Math.max(2, Math.round(15 / (stepDist || 1)));
         this.interpolatedPoints = medianFiltered.map((s, idx) => {
             const start = Math.max(0, idx - halfWin), end = Math.min(SAMPLES, idx + halfWin);
             let sumAlt = 0;
