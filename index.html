@@ -18,7 +18,7 @@
     <div id="top-bar">
         <div class="top-title-group">
             <h1 class="top-app-title">AeroVelo</h1>
-            <span class="version-badge" id="app-version">v1.9.1</span>
+            <span class="version-badge" id="app-version">v1.9.2</span>
         </div>
         <div class="top-course-group">
             <span id="course-name-display" class="top-course-title">読み込み中...</span>
@@ -30,47 +30,47 @@
         </div>
     </div>
 
-    <!-- 画面上部 HUDメトリクス (英語表示×7行縦並び、ベースなし個別配置) -->
+    <!-- 画面上部 HUDメトリクス (英語表示×8行縦並び、ベースなし個別配置) -->
     <div id="hud-metrics">
         <div class="hud-item">
             <span class="hud-label">Speed</span>
             <div class="hud-value-box">
-                <span id="speed-val" class="hud-val">25.00</span>
+                <span id="hud-speed-val" class="hud-val">25.00</span>
                 <span class="hud-unit">km/h</span>
             </div>
         </div>
         <div class="hud-item">
             <span class="hud-label">Distance</span>
             <div class="hud-value-box">
-                <span id="bottom-dist-display" class="hud-val">0.00</span>
+                <span id="hud-dist-val" class="hud-val">0.00</span>
                 <span class="hud-unit">km</span>
             </div>
         </div>
         <div class="hud-item ble-hud-item" title="ケイデンスセンサー計測値">
             <span class="hud-label">Cadence</span>
             <div class="hud-value-box">
-                <span id="val-cadence" class="hud-val">--.--</span>
+                <span id="hud-cadence-val" class="hud-val">--.--</span>
                 <span class="hud-unit">rpm</span>
             </div>
         </div>
         <div class="hud-item ble-hud-item" title="トレーナー/パワーメーター計測値">
             <span class="hud-label">Power</span>
             <div class="hud-value-box">
-                <span id="val-power" class="hud-val">--.--</span>
+                <span id="hud-power-val" class="hud-val">--.--</span>
                 <span class="hud-unit">W</span>
             </div>
         </div>
         <div class="hud-item">
             <span class="hud-label">Altitude</span>
             <div class="hud-value-box">
-                <span id="bottom-alt-display" class="hud-val">0.00</span>
+                <span id="hud-alt-val" class="hud-val">0.00</span>
                 <span class="hud-unit">m</span>
             </div>
         </div>
         <div class="hud-item">
             <span class="hud-label">Slope</span>
             <div class="hud-value-box">
-                <span id="bottom-slope-display" class="hud-val">+0.00</span>
+                <span id="hud-slope-val" class="hud-val">+0.00</span>
                 <span class="hud-unit">%</span>
             </div>
         </div>
@@ -80,7 +80,7 @@
                 <button type="button" id="btn-manual-mode" class="hud-manual-btn" title="手動固定負荷モード切替 (Auto/Manual)">Manual</button>
             </div>
             <div class="hud-value-box">
-                <span id="v-slope-val" class="hud-val">0.00</span>
+                <span id="hud-load-val" class="hud-val">0.00</span>
                 <span class="hud-unit">%</span>
             </div>
         </div>
@@ -120,22 +120,22 @@
             <input type="range" id="cam-smooth-slider" min="0" max="10" step="1" value="5">
 
             <div class="label-row" style="margin-top: 3px;">
-                <label for="cam-fwd-mult-slider">Fwd Look (前)</label>
+                <div class="label-with-btn">
+                    <label for="cam-fwd-mult-slider">Fwd Look</label>
+                    <button type="button" id="btn-toggle-fwd-marker" class="btn mini-cam-free marker-toggle-btn" title="前方注視点マーカーの表示/非表示">HIDE</button>
+                </div>
                 <span id="cam-fwd-mult-val" class="sub-val">2.0x</span>
             </div>
-            <div class="slider-btn-row">
-                <input type="range" id="cam-fwd-mult-slider" min="0" max="3" step="0.1" value="2.0">
-                <button type="button" id="btn-toggle-fwd-marker" class="btn mini-cam-free marker-toggle-btn" title="前方注視点マーカーの表示/非表示">HIDE</button>
-            </div>
+            <input type="range" id="cam-fwd-mult-slider" min="0" max="3" step="0.1" value="2.0">
 
             <div class="label-row" style="margin-top: 3px;">
-                <label for="cam-bwd-mult-slider">Bwd Look (後)</label>
+                <div class="label-with-btn">
+                    <label for="cam-bwd-mult-slider">Bwd Look</label>
+                    <button type="button" id="btn-toggle-bwd-marker" class="btn mini-cam-free marker-toggle-btn" title="後方注視点マーカーの表示/非表示">HIDE</button>
+                </div>
                 <span id="cam-bwd-mult-val" class="sub-val">1.0x</span>
             </div>
-            <div class="slider-btn-row">
-                <input type="range" id="cam-bwd-mult-slider" min="0" max="3" step="0.1" value="1.0">
-                <button type="button" id="btn-toggle-bwd-marker" class="btn mini-cam-free marker-toggle-btn" title="後方注視点マーカーの表示/非表示">HIDE</button>
-            </div>
+            <input type="range" id="cam-bwd-mult-slider" min="0" max="3" step="0.1" value="1.0">
 
             <div class="label-row" style="margin-top: 3px;">
                 <label for="cam-orbit-slider">Angle</label>
@@ -193,10 +193,7 @@
                         </div>
                         <div class="gpx-actions-row">
                             <input type="file" id="gpx-file-input" accept=".gpx" style="display: none;">
-                            <div id="drop-zone" class="action-item drop-zone">
-                                <span class="action-label">Drop</span>
-                            </div>
-                            <button type="button" id="btn-browse" class="action-item action-btn">Explorer</button>
+                            <button type="button" id="btn-browse" class="action-item action-btn">FILE</button>
                             <a href="https://gpx-edit-pro.ovh/editeur-gpx/?lang=ja" target="_blank" rel="noopener noreferrer" class="action-item action-link">WEB Editor</a>
                         </div>
                         <div class="gsi-row">
@@ -214,34 +211,33 @@
                     <section class="control-group ble-section">
                         <div class="ble-bar">
                             <button type="button" id="btn-ble-connect" class="ble-btn">
-                                <span class="ble-dot" id="ble-indicator"></span>
-                                <span id="ble-status-text">⚡ スマートトレーナー接続</span>
+                                <span class="ble-dot"></span>
+                                <span id="ble-status-text">⚡ トレーナー接続</span>
                             </button>
                             <button type="button" id="btn-ble-disconnect" class="ble-disconnect-btn" style="display: none;" title="切断">✕</button>
                         </div>
                     </section>
                 </div>
 
-                <!-- セクション 3: 負荷設定 (負荷%ボタンなし・コンパクトスキャン) -->
+                <!-- セクション 3: 負荷設定 -->
                 <div class="settings-section">
                     <div class="settings-sec-title">🛠️ 負荷設定</div>
-                    <div id="test-controls-box" class="test-controls-box">
+                    <div class="test-controls-box">
                         <!-- Manual Slope Slider (0%〜7%) -->
                         <div class="label-row">
-                            <label for="test-slope-slider">手動指示負荷 (Slope)</label>
+                            <label for="test-slope-slider">手動負荷 (Slope)</label>
                             <span id="test-slope-val" class="sub-val">0.0 %</span>
                         </div>
                         <input type="range" id="test-slope-slider" min="0" max="7" step="0.2" value="0">
 
-                        <!-- Auto Sweep (コンパクト表示: 連続スキャン + 周期: 30秒, 60秒[デフォルト], 120秒) -->
+                        <!-- Auto Sweep (AUTOSCAN + 周期: 30秒, 60秒[デフォルト], 120秒) -->
                         <div class="compact-scan-row">
-                            <button type="button" id="btn-lfo-toggle" class="btn secondary mini-scan-btn">連続スキャン</button>
+                            <button type="button" id="btn-lfo-toggle" class="btn secondary mini-scan-btn">AUTOSCAN</button>
                             <div class="lfo-period-wrap">
-                                <label for="lfo-period-select">周期:</label>
-                                <select id="lfo-period-select" class="mini-select">
-                                    <option value="30">30秒</option>
-                                    <option value="60" selected>60秒</option>
-                                    <option value="120">120秒</option>
+                                <select id="lfo-period-select" class="mini-select" title="スキャン周期">
+                                    <option value="30">30s</option>
+                                    <option value="60" selected>60s</option>
+                                    <option value="120">120s</option>
                                 </select>
                             </div>
                         </div>

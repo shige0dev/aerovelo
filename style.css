@@ -43,6 +43,7 @@ body {
    共通UIコンポーネント (ボタン / スライダー / ラベル)
    ======================================================== */
 .label-row { display: flex; justify-content: space-between; align-items: center; font-size: 0.66rem; color: var(--muted); }
+.label-with-btn { display: flex; align-items: center; gap: 4px; }
 .sub-val { font-size: 0.68rem; font-weight: 700; color: var(--accent); font-family: var(--font-mono); }
 
 /* 共通ボタンスタイル */
@@ -140,11 +141,9 @@ input[type="range"]::-webkit-slider-thumb {
 .slope-hud-item { cursor: ns-resize; touch-action: none; }
 .ble-hud-item { border-color: rgba(0, 240, 255, 0.22); }
 
-/* スライダー横の小型アクションボタン（注視点 HIDE ボタン）
+/* タイトル行の小型アクションボタン（注視点 HIDE ボタン）
    通常: グレーアウト（非ハイライト＝表示中）
    ハイライト: 点灯（HIDE有効＝注視点消去中） */
-.slider-btn-row { display: flex; align-items: center; gap: 4px; width: 100%; }
-.slider-btn-row input[type="range"] { flex: 1; }
 .marker-toggle-btn {
     flex: none !important; min-height: 16px !important; padding: 1px 5px !important;
     font-size: 0.48rem !important; line-height: 1 !important;
@@ -269,16 +268,16 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 /* ========================================================
-   フローティングダイアログ共通 & 個別 (カメラ 170px / 設定 240px)
+   フローティングダイアログ共通 & 個別 (カメラ・設定 170px統一)
    ======================================================== */
 .floating-cam-dialog, .floating-settings-dialog {
-    position: absolute; top: 30px; right: 8px;
+    position: absolute; top: 30px; right: 8px; width: 170px; padding: 6px;
     background: var(--panel-bg); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
     border: 1px solid var(--panel-border); border-radius: 8px; z-index: 25;
     box-shadow: 0 6px 20px rgba(0, 0, 0, 0.7); display: flex; flex-direction: column;
 }
-.floating-cam-dialog { width: 170px; padding: 6px; gap: 4px; }
-.floating-settings-dialog { width: 240px; max-height: calc(100vh - 45px); padding: 8px 10px; gap: 6px; animation: dialog-pop 0.15s ease-out; }
+.floating-cam-dialog { gap: 4px; }
+.floating-settings-dialog { max-height: calc(100vh - 45px); gap: 5px; animation: dialog-pop 0.15s ease-out; }
 @keyframes dialog-pop { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
 
 .floating-cam-header, .floating-settings-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255, 255, 255, 0.1); padding-bottom: 3px; }
@@ -294,20 +293,19 @@ input[type="range"]::-webkit-slider-thumb {
 }
 .camera-adjust-box.disabled { opacity: 0.28; pointer-events: none; }
 
-.modal-body { display: flex; flex-direction: column; gap: 8px; overflow-y: auto; padding-right: 2px; }
-.settings-section { display: flex; flex-direction: column; gap: 4px; padding-bottom: 6px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
+.modal-body { display: flex; flex-direction: column; gap: 6px; overflow-y: auto; padding-right: 2px; }
+.settings-section { display: flex; flex-direction: column; gap: 4px; padding-bottom: 5px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
 .settings-section:last-child { border-bottom: none; padding-bottom: 0; }
-.settings-sec-title { font-size: 0.65rem; font-weight: 700; color: var(--accent); margin-bottom: 2px; }
+.settings-sec-title { font-size: 0.62rem; font-weight: 700; color: var(--accent); margin-bottom: 1px; }
 
 /* モーダル内各セクション要素 */
 .gpx-section-frameless, .test-controls-box { display: flex; flex-direction: column; gap: 4px; }
 .preset-select, .mini-select {
     background: rgba(0, 0, 0, 0.5); border: 1px solid var(--panel-border); border-radius: 4px;
-    color: #f1f5f9; font-size: 0.65rem; padding: 2px 4px; outline: none; cursor: pointer;
+    color: #f1f5f9; font-size: 0.62rem; padding: 2px 4px; outline: none; cursor: pointer;
 }
+.preset-select { width: 100%; }
 .gpx-actions-row, .compact-scan-row, .ble-bar { display: flex; align-items: center; gap: 4px; justify-content: space-between; }
-.action-item.drop-zone { background: rgba(255, 255, 255, 0.05); border: 1px dashed var(--panel-border); color: var(--muted); cursor: copy; }
-.action-item.drop-zone:hover, .gpx-section-frameless.dragover .action-item.drop-zone { border-color: var(--accent); color: var(--accent); background: rgba(0, 240, 255, 0.1); }
 .action-item.action-btn { background: rgba(0, 240, 255, 0.1); border-color: rgba(0, 240, 255, 0.3); color: var(--accent); }
 .action-item.action-link { background: rgba(255, 255, 255, 0.05); color: #cbd5e1; }
 
