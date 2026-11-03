@@ -15,11 +15,16 @@ const inFlightTiles = new Map();
 
 /**
  * 国土地理院 10mメッシュ (dem_png z<=14) を取得し、水面補完＋Terrarium形式RGB (ArrayBuffer) に変換する共通関数
+ * ※重要: MapLibre Workerへ渡すと ArrayBuffer が移転(Detached)されてメモリ長0になるため、
+ * キャッシュには原本を保持し、呼び出し側へは必ず .slice(0) で安全な複製を返す。
  */
 async function fetchGsiTerrariumPng(z, x, y) {
     const key = `${z}/${x}/${y}`;
-    if (tileCache.has(key)) return tileCache.get(key);
-    if (inFlightTiles.has(key)) return inFlightTiles.get(key);
+    if (tileCache.has(key)) return tileCache.get(key).slice(0);
+    if (inFlightTiles.has(key)) {
+        const buf = await inFlightTiles.get(key);
+        return buf ? buf.slice(0) : null;
+    }
 
     const promise = (async () => {
         // 日本国外または広域低ズーム(z < 9)または z > 14 は AWS Terrarium へフォールバック
@@ -79,10 +84,13 @@ async function fetchGsiTerrariumPng(z, x, y) {
     inFlightTiles.set(key, promise);
     try {
         const buf = await promise;
-        tileCache.set(key, buf);
-        if (tileCache.size > 200) {
-            const oldest = tileCache.keys().next().value;
-            tileCache.delete(oldest);
+        if (buf && buf.byteLength > 0) {
+            tileCache.set(key, buf);
+            if (tileCache.size > 200) {
+                const oldest = tileCache.keys().next().value;
+                tileCache.delete(oldest);
+            }
+            return buf.slice(0);
         }
         return buf;
     } finally {
