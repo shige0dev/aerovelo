@@ -141,9 +141,9 @@ input[type="range"]::-webkit-slider-thumb {
 .hud-scrubber { cursor: ns-resize; touch-action: none; }
 .ble-hud-item { border-color: rgba(0, 240, 255, 0.22); }
 
-/* タイトル行の小型アクションボタン（注視点 HIDE ボタン）
-   通常: グレーアウト（非ハイライト＝表示中）
-   ハイライト: 点灯（HIDE有効＝注視点消去中） */
+/* タイトル行の小型アクションボタン（等高線 / 注視点 SHOW ボタン）
+   通常: グレーアウト（非表示）
+   ハイライト: 点灯（SHOW有効＝表示中） */
 .btn.marker-toggle-btn {
     flex: none; min-height: 16px; padding: 1px 5px;
     font-size: 0.48rem; line-height: 1;
@@ -157,10 +157,10 @@ input[type="range"]::-webkit-slider-thumb {
     border-color: rgba(255, 255, 255, 0.28);
 }
 .btn.marker-toggle-btn.active {
-    background: rgba(239, 68, 68, 0.35);
-    border-color: #ef4444;
-    color: #fee2e2;
-    box-shadow: 0 0 6px rgba(239, 68, 68, 0.4);
+    background: rgba(0, 240, 255, 0.25);
+    border-color: var(--accent);
+    color: #e0faff;
+    box-shadow: 0 0 6px var(--accent-glow);
 }
 
 /* ========================================================

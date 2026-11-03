@@ -22,8 +22,8 @@ export class MapViewController {
         };
         this.lastState = initialState;
         this.markers = { rider: null, fwd: null, bwd: null };
-        // 前後注視点マーカーは起動時 HIDE (false)、等高線は起動時表示 (true)
-        this.markerVisible = { fwd: false, bwd: false, contour: true };
+        // 前後注視点マーカー・等高線は起動時非表示 (SHOWボタン押下で表示)
+        this.markerVisible = { fwd: false, bwd: false, contour: false };
         this.pendingContours = null;
 
         this.initMap(initialState);

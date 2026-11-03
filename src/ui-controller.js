@@ -191,17 +191,17 @@ export class UIController {
         on(el.camFreeBtn, 'click', () => cb.onToggleCameraFree?.());
         on(el.compassBtn, 'click', () => cb.onResetNorth?.());
 
-        // 等高線・注視点 HIDE ボタン（ハイライト時＝消去中、消灯時＝表示中）
+        // 等高線・注視点 SHOW ボタン（初期非表示、押すと点灯して表示）
         [
             ['btn-toggle-contour', 'contour'],
             ['btn-toggle-fwd-marker', 'fwd'],
             ['btn-toggle-bwd-marker', 'bwd']
         ].forEach(([id, key]) => {
             const btn = $(id);
-            let visible = !btn?.classList.contains('active');
+            let visible = btn?.classList.contains('active') ?? false;
             on(btn, 'click', () => {
                 visible = !visible;
-                btn?.classList.toggle('active', !visible);
+                btn?.classList.toggle('active', visible);
                 cb.onToggleMarker?.(key, visible);
             });
         });
