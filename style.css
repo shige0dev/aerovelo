@@ -142,13 +142,6 @@ input[type="range"]::-webkit-slider-thumb {
 .slope-hud-item { cursor: ns-resize; touch-action: none; }
 .ble-hud-item { border-color: rgba(0, 240, 255, 0.22); }
 .hud-zoom-item { cursor: ns-resize; touch-action: none; }
-.hud-zoom-slider {
-    width: 52px !important; height: 3px !important; margin: 0 2px !important;
-    vertical-align: middle; cursor: pointer; flex: none;
-}
-.hud-zoom-slider::-webkit-slider-thumb {
-    width: 9px !important; height: 9px !important;
-}
 
 /* スライダー横の小型アクションボタン（注視点 HIDE / SHOW トグル） */
 .slider-btn-row { display: flex; align-items: center; gap: 4px; width: 100%; }

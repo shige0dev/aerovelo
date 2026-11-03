@@ -38,7 +38,6 @@ export class UIController {
             camBwdMultVal: $('cam-bwd-mult-val'),
             camAdjustBox: $('camera-adjust-box'),
             rowZoomCtrl: $('row-zoom-ctrl'),
-            hudZoomSlider: $('hud-zoom-slider'),
             hudZoomVal: $('hud-zoom-val'),
             camZoomSlider: $('cam-zoom-slider'),
             camZoomVal: $('cam-zoom-val'),
@@ -183,22 +182,17 @@ export class UIController {
         // 2D シンプルコンパスクリック（北向きリセット）
         on(el.compassBtn, 'click', () => cb.onResetNorth?.());
 
-        // HUD ズームコントロール（スライダー直接操作 ＆ 上下ドラッグ/ホイール操作）
-        on('hud-zoom-slider', 'input', (e) => {
-            const v = parseFloat(e.target.value);
-            this.syncZoomUI(v);
-            cb.onCameraParamChange?.({ zoom: v });
-        });
+        // HUD ズームコントロール（数値の上下ドラッグ ＆ ホイール操作）
         this.setupVerticalDrag(el.rowZoomCtrl, {
             isEnabled: () => true,
-            getInitialValue: () => parseFloat($('hud-zoom-slider')?.value || 16.5),
+            getInitialValue: () => parseFloat($('hud-zoom-val')?.textContent || 16.5),
             onDragChange: (start, dy) => {
-                const v = Math.max(13.0, Math.min(18.5, Math.round((start + dy / 50) * 10) / 10));
+                const v = Math.max(13.0, Math.min(18.5, Math.round((start + dy / 35) * 10) / 10));
                 this.syncZoomUI(v);
                 cb.onCameraParamChange?.({ zoom: v });
             },
             onWheelDelta: (dir) => {
-                const cur = parseFloat($('hud-zoom-slider')?.value || 16.5);
+                const cur = parseFloat($('hud-zoom-val')?.textContent || 16.5);
                 const v = Math.max(13.0, Math.min(18.5, Math.round((cur + dir * 0.1) * 10) / 10));
                 this.syncZoomUI(v);
                 cb.onCameraParamChange?.({ zoom: v });
@@ -385,12 +379,10 @@ export class UIController {
     syncZoomUI(zoom) {
         if (typeof zoom !== 'number' || isNaN(zoom)) return;
         const valStr = zoom.toFixed(1);
-        const hudSlider = $('hud-zoom-slider');
         const hudVal = $('hud-zoom-val');
         const camSlider = $('cam-zoom-slider');
         const camVal = $('cam-zoom-val');
 
-        if (hudSlider && Math.abs(parseFloat(hudSlider.value) - zoom) > 0.04) hudSlider.value = zoom;
         if (hudVal) hudVal.textContent = valStr;
         if (camSlider && Math.abs(parseFloat(camSlider.value) - zoom) > 0.04) camSlider.value = zoom;
         if (camVal) camVal.textContent = valStr;

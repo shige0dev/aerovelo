@@ -20,7 +20,7 @@ export class MapViewController {
         this.showFwdMarker = true;
         this.showBwdMarker = true;
         this.initMap(initialState);
-        // this.setupMainScreenSwipe(); // 全画面スワイプでのアングル調整は一時停止
+        this.setupMainScreenSwipe(); // 全画面上下スワイプでのカメラ角度ピッチ調整
     }
 
     initMap(startState) {
@@ -211,34 +211,28 @@ export class MapViewController {
         if (!container) return;
 
         let isDragging = false;
-        let startX = 0, startY = 0;
-        let startOrbit = 0, startPitch = 0;
+        let startY = 0;
+        let startPitch = 0;
 
         container.addEventListener('pointerdown', (e) => {
             if (this.cameraMode !== 'track') return;
-            if (e.target.closest('#top-bar, #hud-metrics, #bottom-bar, .floating-cam-dialog, .floating-settings-dialog')) return;
+            if (e.target.closest('#top-bar, #hud-metrics, #bottom-bar, .floating-cam-dialog, .floating-settings-dialog, .compass-widget')) return;
 
             isDragging = true;
-            startX = e.clientX;
             startY = e.clientY;
-            startOrbit = this.orbitAngleOffset;
             startPitch = this.cameraParams.pitch;
             container.setPointerCapture?.(e.pointerId);
         });
 
         container.addEventListener('pointermove', (e) => {
             if (!isDragging || this.cameraMode !== 'track') return;
-            const dx = e.clientX - startX;
             const dy = e.clientY - startY;
 
-            // 横スワイプ: アングル調整 (-180° 〜 +180°)
-            const nextOrbit = Math.max(-180, Math.min(180, Math.round(startOrbit + dx * 0.45)));
-            // 縦スワイプ: ピッチ調整 (20° 〜 75°)
+            // 上下スワイプ: ピッチ（カメラ角度）調整 (20° 〜 75°)
             const nextPitch = Math.max(20, Math.min(75, Math.round(startPitch - dy * 0.25)));
 
-            this.orbitAngleOffset = nextOrbit;
             this.cameraParams.pitch = nextPitch;
-            this.onCameraParamChange?.({ orbitAngleOffset: nextOrbit, pitch: nextPitch });
+            this.onCameraParamChange?.({ pitch: nextPitch });
 
             if (this.lastState) {
                 this.applyCameraTarget(this.lastState, 0);
