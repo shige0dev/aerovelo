@@ -105,11 +105,9 @@ class App {
         this.mapView.setCourse(this.course, this.currentState());
         this.updateState(0.0);
 
-        // 3D画面の地形DEMタイルから標高および 5m/2.5m 等高線 GeoJSON を自動計算・同期
-        activeCourse.syncWithTerrainDem().then((contourGeoJSON) => {
-            if (this.course !== activeCourse) return;
-            if (contourGeoJSON) this.mapView.setContours(contourGeoJSON);
-            if (!activeCourse.isGsiCorrected) {
+        // 3D画面の地形DEMタイルからコース標高を自動同期
+        activeCourse.syncWithTerrainDem().then((synced) => {
+            if (synced && this.course === activeCourse && !activeCourse.isGsiCorrected) {
                 this.chart.setCourse(this.course);
                 this.updateState(this.currentProgress);
             }

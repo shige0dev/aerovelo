@@ -1,6 +1,6 @@
 /**
- * 3D Terrain Map, 5m/2.5m Contour Lines, & Chase Camera Controller (MapLibre GL JS)
- * Handles satellite/terrain rendering, Marching Squares GeoJSON contours, route layers, and camera tracking.
+ * 3D Terrain Map, Full-Screen 5m/2.5m Contour Lines, & Chase Camera Controller (MapLibre GL JS)
+ * Handles satellite/terrain rendering, DEM contour isolines, route layers, and camera tracking.
  */
 
 import { clamp } from './course.js';
@@ -24,7 +24,8 @@ export class MapViewController {
         this.markers = { rider: null, fwd: null, bwd: null };
         // 前後注視点マーカー・等高線は起動時非表示 (SHOWボタン押下で表示)
         this.markerVisible = { fwd: false, bwd: false, contour: false };
-        this.pendingContours = null;
+        this.isMapLoaded = false;
+        this.demSource = null;
 
         this.initMap(initialState);
         this.setupMainScreenSwipe();
@@ -35,29 +36,101 @@ export class MapViewController {
     }
 
     initMap(startState) {
+        // maplibre-contour による画面全体リアルタイム等高線生成プロトコル登録
+        if (window.mlcontour) {
+            try {
+                this.demSource = new window.mlcontour.DemSource({
+                    url: DEM_TILE_URL,
+                    encoding: 'terrarium',
+                    maxzoom: 14,
+                    worker: true
+                });
+                this.demSource.setupMaplibre(maplibregl);
+            } catch (err) {
+                console.warn('Contour DemSource setup error:', err);
+                this.demSource = null;
+            }
+        }
+
+        const sources = {
+            'satellite': {
+                type: 'raster',
+                tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
+                tileSize: 256,
+                attribution: 'Tiles &copy; Esri, Maxar, Earthstar Geographics'
+            },
+            'terrain-dem': {
+                type: 'raster-dem',
+                tiles: [DEM_TILE_URL],
+                encoding: 'terrarium',
+                tileSize: 256,
+                maxzoom: 14
+            }
+        };
+
+        const layers = [
+            { id: 'satellite-layer', type: 'raster', source: 'satellite', minzoom: 0, maxzoom: 22 }
+        ];
+
+        if (this.demSource) {
+            sources['contours'] = {
+                type: 'vector',
+                tiles: [
+                    this.demSource.contourProtocolUrl({
+                        // multiplier: 2 により標高を 0.5m 単位の整数に変換し、5 (=2.5m間隔) と 10 (=5.0m間隔) を正確に生成
+                        multiplier: 2,
+                        // z=14 のDEMタイルをオーバーズームして z=16 (カメラズーム16.5〜18.0) でも 404 を出さずに高精細生成
+                        overzoom: 2,
+                        thresholds: {
+                            11: [20, 100], // 10m / 50m
+                            12: [10, 20],  // 5m / 10m
+                            13: [5, 10],   // 2.5m / 5m
+                            14: [5, 10],   // 2.5m / 5m
+                            15: [5, 10],   // 2.5m / 5m
+                            16: [5, 10]    // 2.5m / 5m
+                        },
+                        elevationKey: 'ele',
+                        levelKey: 'level',
+                        contourLayer: 'contours'
+                    })
+                ],
+                maxzoom: 16
+            };
+
+            layers.push({
+                id: 'contour-lines',
+                type: 'line',
+                source: 'contours',
+                'source-layer': 'contours',
+                layout: {
+                    'line-join': 'round',
+                    'line-cap': 'round',
+                    'visibility': this.markerVisible.contour ? 'visible' : 'none'
+                },
+                paint: {
+                    'line-color': [
+                        'match',
+                        ['get', 'level'],
+                        1, 'rgba(255, 215, 64, 0.90)',  // 5.0m 間隔 (太線)
+                        'rgba(255, 235, 150, 0.50)'     // 2.5m 間隔 (細線)
+                    ],
+                    'line-width': [
+                        'match',
+                        ['get', 'level'],
+                        1, 1.8,
+                        0.9
+                    ]
+                }
+            });
+        }
+
         this.map = new maplibregl.Map({
             container: this.containerId,
             fadeDuration: 0,
             style: {
                 version: 8,
-                sources: {
-                    'satellite': {
-                        type: 'raster',
-                        tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
-                        tileSize: 256,
-                        attribution: 'Tiles &copy; Esri, Maxar, Earthstar Geographics'
-                    },
-                    'terrain-dem': {
-                        type: 'raster-dem',
-                        tiles: [DEM_TILE_URL],
-                        encoding: 'terrarium',
-                        tileSize: 256,
-                        maxzoom: 14
-                    }
-                },
-                layers: [
-                    { id: 'satellite-layer', type: 'raster', source: 'satellite', minzoom: 0, maxzoom: 22 }
-                ],
+                sources,
+                layers,
                 sky: {
                     'sky-color': '#1e293b',
                     'sky-horizon-blend': 0.6,
@@ -75,6 +148,7 @@ export class MapViewController {
         });
 
         this.map.on('load', () => {
+            this.isMapLoaded = true;
             // 3D地形の高さ倍率を 1.0 (実寸) に設定し、計算標高・等高線・視覚勾配を完全一致させる
             this.map.setTerrain({ source: 'terrain-dem', exaggeration: 1.0 });
 
@@ -96,10 +170,6 @@ export class MapViewController {
                 this.setCourse(this.pendingCourse, this.pendingState);
                 this.pendingCourse = null;
             }
-            if (this.pendingContours) {
-                this.setContours(this.pendingContours);
-                this.pendingContours = null;
-            }
 
             if (this.cam.mode === 'track') {
                 this.map.dragPan.disable();
@@ -116,54 +186,11 @@ export class MapViewController {
         return { left: 0, top: Math.round(window.innerHeight * 0.35), right: 0, bottom: 0 };
     }
 
-    /**
-     * マーチング・スクエア法で計算された 5m / 2.5m 等高線 GeoJSON を3D地形上に描画
-     */
-    setContours(contourGeoJSON) {
-        if (!contourGeoJSON || !this.map) return;
-
-        if (!this.map.isStyleLoaded()) {
-            this.pendingContours = contourGeoJSON;
-            return;
-        }
-
-        if (this.map.getSource('contours')) {
-            this.map.getSource('contours').setData(contourGeoJSON);
-        } else {
-            this.map.addSource('contours', { type: 'geojson', data: contourGeoJSON });
-            const beforeId = this.map.getLayer('route-glow') ? 'route-glow' : undefined;
-            this.map.addLayer({
-                id: 'contour-lines',
-                type: 'line',
-                source: 'contours',
-                layout: {
-                    'line-join': 'round',
-                    'line-cap': 'round',
-                    'visibility': this.markerVisible.contour ? 'visible' : 'none'
-                },
-                paint: {
-                    'line-color': [
-                        'match',
-                        ['get', 'level'],
-                        1, 'rgba(255, 215, 64, 0.85)',  // 5.0m 間隔
-                        'rgba(255, 235, 150, 0.45)'     // 2.5m 間隔
-                    ],
-                    'line-width': [
-                        'match',
-                        ['get', 'level'],
-                        1, 1.6,
-                        0.9
-                    ]
-                }
-            }, beforeId);
-        }
-    }
-
     setCourse(course, initialState) {
         this.cam.bearing = null;
         if (!this.map) return;
 
-        if (!this.map.isStyleLoaded()) {
+        if (!this.isMapLoaded) {
             this.pendingCourse = course;
             this.pendingState = initialState;
             return;
