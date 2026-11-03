@@ -144,8 +144,8 @@ export class GeoCourseManager {
         const count = samples.length - 1;
         const stepDist = this.totalDistance / (count || 1);
 
-        // 1段目: メディアンフィルター（前後8m・スパイクノイズ除去）
-        const medHalfWin = Math.max(1, Math.round(8 / (stepDist || 1)));
+        // 1段目: メディアンフィルター（前後12m・スパイクノイズや法面外れ値を確実に除去）
+        const medHalfWin = Math.max(1, Math.round(12 / (stepDist || 1)));
         const medianFiltered = samples.map((s, idx) => {
             const start = Math.max(0, idx - medHalfWin), end = Math.min(count, idx + medHalfWin);
             const windowAlts = [];
@@ -158,8 +158,8 @@ export class GeoCourseManager {
             return { dist: s.dist, lon: s.lon, lat: s.lat, alt: medAlt };
         });
 
-        // 2段目: 前後10m（計20m区間）の移動平均フィルター（段差を均しつつ勾配変化のレスポンスを維持）
-        const halfWin = Math.max(1, Math.round(10 / (stepDist || 1)));
+        // 2段目: 前後15m（計30m区間）の移動平均フィルター（10mメッシュの境界段差を均し、実走感のある滑らかな道路勾配を生成）
+        const halfWin = Math.max(1, Math.round(15 / (stepDist || 1)));
         this.interpolatedPoints = medianFiltered.map((s, idx) => {
             const start = Math.max(0, idx - halfWin), end = Math.min(count, idx + halfWin);
             let sumAlt = 0;
@@ -204,11 +204,11 @@ export class GeoCourseManager {
             b1 = this.sampleAtDist(Math.min(this.totalDistance, b0.dist + span));
         }
 
-        // 斜度（Slope）: 後方2m〜前方12m（計14m・現在地から目の前の坂）の標高差から遅れなく算出
-        const bwdSlope = this.sampleAtDist(dist - 2);
-        const fwdSlope = this.sampleAtDist(dist + 12);
+        // 斜度（Slope）: 後方10m〜前方20m（計30m・目の前の道路勾配）の標高差から目視地形と完全に一致させて算出
+        const bwdSlope = this.sampleAtDist(dist - 10);
+        const fwdSlope = this.sampleAtDist(dist + 20);
         const roadDist = fwdSlope.dist - bwdSlope.dist;
-        const slope = roadDist > 2 ? Math.round(((fwdSlope.alt - bwdSlope.alt) / roadDist) * 1000) / 10 : 0;
+        const slope = roadDist > 5 ? Math.round(((fwdSlope.alt - bwdSlope.alt) / roadDist) * 1000) / 10 : 0;
 
         return {
             u,

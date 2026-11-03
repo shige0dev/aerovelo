@@ -146,27 +146,23 @@ export function encodeTerrariumPixel(h) {
 }
 
 /**
- * 画像URLから ImageData.data を取得
+ * 画像URLから ImageData.data を取得（fetch + createImageBitmap で高速・高信頼性取得）
  */
-function fetchImagePixels(url) {
-    return new Promise((resolve) => {
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
-        img.onload = () => {
-            try {
-                const canvas = document.createElement('canvas');
-                canvas.width = 256;
-                canvas.height = 256;
-                const ctx = canvas.getContext('2d', { willReadFrequently: true });
-                ctx.drawImage(img, 0, 0, 256, 256);
-                resolve(ctx.getImageData(0, 0, 256, 256).data);
-            } catch {
-                resolve(null);
-            }
-        };
-        img.onerror = () => resolve(null);
-        img.src = url;
-    });
+async function fetchImagePixels(url) {
+    try {
+        const res = await fetch(url);
+        if (!res.ok) return null;
+        const blob = await res.blob();
+        const img = await createImageBitmap(blob);
+        const canvas = document.createElement('canvas');
+        canvas.width = 256;
+        canvas.height = 256;
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        ctx.drawImage(img, 0, 0, 256, 256);
+        return ctx.getImageData(0, 0, 256, 256).data;
+    } catch {
+        return null;
+    }
 }
 
 /**
