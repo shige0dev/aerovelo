@@ -109,8 +109,11 @@ class App {
         this.mapView.setCourse(this.course, this.currentState());
         this.updateState(0.0);
 
+        // OSM から橋・トンネル区間を非同期取得（GeoJSONタグで既に判明している場合はスキップ）
+        this.refreshOsmStructures(activeCourse);
+
         // 実走GPX（標高あり）はそのまま採用。
-        // 標高なしGPX・Webエディタ製GPX・プリセットは標高が粗いため10mメッシュで自動補正する
+        // 標高なしGPX・Webエディタ製GPX・GeoJSON・プリセットは標高が粗いため10mメッシュで自動補正する
         if (activeCourse.needsAutoDemCorrection()) {
             activeCourse.syncWithTerrainDem().then((synced) => {
                 if (synced && this.course === activeCourse) {
@@ -118,18 +121,16 @@ class App {
                     this.chart.setCourse(this.course);
                     this.mapView.setCourse(this.course, null);
                     this.updateState(this.currentProgress);
-                    this.refreshOsmStructures(activeCourse);
                 }
             }).catch((err) => console.warn('Terrain DEM sync skipped:', err));
         }
     }
 
     /**
-     * DEM由来の標高に対し、OSMの橋・トンネル区間を非同期で取得して路面標高へ置き換える
-     * （通信失敗・混雑時は何もせず、10mメッシュの標高のまま）
+     * OSMの橋・トンネル区間を非同期で取得してコース色替え＆路面直線標高へ置き換える
+     * （通信失敗・混雑時は何もせず、既存の標高のまま動作継続）
      */
     refreshOsmStructures(course) {
-        if (!course.isTerrainSynced) return;
         course.loadOsmStructures().then((changed) => {
             if (changed && this.course === course) {
                 this.chart.setCourse(this.course);

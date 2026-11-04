@@ -199,9 +199,8 @@ export class GeoCourseManager {
         const stepDist = this.totalDistance / (count || 1);
 
         // 0. 橋・トンネル区間は地表面(谷底・山頂)ではなく、入口〜出口を直線で結んだ路面標高に置き換える
-        //    （標高が DEM 由来の場合のみ。実走GPXの標高はそのまま使う）
         const srcAlts = Float64Array.from(samples, (s) => s.alt);
-        if (this.isTerrainSynced) this.linearizeStructures(samples, srcAlts);
+        this.linearizeStructures(samples, srcAlts);
 
         // 1. メディアンフィルター (前後15m)
         const medHalf = Math.max(1, Math.round(15 / (stepDist || 1)));
@@ -235,18 +234,28 @@ export class GeoCourseManager {
 
         // 3. 移動平均フィルター (前後20m)
         const avgHalf = Math.max(1, Math.round(20 / (stepDist || 1)));
-        this.interpolatedPoints = samples.map((s, idx) => {
+        const smoothedAlts = new Float64Array(count + 1);
+        for (let idx = 0; idx <= count; idx++) {
             const start = Math.max(0, idx - avgHalf);
             const end = Math.min(count, idx + avgHalf);
             let sum = 0;
             for (let k = start; k <= end; k++) sum += backward[k];
-            return { dist: s.dist, lon: s.lon, lat: s.lat, alt: sum / (end - start + 1) };
-        });
+            smoothedAlts[idx] = sum / (end - start + 1);
+        }
+
+        // 4. 橋・トンネル区間はフィルター後の端部高度と端部高度を厳密な直線で結ぶ
+        this.linearizeStructuresExact(samples, smoothedAlts);
+
+        this.interpolatedPoints = samples.map((s, idx) => ({
+            dist: s.dist,
+            lon: s.lon,
+            lat: s.lat,
+            alt: smoothedAlts[idx]
+        }));
     }
 
     /**
-     * 橋・トンネル区間の標高を、入口・出口の路面標高（区間の外側15mの中央値）を結ぶ直線に置き換える
-     * DEM は橋の下の谷底やトンネル上の山頂を拾うため、路面とは大きく異なる
+     * 橋・トンネル区間の標高を、入口・出口の路面標高（区間の外側15mの中央値）を結ぶ直線に置き換える（前処理用）
      */
     linearizeStructures(samples, alts) {
         const ranges = this.structureRanges || [];
@@ -280,6 +289,39 @@ export class GeoCourseManager {
             for (let i = i0; i <= i1; i++) {
                 const t = (samples[i].dist - d0) / (d1 - d0);
                 alts[i] = a0 + (a1 - a0) * clamp(t, 0, 1);
+            }
+        }
+    }
+
+    /**
+     * フィルター適用後の標高に対し、橋・トンネル区間の始端と終端の高度を完全な直線で結ぶ（最終確定用）
+     */
+    linearizeStructuresExact(samples, alts) {
+        const ranges = this.structureRanges || [];
+        if (!ranges.length) return;
+        const n = samples.length;
+
+        for (const { d0, d1 } of ranges) {
+            let i0 = -1, i1 = -1;
+            for (let i = 0; i < n; i++) {
+                const d = samples[i].dist;
+                if (i0 < 0 && d >= d0) i0 = i;
+                if (d <= d1) i1 = i;
+            }
+            if (i0 < 0 || i1 < i0) continue;
+
+            const idx0 = Math.max(0, i0 - 1);
+            const idx1 = Math.min(n - 1, i1 + 1);
+            const dist0 = samples[idx0].dist;
+            const dist1 = samples[idx1].dist;
+            const a0 = alts[idx0];
+            const a1 = alts[idx1];
+            const span = dist1 - dist0;
+            if (span <= 0) continue;
+
+            for (let i = i0; i <= i1; i++) {
+                const t = clamp((samples[i].dist - dist0) / span, 0, 1);
+                alts[i] = a0 + (a1 - a0) * t;
             }
         }
     }
@@ -335,23 +377,68 @@ export class GeoCourseManager {
             alt: cur.alt,
             bearing: GeoCourseManager.calcBearing(b0.lon, b0.lat, b1.lon, b1.lat),
             slope,
+            structure: this.getStructureAtDist(dist),
             fwdPoint: { lon: p1.lon, lat: p1.lat },
             bwdPoint: { lon: p0.lon, lat: p0.lat }
         };
     }
 
     /**
-     * MapLibre line-gradient 用の勾配カラーストップ配列を生成
-     * 進行度 0.0〜1.0 の各地点の斜度に応じた明度・彩度カラーをマッピング
+     * 橋・トンネル区間の専用表示カラー
+     */
+    static STRUCTURE_COLORS = {
+        bridge: '#f59e0b', // 橋: アンバーオレンジ
+        tunnel: '#a855f7'  // トンネル: バイオレットパープル
+    };
+
+    /**
+     * 指定距離が橋・トンネル区間内であればその区間オブジェクトを返す
+     */
+    getStructureAtDist(dist) {
+        const ranges = this.structureRanges;
+        if (!ranges || !ranges.length) return null;
+        for (const r of ranges) {
+            if (dist >= r.d0 && dist <= r.d1) return r;
+        }
+        return null;
+    }
+
+    /**
+     * MapLibre line-gradient 用の勾配＋構造物（橋・トンネル）カラーストップ配列を生成
+     * 進行度 0.0〜1.0 の各地点の斜度カラーおよび橋・トンネル区間の色替えをマッピング
      */
     getRouteColorStops() {
-        const STOPS = clamp(Math.round(this.totalDistance / 20), 64, 1000);
-        const stops = [];
+        const total = this.totalDistance || 1;
+        const STOPS = clamp(Math.round(total / 20), 64, 800);
+        const rawProgress = [];
         for (let i = 0; i <= STOPS; i++) {
-            const progress = i / STOPS;
-            const state = this.getStateAtProgress(progress);
-            const color = GeoCourseManager.slopeToColor(state.slope);
-            stops.push([progress, color]);
+            rawProgress.push(i / STOPS);
+        }
+
+        // 橋・トンネルの境界前後にストップを挿入してシャープに色を切り替える
+        const eps = Math.max(0.0001, 0.5 / total);
+        for (const r of (this.structureRanges || [])) {
+            const p0 = clamp(r.d0 / total, 0, 1);
+            const p1 = clamp(r.d1 / total, 0, 1);
+            if (p0 > eps) rawProgress.push(p0 - eps);
+            rawProgress.push(p0);
+            rawProgress.push(p1);
+            if (p1 + eps < 1) rawProgress.push(p1 + eps);
+        }
+
+        rawProgress.sort((a, b) => a - b);
+
+        const stops = [];
+        let lastP = -1;
+        for (const p of rawProgress) {
+            if (p - lastP < 0.00005) continue;
+            const dist = p * total;
+            const struct = this.getStructureAtDist(dist);
+            const color = struct
+                ? (GeoCourseManager.STRUCTURE_COLORS[struct.type] || '#f59e0b')
+                : GeoCourseManager.slopeToColor(this.getStateAtProgress(p).slope);
+            stops.push([p, color]);
+            lastP = p;
         }
         return stops;
     }
