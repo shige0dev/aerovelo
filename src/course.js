@@ -4,6 +4,7 @@
  */
 
 import { fetchGsiDem10mElevations, fetchTerrainDemElevations } from './gpx-gsi.js';
+import { fetchOsmStructures } from './osm-structures.js';
 
 const DEG_TO_RAD = Math.PI / 180;
 export const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
@@ -32,6 +33,7 @@ export class GeoCourseManager {
         // 橋・トンネル区間 [{ type, startIdx, endIdx }]（waypoint インデックス）
         this.structures = structures;
         this.structureRanges = [];
+        this.osmStructuresChecked = false;
         this.rawSamples = [];
         this.interpolatedPoints = [];
         this.totalDistance = 0;
@@ -84,9 +86,28 @@ export class GeoCourseManager {
         if (!elevations || this.isGsiCorrected) return false;
 
         this.rawSamples = this.rawSamples.map((s, i) => ({ ...s, alt: elevations[i] }));
-        this.applyRoadGradeSmoothing(this.rawSamples);
         this.isTerrainSynced = true;
+        this.applyRoadGradeSmoothing(this.rawSamples);
         this.isGsiCorrected = isGsi;
+        return true;
+    }
+
+    /**
+     * OpenStreetMap から橋・トンネル区間を取得し、DEM 由来の標高を路面の直線標高に置き換えて再計算する
+     * （BRouter のタグから既に区間が分かっている場合は問い合わせない）
+     * @returns {Promise<boolean>} 区間を適用して標高が変わった場合 true
+     */
+    async loadOsmStructures() {
+        if (this.structureRanges.length || this.osmStructuresChecked) return false;
+        this.osmStructuresChecked = true;
+        const ranges = await fetchOsmStructures(this.rawSamples);
+        if (ranges === null) {
+            this.osmStructuresChecked = false; // 通信失敗時は次回再試行
+            return false;
+        }
+        if (!ranges.length) return false;
+        this.structureRanges = ranges;
+        this.applyRoadGradeSmoothing(this.rawSamples);
         return true;
     }
 
@@ -103,9 +124,9 @@ export class GeoCourseManager {
             throw new Error('国土地理院 10mメッシュの取得に失敗しました。');
         }
         this.rawSamples = this.rawSamples.map((s, i) => ({ ...s, alt: res.elevations[i] }));
+        this.isTerrainSynced = true;
         this.applyRoadGradeSmoothing(this.rawSamples);
         this.isGsiCorrected = true;
-        this.isTerrainSynced = true;
         return true;
     }
 
@@ -178,8 +199,9 @@ export class GeoCourseManager {
         const stepDist = this.totalDistance / (count || 1);
 
         // 0. 橋・トンネル区間は地表面(谷底・山頂)ではなく、入口〜出口を直線で結んだ路面標高に置き換える
+        //    （標高が DEM 由来の場合のみ。実走GPXの標高はそのまま使う）
         const srcAlts = Float64Array.from(samples, (s) => s.alt);
-        this.linearizeStructures(samples, srcAlts);
+        if (this.isTerrainSynced) this.linearizeStructures(samples, srcAlts);
 
         // 1. メディアンフィルター (前後15m)
         const medHalf = Math.max(1, Math.round(15 / (stepDist || 1)));

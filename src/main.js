@@ -118,9 +118,25 @@ class App {
                     this.chart.setCourse(this.course);
                     this.mapView.setCourse(this.course, null);
                     this.updateState(this.currentProgress);
+                    this.refreshOsmStructures(activeCourse);
                 }
             }).catch((err) => console.warn('Terrain DEM sync skipped:', err));
         }
+    }
+
+    /**
+     * DEM由来の標高に対し、OSMの橋・トンネル区間を非同期で取得して路面標高へ置き換える
+     * （通信失敗・混雑時は何もせず、10mメッシュの標高のまま）
+     */
+    refreshOsmStructures(course) {
+        if (!course.isTerrainSynced) return;
+        course.loadOsmStructures().then((changed) => {
+            if (changed && this.course === course) {
+                this.chart.setCourse(this.course);
+                this.mapView.setCourse(this.course, null);
+                this.updateState(this.currentProgress);
+            }
+        }).catch((err) => console.warn('OSM structures skipped:', err));
     }
 
     async loadDefaultGPX(url) {
@@ -155,6 +171,7 @@ class App {
             this.chart.setCourse(this.course);
             this.mapView.setCourse(this.course, null);
             this.updateState(this.currentProgress);
+            this.refreshOsmStructures(this.course);
         } catch (err) {
             console.error('GSI DEM error:', err);
             alert(`10mメッシュ標高の取得に失敗しました: ${err.message}`);
