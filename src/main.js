@@ -1,5 +1,5 @@
 import { GeoCourseManager, DEFAULT_LAKE_ROUTE, clamp } from './course.js';
-import { GPXParser } from './gpx-gsi.js';
+import { GPXParser, GeoJSONParser } from './gpx-gsi.js';
 import { BleTrainerManager } from './ble.js';
 import { ElevationChart } from './elevation-chart.js';
 import { MapViewController } from './map-view.js';
@@ -93,9 +93,13 @@ class App {
     // --- Course & GPX Management ---
 
     parseAndApplyGPX(gpxText, fallbackName) {
-        const { courseName, waypoints, isWebEditor } = GPXParser.parse(gpxText);
-        const finalName = courseName !== 'カスタムコース' ? courseName : fallbackName.replace(/\.gpx$/i, '');
-        const activeCourse = new GeoCourseManager(waypoints, finalName, isWebEditor);
+        // 拡張子 (.geojson/.json) または先頭の '{' で GeoJSON と判定、それ以外は GPX
+        const isGeoJSON = /\.(geo)?json$/i.test(fallbackName) || gpxText.trimStart().startsWith('{');
+        const { courseName, waypoints, isWebEditor, structures = [] } = isGeoJSON
+            ? GeoJSONParser.parse(gpxText)
+            : GPXParser.parse(gpxText);
+        const finalName = courseName !== 'カスタムコース' ? courseName : fallbackName.replace(/\.(gpx|geojson|json)$/i, '');
+        const activeCourse = new GeoCourseManager(waypoints, finalName, isWebEditor, structures);
         this.course = activeCourse;
         this.setPlayState(false);
         this.currentProgress = 0.0;

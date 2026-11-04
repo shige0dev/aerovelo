@@ -25,10 +25,13 @@ export const DEFAULT_LAKE_ROUTE = [
 ];
 
 export class GeoCourseManager {
-    constructor(waypoints = DEFAULT_LAKE_ROUTE, name = 'コース', isWebEditor = false) {
+    constructor(waypoints = DEFAULT_LAKE_ROUTE, name = 'コース', isWebEditor = false, structures = []) {
         this.name = name;
         this.rawWaypoints = waypoints;
         this.isWebEditor = isWebEditor;
+        // 橋・トンネル区間 [{ type, startIdx, endIdx }]（waypoint インデックス）
+        this.structures = structures;
+        this.structureRanges = [];
         this.rawSamples = [];
         this.interpolatedPoints = [];
         this.totalDistance = 0;
@@ -132,6 +135,11 @@ export class GeoCourseManager {
         }
         this.totalDistance = total;
 
+        // 橋・トンネル区間を距離範囲 (m) に変換
+        this.structureRanges = (this.structures || [])
+            .map((s) => ({ type: s.type, d0: this.cumDistances[s.startIdx], d1: this.cumDistances[s.endIdx] }))
+            .filter((r) => r.d0 !== undefined && r.d1 !== undefined && r.d1 > r.d0);
+
         const SAMPLES = Math.min(4000, Math.max(1000, Math.round(total / 5)));
         this.rawSamples = [];
         let segIdx = 0;
@@ -169,6 +177,10 @@ export class GeoCourseManager {
         }
         const stepDist = this.totalDistance / (count || 1);
 
+        // 0. 橋・トンネル区間は地表面(谷底・山頂)ではなく、入口〜出口を直線で結んだ路面標高に置き換える
+        const srcAlts = Float64Array.from(samples, (s) => s.alt);
+        this.linearizeStructures(samples, srcAlts);
+
         // 1. メディアンフィルター (前後15m)
         const medHalf = Math.max(1, Math.round(15 / (stepDist || 1)));
         const medAlts = new Float64Array(count + 1);
@@ -176,7 +188,7 @@ export class GeoCourseManager {
             const start = Math.max(0, i - medHalf);
             const end = Math.min(count, i + medHalf);
             const w = [];
-            for (let k = start; k <= end; k++) w.push(samples[k].alt);
+            for (let k = start; k <= end; k++) w.push(srcAlts[k]);
             w.sort((a, b) => a - b);
             medAlts[i] = w[Math.floor(w.length / 2)];
         }
@@ -208,6 +220,46 @@ export class GeoCourseManager {
             for (let k = start; k <= end; k++) sum += backward[k];
             return { dist: s.dist, lon: s.lon, lat: s.lat, alt: sum / (end - start + 1) };
         });
+    }
+
+    /**
+     * 橋・トンネル区間の標高を、入口・出口の路面標高（区間の外側15mの中央値）を結ぶ直線に置き換える
+     * DEM は橋の下の谷底やトンネル上の山頂を拾うため、路面とは大きく異なる
+     */
+    linearizeStructures(samples, alts) {
+        const ranges = this.structureRanges || [];
+        if (!ranges.length) return;
+        const n = samples.length;
+        const orig = Float64Array.from(alts);
+        const WINDOW = 15;
+
+        const medianIn = (from, to, fallbackIdx) => {
+            const w = [];
+            for (let i = 0; i < n; i++) {
+                const d = samples[i].dist;
+                if (d >= from && d <= to) w.push(orig[i]);
+            }
+            if (!w.length) return orig[clamp(fallbackIdx, 0, n - 1)];
+            w.sort((a, b) => a - b);
+            return w[Math.floor(w.length / 2)];
+        };
+
+        for (const { d0, d1 } of ranges) {
+            let i0 = -1, i1 = -1;
+            for (let i = 0; i < n; i++) {
+                const d = samples[i].dist;
+                if (i0 < 0 && d >= d0) i0 = i;
+                if (d <= d1) i1 = i;
+            }
+            if (i0 < 0 || i1 < i0) continue;
+
+            const a0 = medianIn(d0 - WINDOW, d0 - 1e-6, i0 - 1);
+            const a1 = medianIn(d1 + 1e-6, d1 + WINDOW, i1 + 1);
+            for (let i = i0; i <= i1; i++) {
+                const t = (samples[i].dist - d0) / (d1 - d0);
+                alts[i] = a0 + (a1 - a0) * clamp(t, 0, 1);
+            }
+        }
     }
 
     sampleAtDist(targetDist) {
