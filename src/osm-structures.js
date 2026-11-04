@@ -1,36 +1,121 @@
 /**
- * OpenStreetMap (Overpass API) からコース沿いの橋・トンネル区間を取得する
- * GPX / GeoJSON のどちらでも、座標さえあれば使える（BRouter のタグ出力に依存しない）
+ * OpenStreetMap 公式 API v0.6 (https://api.openstreetmap.org/api/0.6/map.json) および
+ * Overpass API フォールバックを用いて、コース沿いの橋 (bridge) ・トンネル (tunnel) 区間を確実に取得するモジュール
  */
 
-const ENDPOINTS = [
-    'https://overpass-api.de/api/interpreter',
+const OSM_API_BASE = 'https://api.openstreetmap.org/api/0.6/map.json';
+const OVERPASS_ENDPOINTS = [
     'https://overpass.kumi.systems/api/interpreter',
     'https://overpass.private.coffee/api/interpreter'
 ];
 
-const QUERY_POINT_STEP_M = 50;   // Overpass に渡すコース折れ線の間隔
-const POINTS_PER_QUERY = 300;    // 1クエリあたりの折れ線の点数（長距離コースは分割して問い合わせ）
-const AROUND_M = 15;             // way の検索半径
-const MATCH_TOL_M = 8;           // コース点と way の一致とみなす距離
-const MAX_ANGLE_RAD = Math.PI / 6; // コースと way の向きの差の許容値 (30°)。直交する立体交差を除外する
-const MIN_RUN_SAMPLES = 2;       // 区間として採用する最小サンプル数
-const MAX_GAP_SAMPLES = 2;       // 同種区間の間の欠けを埋める最大サンプル数
-const REQUEST_TIMEOUT_MS = 30000;
+const TILE_DEG = 0.025;          // コース沿いを分割する bbox タイルサイズ（約 2.5km 四方）
+const BBOX_PAD_DEG = 0.0005;     // タイル端の余白（約 50m）
+const MATCH_TOL_M = 18;          // コース線分と OSM way の一致許容距離 (m)
+const MAX_ANGLE_RAD = Math.PI / 4; // コースと way の向きの許容差 (45°: 立体交差を除外しつつカーブ橋・トンネルを許容)
+const MERGE_GAP_M = 12;          // 連続する同種構造物 way を結合する距離閾値 (m)
+const REQUEST_TIMEOUT_MS = 15000;
 
-async function postOverpass(query) {
-    for (const endpoint of ENDPOINTS) {
+function isStructureTag(value) {
+    return value !== undefined && value !== null && value !== '' && value !== 'no' && value !== 'false';
+}
+
+/**
+ * コースが通過する 0.025° 四方の bbox リストを生成
+ */
+function buildRouteBboxes(samples) {
+    const tileMap = new Map();
+    for (const s of samples) {
+        const tx = Math.floor(s.lon / TILE_DEG);
+        const ty = Math.floor(s.lat / TILE_DEG);
+        const key = `${tx},${ty}`;
+        let b = tileMap.get(key);
+        if (!b) {
+            b = { minLon: s.lon, minLat: s.lat, maxLon: s.lon, maxLat: s.lat };
+            tileMap.set(key, b);
+        } else {
+            if (s.lon < b.minLon) b.minLon = s.lon;
+            if (s.lon > b.maxLon) b.maxLon = s.lon;
+            if (s.lat < b.minLat) b.minLat = s.lat;
+            if (s.lat > b.maxLat) b.maxLat = s.lat;
+        }
+    }
+    return [...tileMap.values()].map((b) => ({
+        minLon: b.minLon - BBOX_PAD_DEG,
+        minLat: b.minLat - BBOX_PAD_DEG,
+        maxLon: b.maxLon + BBOX_PAD_DEG,
+        maxLat: b.maxLat + BBOX_PAD_DEG
+    }));
+}
+
+/**
+ * OpenStreetMap 公式 API v0.6 (map.json) から指定 bbox の橋・トンネル way を取得
+ */
+async function fetchFromOsmApiV06(bbox) {
+    const url = `${OSM_API_BASE}?bbox=${bbox.minLon.toFixed(6)},${bbox.minLat.toFixed(6)},${bbox.maxLon.toFixed(6)},${bbox.maxLat.toFixed(6)}`;
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), REQUEST_TIMEOUT_MS);
+    try {
+        const res = await fetch(url, {
+            method: 'GET',
+            headers: { 'Accept': 'application/json' },
+            signal: ctrl.signal
+        });
+        if (!res.ok) return null;
+        const json = await res.json();
+        if (!json || !Array.isArray(json.elements)) return null;
+
+        const nodes = new Map();
+        const ways = [];
+        for (const el of json.elements) {
+            if (el.type === 'node' && typeof el.lat === 'number' && typeof el.lon === 'number') {
+                nodes.set(el.id, { lon: el.lon, lat: el.lat });
+            } else if (el.type === 'way' && el.tags?.highway && Array.isArray(el.nodes)) {
+                if (isStructureTag(el.tags.tunnel) || isStructureTag(el.tags.bridge)) {
+                    ways.push(el);
+                }
+            }
+        }
+
+        const result = [];
+        for (const w of ways) {
+            const geometry = [];
+            for (const nid of w.nodes) {
+                const pt = nodes.get(nid);
+                if (pt) geometry.push(pt);
+            }
+            if (geometry.length >= 2) {
+                result.push({ id: w.id, tags: w.tags, geometry });
+            }
+        }
+        return result;
+    } catch {
+        return null;
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
+/**
+ * フォールバック用 Overpass API (bbox クエリ)
+ */
+async function fetchFromOverpassBbox(bbox) {
+    const bboxStr = `${bbox.minLat.toFixed(5)},${bbox.minLon.toFixed(5)},${bbox.maxLat.toFixed(5)},${bbox.maxLon.toFixed(5)}`;
+    const query = `[out:json][timeout:12];(way["highway"]["bridge"]["bridge"!="no"](${bboxStr});way["highway"]["tunnel"]["tunnel"!="no"](${bboxStr}););out tags geom;`;
+
+    for (const endpoint of OVERPASS_ENDPOINTS) {
         const ctrl = new AbortController();
         const timer = setTimeout(() => ctrl.abort(), REQUEST_TIMEOUT_MS);
         try {
-            const res = await fetch(endpoint, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: 'data=' + encodeURIComponent(query),
+            const res = await fetch(`${endpoint}?data=${encodeURIComponent(query)}`, {
+                method: 'GET',
+                headers: { 'Accept': 'application/json' },
                 signal: ctrl.signal
             });
             if (!res.ok) continue;
-            return await res.json();
+            const json = await res.json();
+            if (!json || !Array.isArray(json.elements)) continue;
+            return json.elements.filter((el) => el.type === 'way' && Array.isArray(el.geometry) && el.geometry.length >= 2);
         } catch {
             // 次のミラーへ
         } finally {
@@ -41,121 +126,158 @@ async function postOverpass(query) {
 }
 
 /**
- * @param {Array<{dist:number, lon:number, lat:number}>} samples コース上の等間隔サンプル
- * @returns {Promise<Array<{type:'bridge'|'tunnel', d0:number, d1:number}>|null>} 取得失敗時は null
+ * コース上のサンプル点列から OpenStreetMap の橋・トンネル区間を取得する
+ * @param {Array<{dist:number, lon:number, lat:number}>} samples
+ * @returns {Promise<{ranges: Array<{type:'bridge'|'tunnel', d0:number, d1:number, name?:string}>, source: string}|null>}
  */
 export async function fetchOsmStructures(samples) {
-    if (!samples || samples.length < 3) return [];
+    if (!samples || samples.length < 2) return { ranges: [], source: 'none' };
 
-    const stepDist = (samples[samples.length - 1].dist - samples[0].dist) / (samples.length - 1) || 5;
-    const stride = Math.max(1, Math.round(QUERY_POINT_STEP_M / stepDist));
-    const poly = [];
-    for (let i = 0; i < samples.length; i += stride) poly.push(samples[i]);
-    if (poly[poly.length - 1] !== samples[samples.length - 1]) poly.push(samples[samples.length - 1]);
+    const bboxes = buildRouteBboxes(samples);
+    const wayMap = new Map();
+    let anySuccess = false;
+    let usedSource = 'OSM API v0.6';
 
-    const ways = new Map();
-    for (let s = 0; s < poly.length - 1; s += POINTS_PER_QUERY - 1) {
-        const part = poly.slice(s, s + POINTS_PER_QUERY);
-        if (part.length < 2) continue;
-        const coords = part.map((p) => `${p.lat.toFixed(5)},${p.lon.toFixed(5)}`).join(',');
-        const query = `[out:json][timeout:25];(` +
-            `way["highway"]["bridge"]["bridge"!="no"](around:${AROUND_M},${coords});` +
-            `way["highway"]["tunnel"]["tunnel"!="no"](around:${AROUND_M},${coords});` +
-            `);out tags geom;`;
-        const json = await postOverpass(query);
-        if (!json || !Array.isArray(json.elements)) return null;
-        for (const el of json.elements) {
-            if (el.type === 'way' && Array.isArray(el.geometry) && el.geometry.length >= 2) ways.set(el.id, el);
+    // 並列で OSM 公式 API v0.6 から各タイルのデータを取得
+    const tileResults = await Promise.all(bboxes.map((b) => fetchFromOsmApiV06(b)));
+
+    for (let i = 0; i < tileResults.length; i++) {
+        let ways = tileResults[i];
+        if (ways === null) {
+            // 万一特定タイルが失敗した場合は Overpass でフォールバック
+            ways = await fetchFromOverpassBbox(bboxes[i]);
+            if (ways !== null) usedSource = 'Overpass API';
+        }
+        if (ways !== null) {
+            anySuccess = true;
+            for (const w of ways) wayMap.set(w.id, w);
         }
     }
 
-    return matchStructures(samples, [...ways.values()]);
-}
+    if (!anySuccess) return null;
 
-function isStructureTag(value) {
-    return value !== undefined && value !== 'no';
+    const ranges = matchStructures(samples, [...wayMap.values()]);
+    return { ranges, source: usedSource };
 }
 
 /**
- * コースのサンプル点と OSM の橋・トンネル way を、距離と向きで照合して区間化する
+ * OSM の橋・トンネル way の各セグメントをコース折れ線へ射影し、
+ * コースに沿っている構造物の正確な始端距離 (d0) 〜 終端距離 (d1) を算出する
  */
 export function matchStructures(samples, ways) {
+    if (!samples || samples.length < 2 || !ways || !ways.length) return [];
+
     const n = samples.length;
     const lat0 = samples[0].lat, lon0 = samples[0].lon;
     const kx = Math.cos((lat0 * Math.PI) / 180) * 111320;
     const ky = 110540;
     const toXY = (lon, lat) => [(lon - lon0) * kx, (lat - lat0) * ky];
 
-    const pts = samples.map((s) => toXY(s.lon, s.lat));
-    const heading = (i) => {
-        const a = pts[Math.max(0, i - 1)], b = pts[Math.min(n - 1, i + 1)];
-        return Math.atan2(b[0] - a[0], b[1] - a[1]);
-    };
+    const routeXY = samples.map((s) => toXY(s.lon, s.lat));
 
-    const prepared = [];
-    for (const w of ways) {
-        const type = isStructureTag(w.tags?.tunnel) ? 'tunnel' : isStructureTag(w.tags?.bridge) ? 'bridge' : null;
-        if (!type) continue;
-        const xy = w.geometry.map((g) => toXY(g.lon, g.lat));
-        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-        for (const [x, y] of xy) {
-            if (x < minX) minX = x;
-            if (x > maxX) maxX = x;
-            if (y < minY) minY = y;
-            if (y > maxY) maxY = y;
-        }
-        prepared.push({ type, xy, minX: minX - MATCH_TOL_M, minY: minY - MATCH_TOL_M, maxX: maxX + MATCH_TOL_M, maxY: maxY + MATCH_TOL_M });
+    // コース上の各セグメント情報を事前計算
+    const routeSegs = [];
+    for (let i = 0; i < n - 1; i++) {
+        const [ax, ay] = routeXY[i];
+        const [bx, by] = routeXY[i + 1];
+        const dx = bx - ax, dy = by - ay;
+        const len2 = dx * dx + dy * dy;
+        if (len2 < 1e-6) continue;
+        routeSegs.push({
+            i,
+            ax, ay, bx, by, dx, dy, len2,
+            angle: Math.atan2(dx, dy),
+            d0: samples[i].dist,
+            d1: samples[i + 1].dist
+        });
     }
 
-    // 1. サンプルごとに、近く（8m以内）かつ向きが揃っている橋・トンネル way を判定（トンネル優先）
-    const labels = new Array(n).fill(null);
-    for (let i = 0; i < n; i++) {
-        const [px, py] = pts[i];
-        const hd = heading(i);
-        for (const w of prepared) {
-            if (px < w.minX || px > w.maxX || py < w.minY || py > w.maxY) continue;
-            if (labels[i] === 'tunnel') break;
-            for (let k = 0; k < w.xy.length - 1; k++) {
-                const [ax, ay] = w.xy[k], [bx, by] = w.xy[k + 1];
-                const dx = bx - ax, dy = by - ay;
-                const len2 = dx * dx + dy * dy;
-                if (len2 === 0) continue;
-                const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / len2));
-                const dist = Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
-                if (dist > MATCH_TOL_M) continue;
-                let diff = Math.abs(hd - Math.atan2(dx, dy)) % Math.PI;
-                diff = Math.min(diff, Math.PI - diff);
-                if (diff <= MAX_ANGLE_RAD) {
-                    labels[i] = w.type === 'tunnel' || !labels[i] ? w.type : labels[i];
-                    break;
+    const rawIntervals = [];
+
+    for (const w of ways) {
+        const type = isStructureTag(w.tags?.tunnel) ? 'tunnel' : isStructureTag(w.tags?.bridge) ? 'bridge' : null;
+        if (!type || !Array.isArray(w.geometry) || w.geometry.length < 2) continue;
+
+        const wxy = w.geometry.map((g) => toXY(g.lon, g.lat));
+
+        // この way の各線分について、コース上で一致する距離範囲 [minD, maxD] を求める
+        let matchedMinD = Infinity;
+        let matchedMaxD = -Infinity;
+
+        for (let k = 0; k < wxy.length - 1; k++) {
+            const [wax, way_] = wxy[k];
+            const [wbx, wby] = wxy[k + 1];
+            const wdx = wbx - wax, wdy = wby - way_;
+            const wlen = Math.hypot(wdx, wdy);
+            if (wlen < 0.5) continue;
+            const wAngle = Math.atan2(wdx, wdy);
+
+            // way 線分上を最大 5m 刻みでサンプリングしてコース線分との距離・角度を判定
+            const steps = Math.max(2, Math.ceil(wlen / 4));
+            for (let s = 0; s <= steps; s++) {
+                const t = s / steps;
+                const px = wax + wdx * t;
+                const py = way_ + wdy * t;
+
+                let bestDist = Infinity;
+                let bestRouteD = null;
+
+                for (const rs of routeSegs) {
+                    // バウンディングボックスによる高速フィルタ
+                    if (px < Math.min(rs.ax, rs.bx) - MATCH_TOL_M || px > Math.max(rs.ax, rs.bx) + MATCH_TOL_M ||
+                        py < Math.min(rs.ay, rs.by) - MATCH_TOL_M || py > Math.max(rs.ay, rs.by) + MATCH_TOL_M) {
+                        continue;
+                    }
+
+                    // 角度差（平行に近いかどうか：0〜π/2 に正規化して立体交差を排除）
+                    let angDiff = Math.abs(wAngle - rs.angle) % Math.PI;
+                    angDiff = Math.min(angDiff, Math.PI - angDiff);
+                    if (angDiff > MAX_ANGLE_RAD) continue;
+
+                    const proj = clamp(((px - rs.ax) * rs.dx + (py - rs.ay) * rs.dy) / rs.len2, 0, 1);
+                    const dist = Math.hypot(px - (rs.ax + proj * rs.dx), py - (rs.ay + proj * rs.dy));
+                    if (dist <= MATCH_TOL_M && dist < bestDist) {
+                        bestDist = dist;
+                        bestRouteD = rs.d0 + (rs.d1 - rs.d0) * proj;
+                    }
+                }
+
+                if (bestRouteD !== null) {
+                    if (bestRouteD < matchedMinD) matchedMinD = bestRouteD;
+                    if (bestRouteD > matchedMaxD) matchedMaxD = bestRouteD;
                 }
             }
         }
+
+        if (matchedMaxD > matchedMinD && (matchedMaxD - matchedMinD) >= 3) {
+            rawIntervals.push({
+                type,
+                d0: matchedMinD,
+                d1: matchedMaxD,
+                name: w.tags?.name || ''
+            });
+        }
     }
 
-    // 2. 同種区間の間の小さな欠けを埋める
-    for (let i = 0; i < n; i++) {
-        if (labels[i]) continue;
-        let j = i;
-        while (j < n && !labels[j]) j++;
-        if (i > 0 && j < n && j - i <= MAX_GAP_SAMPLES && labels[i - 1] === labels[j]) {
-            for (let k = i; k < j; k++) labels[k] = labels[j];
+    if (!rawIntervals.length) return [];
+
+    // 距離順にソートし、近接・重複する同種構造物区間をマージ
+    rawIntervals.sort((a, b) => a.d0 - b.d0 || a.d1 - b.d1);
+    const merged = [rawIntervals[0]];
+    for (let i = 1; i < rawIntervals.length; i++) {
+        const cur = rawIntervals[i];
+        const prev = merged[merged.length - 1];
+        if (cur.type === prev.type && cur.d0 <= prev.d1 + MERGE_GAP_M) {
+            prev.d1 = Math.max(prev.d1, cur.d1);
+            if (!prev.name && cur.name) prev.name = cur.name;
+        } else {
+            merged.push(cur);
         }
-        i = j;
     }
 
-    // 3. 連続区間にまとめる
-    const ranges = [];
-    let i = 0;
-    while (i < n) {
-        if (!labels[i]) { i++; continue; }
-        let j = i;
-        while (j + 1 < n && labels[j + 1] === labels[i]) j++;
-        if (j - i + 1 >= MIN_RUN_SAMPLES) {
-            ranges.push({ type: labels[i], d0: samples[i].dist, d1: samples[j].dist });
-        }
-        i = j + 1;
-    }
-    return ranges;
+    return merged;
 }
 
+function clamp(v, min, max) {
+    return Math.max(min, Math.min(max, v));
+}

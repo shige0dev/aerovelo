@@ -65,6 +65,12 @@ export class UIController {
             compassDial: $('compass-dial'),
             btnGsiDem: $('btn-gsi-dem'),
             gsiBtnText: $('gsi-btn-text'),
+            structureSummaryRow: $('structure-summary-row'),
+            structureSummaryText: $('structure-summary-text'),
+            modalStructures: $('modal-structures'),
+            modalStructuresBody: $('modal-structures-body'),
+            btnCloseStructures: $('btn-close-structures'),
+            btnOkStructures: $('btn-ok-structures'),
             btnBleConnect: $('btn-ble-connect'),
             btnBleDisconnect: $('btn-ble-disconnect'),
             bleStatusText: $('ble-status-text'),
@@ -238,6 +244,16 @@ export class UIController {
         on(el.btnBleDisconnect, 'click', (e) => { e.stopPropagation(); cb.onBleDisconnect?.(); });
         on('preset-select', 'change', (e) => cb.onSelectPreset?.(e.target.value));
         on(el.btnGsiDem, 'click', () => cb.onRequestGsiDem?.());
+        on(el.structureSummaryRow, 'click', () => cb.onShowStructures?.());
+
+        const closeStructModal = () => {
+            if (el.modalStructures) el.modalStructures.style.display = 'none';
+        };
+        on(el.btnCloseStructures, 'click', closeStructModal);
+        on(el.btnOkStructures, 'click', closeStructModal);
+        on(el.modalStructures, 'click', (e) => {
+            if (e.target === el.modalStructures) closeStructModal();
+        });
 
         const fileInput = $('gpx-file-input');
         on('btn-browse', 'click', (e) => { e.stopPropagation(); fileInput?.click(); });
@@ -255,8 +271,13 @@ export class UIController {
         }
         this.setHud({ dist: ((currentProgress * course.totalDistance) / 1000).toFixed(2) });
 
+        const summary = course.getStructureSummary?.() || { bridgeCount: 0, tunnelCount: 0, osmStatus: 'pending' };
+
         if (el.courseName) {
-            const title = `${course.name}${course.isGsiCorrected ? ' [DEM10B]' : ''}`;
+            const structTag = (summary.bridgeCount || summary.tunnelCount)
+                ? ` [B:${summary.bridgeCount} T:${summary.tunnelCount}]`
+                : '';
+            const title = `${course.name}${course.isGsiCorrected ? ' [DEM10B]' : ''}${structTag}`;
             el.courseName.textContent = title;
             el.courseName.title = `${title} (${totalKm} km)`;
         }
@@ -265,9 +286,70 @@ export class UIController {
             el.btnGsiDem.classList.toggle('active', course.isGsiCorrected);
             el.btnGsiDem.classList.remove('loading');
             if (el.gsiBtnText) {
-                el.gsiBtnText.textContent = course.isGsiCorrected ? '10mメッシュ補正済 (DEM10B)' : '10mメッシュ標高で補正';
+                el.gsiBtnText.textContent = course.isGsiCorrected ? '10mメッシュ＋構造物で再補正' : '10mメッシュ標高で補正';
             }
         }
+        if (el.structureSummaryText) {
+            const statusIcon = summary.osmStatus === 'ok' ? '🟢 OSM済' : summary.osmStatus === 'error' ? '🔴 OSM失敗' : '⏳ OSM照合中';
+            el.structureSummaryText.textContent = `🌉 BRIDGE: ${summary.bridgeCount}箇所 / 🚇 TUNNEL: ${summary.tunnelCount}箇所 (${statusIcon})`;
+        }
+    }
+
+    /**
+     * 高度補正時またはサマリークリック時に BRIDGE / TUNNEL の検出数と詳細区間をダイアログ表示
+     */
+    showStructureDialog(course) {
+        const { modalStructures, modalStructuresBody } = this.el;
+        if (!modalStructures || !modalStructuresBody || !course) return;
+
+        const s = course.getStructureSummary();
+        const osmBadge = s.osmStatus === 'ok'
+            ? `<span style="color:#4ade80;font-weight:700;">🟢 接続成功 (${s.osmSource || 'OSM API v0.6'})</span>`
+            : s.osmStatus === 'error'
+                ? `<span style="color:#f87171;font-weight:700;">🔴 OSM接続失敗${s.hasFileStructures ? '（GeoJSON内タグのみ適用）' : ''}</span>`
+                : `<span style="color:#fbbf24;font-weight:700;">⏳ OSM照合中...</span>`;
+
+        const formatList = (items, color) => {
+            if (!items.length) {
+                return `<div style="color:#64748b;font-size:12px;padding:4px 0 8px 8px;">該当区間なし (0箇所)</div>`;
+            }
+            const rows = items.map((r, i) => {
+                const km0 = (r.d0 / 1000).toFixed(2);
+                const km1 = (r.d1 / 1000).toFixed(2);
+                const lenM = Math.round(r.d1 - r.d0);
+                const alt0 = Math.round(course.sampleAtDist(r.d0).alt);
+                const alt1 = Math.round(course.sampleAtDist(r.d1).alt);
+                const nameLabel = r.name ? ` <span style="color:#cbd5e1;">[${r.name}]</span>` : '';
+                return `<div style="display:flex;justify-content:space-between;padding:3px 8px;border-left:3px solid ${color};margin:3px 0;background:rgba(30,41,59,0.55);border-radius:0 4px 4px 0;font-size:12px;">
+                    <span>#${i + 1} ${km0}〜${km1}km (${lenM}m)${nameLabel}</span>
+                    <span style="color:#94a3b8;font-family:monospace;">標高 ${alt0}m→${alt1}m</span>
+                </div>`;
+            }).join('');
+            return `<div style="margin:4px 0 10px 0;">${rows}</div>`;
+        };
+
+        modalStructuresBody.innerHTML = `
+            <div style="margin-bottom:10px;padding:8px 10px;background:rgba(15,23,42,0.8);border-radius:6px;border:1px solid rgba(148,163,184,0.2);font-size:12px;">
+                <div><strong>コース:</strong> ${course.name} (${(course.totalDistance / 1000).toFixed(2)} km)</div>
+                <div><strong>OSMアクセス:</strong> ${osmBadge}</div>
+                <div><strong>高度補正:</strong> ${course.isGsiCorrected ? '国土地理院 10mメッシュ (DEM10B)' : 'コース標高'} ＋ 構造物端部間直線補間</div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
+                <div style="padding:10px;border-radius:8px;background:rgba(245,158,11,0.15);border:1px solid #f59e0b;text-align:center;">
+                    <div style="font-size:11px;color:#fbbf24;font-weight:700;">🌉 BRIDGE (橋)</div>
+                    <div style="font-size:22px;font-weight:800;color:#ffffff;">${s.bridgeCount} <span style="font-size:12px;font-weight:400;">箇所</span></div>
+                </div>
+                <div style="padding:10px;border-radius:8px;background:rgba(168,85,247,0.15);border:1px solid #a855f7;text-align:center;">
+                    <div style="font-size:11px;color:#c084fc;font-weight:700;">🚇 TUNNEL (トンネル)</div>
+                    <div style="font-size:22px;font-weight:800;color:#ffffff;">${s.tunnelCount} <span style="font-size:12px;font-weight:400;">箇所</span></div>
+                </div>
+            </div>
+            <div style="font-weight:700;color:#fbbf24;font-size:12px;">🌉 BRIDGE 区間一覧 (コース色: オレンジ / 端部間直線高度)</div>
+            ${formatList(s.bridges, '#f59e0b')}
+            <div style="font-weight:700;color:#c084fc;font-size:12px;margin-top:6px;">🚇 TUNNEL 区間一覧 (コース色: パープル / 端部間直線高度)</div>
+            ${formatList(s.tunnels, '#a855f7')}
+        `;
+        modalStructures.style.display = 'flex';
     }
 
     setGsiLoading(isLoading, pct = 0) {

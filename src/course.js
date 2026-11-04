@@ -34,6 +34,8 @@ export class GeoCourseManager {
         this.structures = structures;
         this.structureRanges = [];
         this.osmStructuresChecked = false;
+        this.osmStatus = 'pending';
+        this.osmSource = '';
         this.rawSamples = [];
         this.interpolatedPoints = [];
         this.totalDistance = 0;
@@ -93,22 +95,64 @@ export class GeoCourseManager {
     }
 
     /**
-     * OpenStreetMap から橋・トンネル区間を取得し、DEM 由来の標高を路面の直線標高に置き換えて再計算する
-     * （BRouter のタグから既に区間が分かっている場合は問い合わせない）
-     * @returns {Promise<boolean>} 区間を適用して標高が変わった場合 true
+     * OpenStreetMap 公式 API から橋・トンネル区間を取得し、GeoJSON タグ由来の区間とマージして
+     * 路面の端部間直線標高を再計算する
+     * @returns {Promise<boolean>} 取得・更新が完了した場合 true
      */
     async loadOsmStructures() {
-        if (this.structureRanges.length || this.osmStructuresChecked) return false;
+        if (this.osmStructuresChecked) return true;
         this.osmStructuresChecked = true;
-        const ranges = await fetchOsmStructures(this.rawSamples);
-        if (ranges === null) {
-            this.osmStructuresChecked = false; // 通信失敗時は次回再試行
+        const res = await fetchOsmStructures(this.rawSamples);
+        if (!res) {
+            this.osmStructuresChecked = false; // 通信失敗時は次回再試行可能にする
+            this.osmStatus = 'error';
             return false;
         }
-        if (!ranges.length) return false;
-        this.structureRanges = ranges;
+        this.osmStatus = 'ok';
+        this.osmSource = res.source || 'OSM API';
+
+        const combined = [...this.structureRanges, ...(res.ranges || [])];
+        this.structureRanges = GeoCourseManager.mergeStructureRanges(combined);
         this.applyRoadGradeSmoothing(this.rawSamples);
         return true;
+    }
+
+    /**
+     * 橋・トンネル区間リストを距離順に整列し、重複・近接する同種区間を結合する
+     */
+    static mergeStructureRanges(ranges) {
+        const valid = (ranges || []).filter((r) => r && r.d1 > r.d0);
+        if (!valid.length) return [];
+        valid.sort((a, b) => a.d0 - b.d0 || a.d1 - b.d1);
+        const merged = [{ ...valid[0] }];
+        for (let i = 1; i < valid.length; i++) {
+            const cur = valid[i];
+            const prev = merged[merged.length - 1];
+            if (cur.type === prev.type && cur.d0 <= prev.d1 + 12) {
+                prev.d1 = Math.max(prev.d1, cur.d1);
+                if (!prev.name && cur.name) prev.name = cur.name;
+            } else {
+                merged.push({ ...cur });
+            }
+        }
+        return merged;
+    }
+
+    /**
+     * 検出された BRIDGE / TUNNEL の集計情報を返す
+     */
+    getStructureSummary() {
+        const bridges = (this.structureRanges || []).filter((r) => r.type === 'bridge');
+        const tunnels = (this.structureRanges || []).filter((r) => r.type === 'tunnel');
+        return {
+            bridges,
+            tunnels,
+            bridgeCount: bridges.length,
+            tunnelCount: tunnels.length,
+            osmStatus: this.osmStatus,
+            osmSource: this.osmSource,
+            hasFileStructures: Array.isArray(this.structures) && this.structures.length > 0
+        };
     }
 
     /**

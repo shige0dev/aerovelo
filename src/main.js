@@ -55,9 +55,10 @@ class App {
             onFullscreenChange: () => setTimeout(() => this.handleResize(), 100),
             onBleConnect: () => this.connectBle(),
             onBleDisconnect: () => this.bleManager.disconnect(),
-            onSelectPreset: (url) => this.loadDefaultGPX(url),
+            onSelectPreset: (url) => this.loadDefaultGPX(url, true),
             onLoadGpxFile: (file) => this.loadGPXFile(file),
-            onRequestGsiDem: () => this.applyGsiDem()
+            onRequestGsiDem: () => this.applyGsiDem(),
+            onShowStructures: () => this.ui.showStructureDialog(this.course)
         });
 
         // 2. 標高プロファイル Canvas & 3D マップ
@@ -92,7 +93,7 @@ class App {
 
     // --- Course & GPX Management ---
 
-    parseAndApplyGPX(gpxText, fallbackName) {
+    parseAndApplyGPX(gpxText, fallbackName, showDialog = false) {
         // 拡張子 (.geojson/.json) または先頭の '{' で GeoJSON と判定、それ以外は GPX
         const isGeoJSON = /\.(geo)?json$/i.test(fallbackName) || gpxText.trimStart().startsWith('{');
         const { courseName, waypoints, isWebEditor, structures = [] } = isGeoJSON
@@ -109,42 +110,36 @@ class App {
         this.mapView.setCourse(this.course, this.currentState());
         this.updateState(0.0);
 
-        // OSM から橋・トンネル区間を非同期取得（GeoJSONタグで既に判明している場合はスキップ）
-        this.refreshOsmStructures(activeCourse);
+        // OSM から橋・トンネル区間を非同期取得し、必要なら10mメッシュDEMとも並列同期
+        const osmPromise = activeCourse.loadOsmStructures().catch((err) => {
+            console.warn('OSM structures skipped:', err);
+            return false;
+        });
 
-        // 実走GPX（標高あり）はそのまま採用。
-        // 標高なしGPX・Webエディタ製GPX・GeoJSON・プリセットは標高が粗いため10mメッシュで自動補正する
-        if (activeCourse.needsAutoDemCorrection()) {
-            activeCourse.syncWithTerrainDem().then((synced) => {
-                if (synced && this.course === activeCourse) {
-                    this.ui.updateCourseMeta(this.course, this.currentProgress);
-                    this.chart.setCourse(this.course);
-                    this.mapView.setCourse(this.course, null);
-                    this.updateState(this.currentProgress);
-                }
-            }).catch((err) => console.warn('Terrain DEM sync skipped:', err));
-        }
-    }
+        const demPromise = activeCourse.needsAutoDemCorrection()
+            ? activeCourse.syncWithTerrainDem().catch((err) => {
+                console.warn('Terrain DEM sync skipped:', err);
+                return false;
+            })
+            : Promise.resolve(false);
 
-    /**
-     * OSMの橋・トンネル区間を非同期で取得してコース色替え＆路面直線標高へ置き換える
-     * （通信失敗・混雑時は何もせず、既存の標高のまま動作継続）
-     */
-    refreshOsmStructures(course) {
-        course.loadOsmStructures().then((changed) => {
-            if (changed && this.course === course) {
-                this.chart.setCourse(this.course);
-                this.mapView.setCourse(this.course, null);
-                this.updateState(this.currentProgress);
+        Promise.all([osmPromise, demPromise]).then(() => {
+            if (this.course !== activeCourse) return;
+            this.ui.updateCourseMeta(this.course, this.currentProgress);
+            this.chart.setCourse(this.course);
+            this.mapView.setCourse(this.course, null);
+            this.updateState(this.currentProgress);
+            if (showDialog) {
+                this.ui.showStructureDialog(this.course);
             }
-        }).catch((err) => console.warn('OSM structures skipped:', err));
+        });
     }
 
-    async loadDefaultGPX(url) {
+    async loadDefaultGPX(url, showDialog = false) {
         try {
             const res = await fetch(url);
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            this.parseAndApplyGPX(await res.text(), url.split('/').pop());
+            this.parseAndApplyGPX(await res.text(), url.split('/').pop(), showDialog);
         } catch (err) {
             console.warn(`デフォルトGPX取得エラー (${url}):`, err);
         }
@@ -154,7 +149,7 @@ class App {
         const reader = new FileReader();
         reader.onload = (e) => {
             try {
-                this.parseAndApplyGPX(e.target.result, file.name);
+                this.parseAndApplyGPX(e.target.result, file.name, true);
             } catch (err) {
                 console.error(err);
                 alert(`GPX読み込みエラー: ${err.message}`);
@@ -164,15 +159,17 @@ class App {
     }
 
     async applyGsiDem() {
-        if (this.course.isGsiCorrected) return;
         try {
             this.ui.setGsiLoading(true, 0);
-            await this.course.recalculateWithGSI10m((pct) => this.ui.setGsiLoading(true, pct));
+            if (!this.course.isGsiCorrected) {
+                await this.course.recalculateWithGSI10m((pct) => this.ui.setGsiLoading(true, pct));
+            }
+            await this.course.loadOsmStructures();
             this.ui.updateCourseMeta(this.course, this.currentProgress);
             this.chart.setCourse(this.course);
             this.mapView.setCourse(this.course, null);
             this.updateState(this.currentProgress);
-            this.refreshOsmStructures(this.course);
+            this.ui.showStructureDialog(this.course);
         } catch (err) {
             console.error('GSI DEM error:', err);
             alert(`10mメッシュ標高の取得に失敗しました: ${err.message}`);
