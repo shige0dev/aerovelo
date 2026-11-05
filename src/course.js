@@ -58,10 +58,10 @@ export class GeoCourseManager {
     }
 
     /**
-     * Webエディタ製や標高なし等、10mメッシュ自動補正をかけるべきコースかを判定
+     * GPX / GeoJSON 読み込み時に 10mメッシュ自動補正をかけるべきコースかを判定
      */
     needsAutoDemCorrection() {
-        return !this.hasElevationData() || this.isWebEditor || /hiyoshi|shimanami|kashida/i.test(this.name);
+        return true; // GPX / GeoJSON 読み込み時に常に橋・トンネル認識＋高精度標高補正を実行
     }
 
     /**
@@ -303,6 +303,11 @@ export class GeoCourseManager {
         // 4. 橋・トンネル区間はフィルター後の端部高度と端部高度を厳密な直線で結ぶ
         this.linearizeStructuresExact(samples, smoothedAlts);
 
+        // rawSamples にも直線高度を同期
+        for (let i = 0; i <= count; i++) {
+            samples[i].alt = smoothedAlts[i];
+        }
+
         this.interpolatedPoints = samples.map((s, idx) => ({
             dist: s.dist,
             lon: s.lon,
@@ -352,41 +357,65 @@ export class GeoCourseManager {
 
     /**
      * フィルター適用後の標高に対し、橋・トンネル区間の始端と終端の高度を完全な直線で結ぶ（最終確定用）
+     * 各構造物オブジェクトに端部標高 (alt0, alt1) を記録し、確実に直線高度を設定する
      */
     linearizeStructuresExact(samples, alts) {
         const ranges = this.structureRanges || [];
         if (!ranges.length) return;
         const n = samples.length;
 
-        for (const { d0, d1 } of ranges) {
-            let i0 = -1, i1 = -1;
-            for (let i = 0; i < n; i++) {
-                const d = samples[i].dist;
-                if (i0 < 0 && d >= d0) i0 = i;
-                if (d <= d1) i1 = i;
-            }
-            if (i0 < 0 || i1 < i0) continue;
+        for (const r of ranges) {
+            const { d0, d1 } = r;
+            if (d1 <= d0) continue;
 
-            const idx0 = Math.max(0, i0 - 1);
-            const idx1 = Math.min(n - 1, i1 + 1);
-            const dist0 = samples[idx0].dist;
-            const dist1 = samples[idx1].dist;
+            let idx0 = -1, idx1 = -1;
+            for (let i = 0; i < n; i++) {
+                if (samples[i].dist <= d0) idx0 = i;
+                if (idx1 < 0 && samples[i].dist >= d1) idx1 = i;
+            }
+            if (idx0 < 0) idx0 = 0;
+            if (idx1 < 0) idx1 = n - 1;
+
             const a0 = alts[idx0];
             const a1 = alts[idx1];
-            const span = dist1 - dist0;
-            if (span <= 0) continue;
+            r.alt0 = a0;
+            r.alt1 = a1;
 
-            for (let i = i0; i <= i1; i++) {
-                const t = clamp((samples[i].dist - dist0) / span, 0, 1);
-                alts[i] = a0 + (a1 - a0) * t;
+            for (let i = idx0; i <= idx1; i++) {
+                const d = samples[i].dist;
+                if (d >= d0 && d <= d1) {
+                    const t = clamp((d - d0) / (d1 - d0), 0, 1);
+                    alts[i] = a0 + (a1 - a0) * t;
+                }
             }
         }
     }
 
     sampleAtDist(targetDist) {
+        const clampedDist = clamp(targetDist, 0, this.totalDistance);
+
+        // 橋・トンネル区間内であれば、端部高度を結ぶ厳密な直線標高を返す
+        const struct = this.getStructureAtDist(clampedDist);
+        if (struct && struct.d1 > struct.d0 && struct.alt0 != null && struct.alt1 != null) {
+            const t = clamp((clampedDist - struct.d0) / (struct.d1 - struct.d0), 0, 1);
+            const alt = struct.alt0 + (struct.alt1 - struct.alt0) * t;
+
+            const pts = this.interpolatedPoints;
+            const sampleCount = pts.length - 1;
+            const exactIdx = (clampedDist / (this.totalDistance || 1)) * sampleCount;
+            const idx = clamp(Math.floor(exactIdx), 0, sampleCount - 1);
+            const r = exactIdx - idx;
+            const pA = pts[idx], pB = pts[idx + 1];
+            return {
+                dist: clampedDist,
+                lon: lerp(pA.lon, pB.lon, r),
+                lat: lerp(pA.lat, pB.lat, r),
+                alt
+            };
+        }
+
         const pts = this.interpolatedPoints;
         const sampleCount = pts.length - 1;
-        const clampedDist = clamp(targetDist, 0, this.totalDistance);
         const exactIdx = (clampedDist / (this.totalDistance || 1)) * sampleCount;
         const idx = clamp(Math.floor(exactIdx), 0, sampleCount - 1);
         const r = exactIdx - idx;
