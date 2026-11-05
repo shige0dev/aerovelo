@@ -110,20 +110,21 @@ class App {
         this.mapView.setCourse(this.course, this.currentState());
         this.updateState(0.0);
 
-        // OSM から橋・トンネル区間を非同期取得し、必要なら10mメッシュDEMとも並列同期
-        const osmPromise = activeCourse.loadOsmStructures().catch((err) => {
-            console.warn('OSM structures skipped:', err);
-            return false;
-        });
-
-        const demPromise = activeCourse.needsAutoDemCorrection()
-            ? activeCourse.syncWithTerrainDem().catch((err) => {
-                console.warn('Terrain DEM sync skipped:', err);
-                return false;
-            })
-            : Promise.resolve(false);
-
-        Promise.all([osmPromise, demPromise]).then(() => {
+        // 1. 橋・トンネルを取得し完了を確認 → 2. その後に高度補正（端部間直線化を含む）
+        (async () => {
+            try {
+                await activeCourse.loadOsmStructures();
+            } catch (err) {
+                console.warn('OSM structures skipped:', err);
+            }
+            if (activeCourse.needsAutoDemCorrection()) {
+                try {
+                    await activeCourse.syncWithTerrainDem();
+                } catch (err) {
+                    console.warn('Terrain DEM sync skipped:', err);
+                }
+            }
+        })().then(() => {
             if (this.course !== activeCourse) return;
             this.ui.updateCourseMeta(this.course, this.currentProgress);
             this.chart.setCourse(this.course);
@@ -161,10 +162,7 @@ class App {
     async applyGsiDem() {
         try {
             this.ui.setGsiLoading(true, 0);
-            if (!this.course.isGsiCorrected) {
-                await this.course.recalculateWithGSI10m((pct) => this.ui.setGsiLoading(true, pct));
-            }
-            await this.course.loadOsmStructures();
+            await this.course.recalculateWithGSI10m((pct) => this.ui.setGsiLoading(true, pct));
             this.ui.updateCourseMeta(this.course, this.currentProgress);
             this.chart.setCourse(this.course);
             this.mapView.setCourse(this.course, null);

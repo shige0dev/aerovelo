@@ -66,10 +66,15 @@ export class GeoCourseManager {
 
     /**
      * 3D地形DEM（日本国内: 国土地理院 10mメッシュ dem_png、海外: AWS 30m DEM）からコース標高を自動同期
+     * ※必ず橋・トンネル (OSM) の取得完了を確認してから高度補正を実行する
      */
     async syncWithTerrainDem() {
         if (this.isGsiCorrected) return false;
 
+        // 1. 先に橋・トンネルを取得し、完了を確認する
+        await this.loadOsmStructures();
+
+        // 2. DEM 標高を取得
         let elevations = null;
         let isGsi = false;
 
@@ -87,6 +92,7 @@ export class GeoCourseManager {
 
         if (!elevations || this.isGsiCorrected) return false;
 
+        // 3. 橋・トンネル範囲の端部間直線化を含む高度補正を実行
         this.rawSamples = this.rawSamples.map((s, i) => ({ ...s, alt: elevations[i] }));
         this.isTerrainSynced = true;
         this.applyRoadGradeSmoothing(this.rawSamples);
@@ -95,9 +101,8 @@ export class GeoCourseManager {
     }
 
     /**
-     * OpenStreetMap 公式 API から橋・トンネル区間を取得し、GeoJSON タグ由来の区間とマージして
-     * 路面の端部間直線標高を再計算する
-     * @returns {Promise<boolean>} 取得・更新が完了した場合 true
+     * OpenStreetMap 公式 API から橋・トンネル区間を取得し、GeoJSON タグ由来の区間とマージする
+     * @returns {Promise<boolean>} 取得・確認が完了した場合 true
      */
     async loadOsmStructures() {
         if (this.osmStructuresChecked) return true;
@@ -109,7 +114,7 @@ export class GeoCourseManager {
             return false;
         }
         this.osmStatus = 'ok';
-        this.osmSource = res.source || 'OSM API';
+        this.osmSource = res.source || 'OSM API v0.6';
 
         const combined = [...this.structureRanges, ...(res.ranges || [])];
         this.structureRanges = GeoCourseManager.mergeStructureRanges(combined);
@@ -157,16 +162,24 @@ export class GeoCourseManager {
 
     /**
      * 「10mメッシュ標高で補正」ボタン押下時：
-     * 国土地理院 10mメッシュ（dem_png / DEM10B）＋ 道路勾配制約フィルタで標高・斜度を再計算
+     * 1. 先に橋・トンネル (OSM) の取得完了を確認
+     * 2. 国土地理院 10mメッシュ（dem_png / DEM10B）を取得
+     * 3. 橋・トンネル範囲を端部の高度を結ぶ直線にする高度補正を実行
      */
     async recalculateWithGSI10m(onProgress = null) {
         if (!this.isWithinJapan()) {
             throw new Error('国土地理院の標高メッシュは日本国内のコースのみ対応しています。');
         }
+        // 1. 先に橋・トンネルの取得完了を確認する
+        await this.loadOsmStructures();
+
+        // 2. 国土地理院 10mメッシュ標高を取得
         const res = await fetchGsiDem10mElevations(this.rawSamples, onProgress);
         if (!res || !res.elevations) {
             throw new Error('国土地理院 10mメッシュの取得に失敗しました。');
         }
+
+        // 3. 橋・トンネル範囲の端部間直線化を含む高度補正を実行
         this.rawSamples = this.rawSamples.map((s, i) => ({ ...s, alt: res.elevations[i] }));
         this.isTerrainSynced = true;
         this.applyRoadGradeSmoothing(this.rawSamples);
@@ -406,12 +419,19 @@ export class GeoCourseManager {
             b1 = this.sampleAtDist(Math.min(this.totalDistance, b0.dist + span));
         }
 
-        // 斜度（Slope）: 前後15m（計30mスパン）の標高差から安定かつ遅れなく算出
-        // コンターに平行な平坦路では確実に±1.5%以内に収まり、10mメッシュの微小段差ノイズを完全に除去
-        const bwdSlope = this.sampleAtDist(dist - 15);
-        const fwdSlope = this.sampleAtDist(dist + 15);
-        const roadDist = fwdSlope.dist - bwdSlope.dist;
-        const slope = roadDist > 5 ? Math.round(((fwdSlope.alt - bwdSlope.alt) / roadDist) * 1000) / 10 : 0;
+        // 橋・トンネル範囲内であれば端部の高度を結ぶ直線勾配、それ以外は前後15m（計30mスパン）の標高差から算出
+        const struct = this.getStructureAtDist(dist);
+        let slope = 0;
+        if (struct && struct.d1 - struct.d0 > 2) {
+            const s0 = this.sampleAtDist(struct.d0);
+            const s1 = this.sampleAtDist(struct.d1);
+            slope = Math.round(((s1.alt - s0.alt) / (struct.d1 - struct.d0)) * 1000) / 10;
+        } else {
+            const bwdSlope = this.sampleAtDist(dist - 15);
+            const fwdSlope = this.sampleAtDist(dist + 15);
+            const roadDist = fwdSlope.dist - bwdSlope.dist;
+            slope = roadDist > 5 ? Math.round(((fwdSlope.alt - bwdSlope.alt) / roadDist) * 1000) / 10 : 0;
+        }
 
         return {
             u,
@@ -421,7 +441,7 @@ export class GeoCourseManager {
             alt: cur.alt,
             bearing: GeoCourseManager.calcBearing(b0.lon, b0.lat, b1.lon, b1.lat),
             slope,
-            structure: this.getStructureAtDist(dist),
+            structure: struct,
             fwdPoint: { lon: p1.lon, lat: p1.lat },
             bwdPoint: { lon: p0.lon, lat: p0.lat }
         };

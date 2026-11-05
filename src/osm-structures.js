@@ -1,122 +1,34 @@
 /**
- * OpenStreetMap からコース沿いの橋 (bridge) ・トンネル (tunnel) 区間を取得するモジュール
- *
- * 【方式1: メイン（実証済み Overpass API 軽量ポリライン検索）】
- * - コース座標を約30点（長距離でも最大40点/チャンク）に間引き
- * - around:30 (周囲30m) + way["bridge"]["bridge"!="no"] / way["tunnel"]["tunnel"!="no"]
- * - out body geom; で形状座標配列を直接取得（POST送信）
- *
- * 【方式2: バックアップ（OSM 公式 API v0.6 map.json）】
- * - Overpass サーバー混雑時の自動フェイルオーバー用
+ * OpenStreetMap 公式 API v0.6 (https://api.openstreetmap.org/api/0.6/map.json) を用いて、
+ * コース沿いの橋 (bridge) ・トンネル (tunnel) 区間を確実に取得するモジュール (v2.2.3 実証済み方式)
  */
 
+const OSM_API_BASE = 'https://api.openstreetmap.org/api/0.6/map.json';
 const OVERPASS_ENDPOINTS = [
-    'https://overpass-api.de/api/interpreter',
     'https://overpass.kumi.systems/api/interpreter',
     'https://overpass.private.coffee/api/interpreter'
 ];
-const OSM_API_BASE = 'https://api.openstreetmap.org/api/0.6/map.json';
 
-const SAMPLE_TARGET_POINTS = 35; // 1クエリあたりの間引き座標点数（約30〜35点：クエリ超過・タイムアウトを完全回避）
-const AROUND_M = 30;             // Overpass around 検索半径 (30m)
-const MATCH_TOL_M = 25;          // コース線分と OSM way の一致許容距離 (m)
-const MAX_ANGLE_RAD = Math.PI / 3; // コースと way の向きの許容差 (60°: 直交する立体交差のみ除外)
-const MERGE_GAP_M = 15;          // 近接する同種構造物 way を結合する距離閾値 (m)
-const REQUEST_TIMEOUT_MS = 18000;
+const TILE_DEG = 0.025;          // コース沿いを分割する bbox タイルサイズ（約 2.5km 四方）
+const BBOX_PAD_DEG = 0.0005;     // タイル端の余白（約 50m）
+const MATCH_TOL_M = 18;          // コース線分と OSM way の一致許容距離 (m)
+const MAX_ANGLE_RAD = Math.PI / 4; // コースと way の向きの許容差 (45°: 立体交差を除外しつつカーブ橋・トンネルを許容)
+const MERGE_GAP_M = 12;          // 連続する同種構造物 way を結合する距離閾値 (m)
+const REQUEST_TIMEOUT_MS = 15000;
 
 function isStructureTag(value) {
     return value !== undefined && value !== null && value !== '' && value !== 'no' && value !== 'false';
 }
 
 /**
- * コース座標列を約30〜35点に間引いた `lat1,lon1,lat2,lon2,...` 文字列を生成
+ * コースが通過する 0.025° 四方の bbox リストを生成
  */
-function buildSampledCoordString(samples, targetCount = SAMPLE_TARGET_POINTS) {
-    const n = samples.length;
-    if (n <= targetCount) {
-        return samples.map((p) => `${p.lat.toFixed(4)},${p.lon.toFixed(4)}`).join(',');
-    }
-    const step = (n - 1) / (targetCount - 1);
-    const pts = [];
-    for (let i = 0; i < targetCount; i++) {
-        const idx = Math.min(n - 1, Math.round(i * step));
-        pts.push(`${samples[idx].lat.toFixed(4)},${samples[idx].lon.toFixed(4)}`);
-    }
-    return pts.join(',');
-}
-
-/**
- * 【メイン方式】実証済み Overpass QL（間引き座標列 + around:30 + out body geom;）を POST 送信
- */
-async function fetchFromOverpassAround(samples) {
-    // 25km以内の通常コースは1クエリ(約35点)、超長距離コース(しまなみ77km等)は20kmごとに分割
-    const totalDist = samples[samples.length - 1].dist - samples[0].dist;
-    const chunks = Math.max(1, Math.ceil(totalDist / 25000));
-    const chunkSize = Math.ceil(samples.length / chunks);
-
-    const wayMap = new Map();
-    let usedEndpoint = '';
-
-    for (let c = 0; c < chunks; c++) {
-        const start = c * chunkSize;
-        const end = Math.min(samples.length, (c + 1) * chunkSize + 1);
-        const slice = samples.slice(start, end);
-        if (slice.length < 2) continue;
-
-        const coordsStr = buildSampledCoordString(slice, SAMPLE_TARGET_POINTS);
-        const query = `[out:json][timeout:25];\n(\n` +
-            `  way["bridge"]["bridge"!="no"](around:${AROUND_M},${coordsStr});\n` +
-            `  way["tunnel"]["tunnel"!="no"](around:${AROUND_M},${coordsStr});\n` +
-            `);\n(._;>;);\nout body geom;`;
-
-        let chunkOk = false;
-        for (const endpoint of OVERPASS_ENDPOINTS) {
-            const ctrl = new AbortController();
-            const timer = setTimeout(() => ctrl.abort(), REQUEST_TIMEOUT_MS);
-            try {
-                const res = await fetch(endpoint, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
-                    body: 'data=' + encodeURIComponent(query),
-                    signal: ctrl.signal
-                });
-                if (!res.ok) continue;
-                const json = await res.json();
-                if (!json || !Array.isArray(json.elements)) continue;
-
-                for (const el of json.elements) {
-                    if (el.type === 'way' && Array.isArray(el.geometry) && el.geometry.length >= 2) {
-                        // 水路・鉄道等の非道路を除外（highway タグがあるもの、またはタグ制限なし道路）
-                        if (!el.tags?.waterway && !el.tags?.railway) {
-                            wayMap.set(el.id, el);
-                        }
-                    }
-                }
-                usedEndpoint = endpoint.includes('kumi') ? 'Overpass (kumi.systems)' : 'Overpass (overpass-api.de)';
-                chunkOk = true;
-                break;
-            } catch {
-                // 次の予備エンドポイントへ
-            } finally {
-                clearTimeout(timer);
-            }
-        }
-
-        if (!chunkOk) return null;
-    }
-
-    return { ways: [...wayMap.values()], source: usedEndpoint || 'Overpass API' };
-}
-
-/**
- * 【バックアップ方式】OpenStreetMap 公式 API v0.6 (map.json)
- */
-async function fetchFromOsmApiFallback(samples) {
-    const TILE_DEG = 0.025;
-    const PAD = 0.0005;
+function buildRouteBboxes(samples) {
     const tileMap = new Map();
     for (const s of samples) {
-        const key = `${Math.floor(s.lon / TILE_DEG)},${Math.floor(s.lat / TILE_DEG)}`;
+        const tx = Math.floor(s.lon / TILE_DEG);
+        const ty = Math.floor(s.lat / TILE_DEG);
+        const key = `${tx},${ty}`;
         let b = tileMap.get(key);
         if (!b) {
             b = { minLon: s.lon, minLat: s.lat, maxLon: s.lon, maxLat: s.lat };
@@ -128,71 +40,128 @@ async function fetchFromOsmApiFallback(samples) {
             if (s.lat > b.maxLat) b.maxLat = s.lat;
         }
     }
-
-    const bboxes = [...tileMap.values()];
-    const wayMap = new Map();
-    let anySuccess = false;
-
-    const results = await Promise.all(bboxes.map(async (b) => {
-        const url = `${OSM_API_BASE}?bbox=${(b.minLon - PAD).toFixed(6)},${(b.minLat - PAD).toFixed(6)},${(b.maxLon + PAD).toFixed(6)},${(b.maxLat + PAD).toFixed(6)}`;
-        const ctrl = new AbortController();
-        const timer = setTimeout(() => ctrl.abort(), REQUEST_TIMEOUT_MS);
-        try {
-            const res = await fetch(url, { headers: { 'Accept': 'application/json' }, signal: ctrl.signal });
-            if (!res.ok) return null;
-            return await res.json();
-        } catch {
-            return null;
-        } finally {
-            clearTimeout(timer);
-        }
+    return [...tileMap.values()].map((b) => ({
+        minLon: b.minLon - BBOX_PAD_DEG,
+        minLat: b.minLat - BBOX_PAD_DEG,
+        maxLon: b.maxLon + BBOX_PAD_DEG,
+        maxLat: b.maxLat + BBOX_PAD_DEG
     }));
-
-    for (const json of results) {
-        if (!json || !Array.isArray(json.elements)) continue;
-        anySuccess = true;
-        const nodes = new Map();
-        const rawWays = [];
-        for (const el of json.elements) {
-            if (el.type === 'node') nodes.set(el.id, { lon: el.lon, lat: el.lat });
-            else if (el.type === 'way' && !el.tags?.waterway && !el.tags?.railway && Array.isArray(el.nodes)) {
-                if (isStructureTag(el.tags?.tunnel) || isStructureTag(el.tags?.bridge)) rawWays.push(el);
-            }
-        }
-        for (const w of rawWays) {
-            const geometry = w.nodes.map((nid) => nodes.get(nid)).filter(Boolean);
-            if (geometry.length >= 2) wayMap.set(w.id, { id: w.id, tags: w.tags, geometry });
-        }
-    }
-
-    return anySuccess ? { ways: [...wayMap.values()], source: 'OSM API v0.6' } : null;
 }
 
 /**
- * コース上のサンプル点列から橋・トンネル区間を取得する
+ * OpenStreetMap 公式 API v0.6 (map.json) から指定 bbox の橋・トンネル way を取得
+ */
+async function fetchFromOsmApiV06(bbox) {
+    const url = `${OSM_API_BASE}?bbox=${bbox.minLon.toFixed(6)},${bbox.minLat.toFixed(6)},${bbox.maxLon.toFixed(6)},${bbox.maxLat.toFixed(6)}`;
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), REQUEST_TIMEOUT_MS);
+    try {
+        const res = await fetch(url, {
+            method: 'GET',
+            headers: { 'Accept': 'application/json' },
+            signal: ctrl.signal
+        });
+        if (!res.ok) return null;
+        const json = await res.json();
+        if (!json || !Array.isArray(json.elements)) return null;
+
+        const nodes = new Map();
+        const ways = [];
+        for (const el of json.elements) {
+            if (el.type === 'node' && typeof el.lat === 'number' && typeof el.lon === 'number') {
+                nodes.set(el.id, { lon: el.lon, lat: el.lat });
+            } else if (el.type === 'way' && el.tags?.highway && Array.isArray(el.nodes)) {
+                if (isStructureTag(el.tags.tunnel) || isStructureTag(el.tags.bridge)) {
+                    ways.push(el);
+                }
+            }
+        }
+
+        const result = [];
+        for (const w of ways) {
+            const geometry = [];
+            for (const nid of w.nodes) {
+                const pt = nodes.get(nid);
+                if (pt) geometry.push(pt);
+            }
+            if (geometry.length >= 2) {
+                result.push({ id: w.id, tags: w.tags, geometry });
+            }
+        }
+        return result;
+    } catch {
+        return null;
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
+/**
+ * フォールバック用 Overpass API (bbox クエリ)
+ */
+async function fetchFromOverpassBbox(bbox) {
+    const bboxStr = `${bbox.minLat.toFixed(5)},${bbox.minLon.toFixed(5)},${bbox.maxLat.toFixed(5)},${bbox.maxLon.toFixed(5)}`;
+    const query = `[out:json][timeout:12];(way["highway"]["bridge"]["bridge"!="no"](${bboxStr});way["highway"]["tunnel"]["tunnel"!="no"](${bboxStr}););out tags geom;`;
+
+    for (const endpoint of OVERPASS_ENDPOINTS) {
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), REQUEST_TIMEOUT_MS);
+        try {
+            const res = await fetch(`${endpoint}?data=${encodeURIComponent(query)}`, {
+                method: 'GET',
+                headers: { 'Accept': 'application/json' },
+                signal: ctrl.signal
+            });
+            if (!res.ok) continue;
+            const json = await res.json();
+            if (!json || !Array.isArray(json.elements)) continue;
+            return json.elements.filter((el) => el.type === 'way' && Array.isArray(el.geometry) && el.geometry.length >= 2);
+        } catch {
+            // 次のミラーへ
+        } finally {
+            clearTimeout(timer);
+        }
+    }
+    return null;
+}
+
+/**
+ * コース上のサンプル点列から OpenStreetMap の橋・トンネル区間を取得する
  * @param {Array<{dist:number, lon:number, lat:number}>} samples
  * @returns {Promise<{ranges: Array<{type:'bridge'|'tunnel', d0:number, d1:number, name?:string}>, source: string}|null>}
  */
 export async function fetchOsmStructures(samples) {
     if (!samples || samples.length < 2) return { ranges: [], source: 'none' };
 
-    // 1. まず実証済みの Overpass API (30点間引き + around:30 + POST) で取得
-    let res = await fetchFromOverpassAround(samples);
+    const bboxes = buildRouteBboxes(samples);
+    const wayMap = new Map();
+    let anySuccess = false;
+    let usedSource = 'OSM API v0.6';
 
-    // 2. 万一 Overpass が全滅・タイムアウトした場合のみ OSM API v0.6 にフォールバック
-    if (!res) {
-        res = await fetchFromOsmApiFallback(samples);
+    // 並列で OSM 公式 API v0.6 から各タイルのデータを取得
+    const tileResults = await Promise.all(bboxes.map((b) => fetchFromOsmApiV06(b)));
+
+    for (let i = 0; i < tileResults.length; i++) {
+        let ways = tileResults[i];
+        if (ways === null) {
+            ways = await fetchFromOverpassBbox(bboxes[i]);
+            if (ways !== null) usedSource = 'Overpass API';
+        }
+        if (ways !== null) {
+            anySuccess = true;
+            for (const w of ways) wayMap.set(w.id, w);
+        }
     }
 
-    if (!res) return null;
+    if (!anySuccess) return null;
 
-    const ranges = matchStructures(samples, res.ways);
-    return { ranges, source: res.source };
+    const ranges = matchStructures(samples, [...wayMap.values()]);
+    return { ranges, source: usedSource };
 }
 
 /**
- * 取得した橋・トンネル way の座標列 (geometry) をコース折れ線へ投影し、
- * コース上の正確な始端距離 (d0) 〜 終端距離 (d1) に変換する
+ * OSM の橋・トンネル way の各セグメントをコース折れ線へ射影し、
+ * コースに沿っている構造物の正確な始端距離 (d0) 〜 終端距離 (d1) を算出する
  */
 export function matchStructures(samples, ways) {
     if (!samples || samples.length < 2 || !ways || !ways.length) return [];
@@ -213,6 +182,7 @@ export function matchStructures(samples, ways) {
         const len2 = dx * dx + dy * dy;
         if (len2 < 1e-6) continue;
         routeSegs.push({
+            i,
             ax, ay, bx, by, dx, dy, len2,
             angle: Math.atan2(dx, dy),
             d0: samples[i].dist,
@@ -227,6 +197,7 @@ export function matchStructures(samples, ways) {
         if (!type || !Array.isArray(w.geometry) || w.geometry.length < 2) continue;
 
         const wxy = w.geometry.map((g) => toXY(g.lon, g.lat));
+
         let matchedMinD = Infinity;
         let matchedMaxD = -Infinity;
 
@@ -235,7 +206,7 @@ export function matchStructures(samples, ways) {
             const [wbx, wby] = wxy[k + 1];
             const wdx = wbx - wax, wdy = wby - way_;
             const wlen = Math.hypot(wdx, wdy);
-            if (wlen < 0.3) continue;
+            if (wlen < 0.5) continue;
             const wAngle = Math.atan2(wdx, wdy);
 
             const steps = Math.max(2, Math.ceil(wlen / 4));
@@ -272,7 +243,7 @@ export function matchStructures(samples, ways) {
             }
         }
 
-        if (matchedMaxD > matchedMinD && (matchedMaxD - matchedMinD) >= 2) {
+        if (matchedMaxD > matchedMinD && (matchedMaxD - matchedMinD) >= 3) {
             rawIntervals.push({
                 type,
                 d0: matchedMinD,
