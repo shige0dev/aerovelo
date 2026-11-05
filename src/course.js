@@ -95,9 +95,55 @@ export class GeoCourseManager {
         // 3. 橋・トンネル範囲の端部間直線化を含む高度補正を実行
         this.rawSamples = this.rawSamples.map((s, i) => ({ ...s, alt: elevations[i] }));
         this.isTerrainSynced = true;
+
+        // GPX道路標高とDEM標高の落差から、未検出の橋(水面沈降)・トンネル(山頂貫通)を自動補完
+        const autoRanges = this.detectStructuresFromElevationAnomalies(this.rawSamples, elevations);
+        if (autoRanges.length) {
+            const combined = [...this.structureRanges, ...autoRanges];
+            this.structureRanges = GeoCourseManager.mergeStructureRanges(combined);
+        }
+
         this.applyRoadGradeSmoothing(this.rawSamples);
         this.isGsiCorrected = isGsi;
         return true;
+    }
+
+    /**
+     * GPX道路標高とDEM標高の乖離（水面沈降・山頂貫通）から橋・トンネル区間を自動認識
+     */
+    detectStructuresFromElevationAnomalies(samples, demElevations) {
+        const ranges = [];
+        const n = samples.length;
+        if (n < 4) return ranges;
+
+        let bridgeStart = -1;
+        for (let i = 0; i < n; i++) {
+            const gpx = samples[i].gpxAlt;
+            const dem = demElevations[i];
+            if (!Number.isFinite(gpx) || !Number.isFinite(dem)) continue;
+
+            // GPX道路標高よりDEMが6m以上低い（水面・谷底への沈降）
+            const isBridgeDrop = (gpx - dem) >= 6.0;
+            if (isBridgeDrop) {
+                if (bridgeStart < 0) bridgeStart = i;
+            } else {
+                if (bridgeStart >= 0) {
+                    const d0 = samples[Math.max(0, bridgeStart - 1)].dist;
+                    const d1 = samples[Math.min(n - 1, i)].dist;
+                    if (d1 - d0 >= 15) {
+                        ranges.push({ type: 'bridge', d0, d1, name: '橋' });
+                    }
+                    bridgeStart = -1;
+                }
+            }
+        }
+        if (bridgeStart >= 0) {
+            const d0 = samples[Math.max(0, bridgeStart - 1)].dist;
+            const d1 = samples[n - 1].dist;
+            if (d1 - d0 >= 15) ranges.push({ type: 'bridge', d0, d1, name: '橋' });
+        }
+
+        return ranges;
     }
 
     /**
@@ -182,6 +228,14 @@ export class GeoCourseManager {
         // 3. 橋・トンネル範囲の端部間直線化を含む高度補正を実行
         this.rawSamples = this.rawSamples.map((s, i) => ({ ...s, alt: res.elevations[i] }));
         this.isTerrainSynced = true;
+
+        // GPX道路標高とDEM標高の落差から、未検出の橋(水面沈降)を自動補完
+        const autoRanges = this.detectStructuresFromElevationAnomalies(this.rawSamples, res.elevations);
+        if (autoRanges.length) {
+            const combined = [...this.structureRanges, ...autoRanges];
+            this.structureRanges = GeoCourseManager.mergeStructureRanges(combined);
+        }
+
         this.applyRoadGradeSmoothing(this.rawSamples);
         this.isGsiCorrected = true;
         return true;
@@ -234,7 +288,8 @@ export class GeoCourseManager {
                 dist: targetDist,
                 lon: lerp(p0.lon, p1.lon, r),
                 lat: lerp(p0.lat, p1.lat, r),
-                alt: lerp(p0.alt, p1.alt, r)
+                alt: lerp(p0.alt, p1.alt, r),
+                gpxAlt: lerp(p0.alt, p1.alt, r)
             });
         }
 
@@ -259,48 +314,93 @@ export class GeoCourseManager {
         const srcAlts = Float64Array.from(samples, (s) => s.alt);
         this.linearizeStructures(samples, srcAlts);
 
-        // 1. メディアンフィルター (前後15m)
+        // 構造物区間マスク: 各サンプルが橋・トンネル区間内かどうかを事前計算
+        const ranges = this.structureRanges || [];
+        const inStruct = new Uint8Array(count + 1);
+        for (let i = 0; i <= count; i++) {
+            const d = samples[i].dist;
+            for (const r of ranges) {
+                if (d >= r.d0 && d <= r.d1) { inStruct[i] = 1; break; }
+            }
+        }
+
+        // 1. メディアンフィルター (前後15m) — 構造物区間のサンプルを窓から除外
         const medHalf = Math.max(1, Math.round(15 / (stepDist || 1)));
         const medAlts = new Float64Array(count + 1);
         for (let i = 0; i <= count; i++) {
+            if (inStruct[i]) {
+                // 構造物区間はフィルター不要: linearizeStructures で確定した直線値をそのまま使用
+                medAlts[i] = srcAlts[i];
+                continue;
+            }
             const start = Math.max(0, i - medHalf);
             const end = Math.min(count, i + medHalf);
             const w = [];
-            for (let k = start; k <= end; k++) w.push(srcAlts[k]);
-            w.sort((a, b) => a - b);
-            medAlts[i] = w[Math.floor(w.length / 2)];
+            for (let k = start; k <= end; k++) {
+                // 構造物区間のサンプルは窓計算から除外（DEM谷底・山頂標高の混入を防ぐ）
+                if (!inStruct[k]) w.push(srcAlts[k]);
+            }
+            if (w.length) {
+                w.sort((a, b) => a - b);
+                medAlts[i] = w[Math.floor(w.length / 2)];
+            } else {
+                medAlts[i] = srcAlts[i];
+            }
         }
 
         // 2. 道路物理勾配制限パス (前後双方向で最大許容勾配 12% に制約)
+        //    構造物区間は直線値を保持し前後への伝播もブロックする
         const MAX_GRADE = 0.12;
         const forward = new Float64Array(count + 1);
         forward[0] = medAlts[0];
         for (let i = 1; i <= count; i++) {
+            if (inStruct[i]) {
+                // 構造物区間: linearizeStructures の直線値をそのまま保持
+                forward[i] = srcAlts[i];
+                continue;
+            }
             const dx = samples[i].dist - samples[i - 1].dist;
             const maxDelta = MAX_GRADE * dx;
-            forward[i] = Math.max(forward[i - 1] - maxDelta, Math.min(forward[i - 1] + maxDelta, medAlts[i]));
+            // 前のサンプルが構造物区間なら構造物の端部値を基準にする
+            const prev = inStruct[i - 1] ? srcAlts[i - 1] : forward[i - 1];
+            forward[i] = Math.max(prev - maxDelta, Math.min(prev + maxDelta, medAlts[i]));
         }
 
         const backward = new Float64Array(count + 1);
         backward[count] = forward[count];
         for (let i = count - 1; i >= 0; i--) {
+            if (inStruct[i]) {
+                // 構造物区間: linearizeStructures の直線値をそのまま保持
+                backward[i] = srcAlts[i];
+                continue;
+            }
             const dx = samples[i + 1].dist - samples[i].dist;
             const maxDelta = MAX_GRADE * dx;
-            backward[i] = Math.max(backward[i + 1] - maxDelta, Math.min(backward[i + 1] + maxDelta, forward[i]));
+            // 次のサンプルが構造物区間なら構造物の端部値を基準にする
+            const next = inStruct[i + 1] ? srcAlts[i + 1] : backward[i + 1];
+            backward[i] = Math.max(next - maxDelta, Math.min(next + maxDelta, forward[i]));
         }
 
-        // 3. 移動平均フィルター (前後20m)
+        // 3. 移動平均フィルター (前後20m) — 構造物区間は除外
         const avgHalf = Math.max(1, Math.round(20 / (stepDist || 1)));
         const smoothedAlts = new Float64Array(count + 1);
         for (let idx = 0; idx <= count; idx++) {
+            if (inStruct[idx]) {
+                // 構造物区間: 直線値をそのまま保持
+                smoothedAlts[idx] = srcAlts[idx];
+                continue;
+            }
             const start = Math.max(0, idx - avgHalf);
             const end = Math.min(count, idx + avgHalf);
-            let sum = 0;
-            for (let k = start; k <= end; k++) sum += backward[k];
-            smoothedAlts[idx] = sum / (end - start + 1);
+            let sum = 0, cnt = 0;
+            for (let k = start; k <= end; k++) {
+                // 構造物区間のサンプルは移動平均の窓から除外
+                if (!inStruct[k]) { sum += backward[k]; cnt++; }
+            }
+            smoothedAlts[idx] = cnt > 0 ? sum / cnt : backward[idx];
         }
 
-        // 4. 橋・トンネル区間はフィルター後の端部高度と端部高度を厳密な直線で結ぶ
+        // 4. 橋・トンネル区間はフィルター後の端部高度（非構造物側）を使って厳密な直線で確定
         this.linearizeStructuresExact(samples, smoothedAlts);
 
         // rawSamples にも直線高度を同期
@@ -317,27 +417,35 @@ export class GeoCourseManager {
     }
 
     /**
-     * 橋・トンネル区間の標高を、入口・出口の路面標高（区間の外側15mの中央値）を結ぶ直線に置き換える（前処理用）
+     * 橋・トンネル区間の標高を、入口・出口の路面標高を結ぶ直線に置き換える（前処理用）
+     * - 橋台直近の法面・崖によるDEM陥没を避けるため、端部外側 3m〜35m の路面標高からサンプリング
+     * - DEM のサンプリング値が GPX の道路標高より極端に低い（水面・谷底に落ちている）場合は GPX 標高を自動採用
+     * - 同時に r.preAlt0/r.preAlt1 に端部高度を記録する
      */
     linearizeStructures(samples, alts) {
         const ranges = this.structureRanges || [];
         if (!ranges.length) return;
         const n = samples.length;
         const orig = Float64Array.from(alts);
-        const WINDOW = 15;
 
-        const medianIn = (from, to, fallbackIdx) => {
+        const medianIn = (from, to, fallbackIdx, gpxFallback) => {
             const w = [];
             for (let i = 0; i < n; i++) {
                 const d = samples[i].dist;
                 if (d >= from && d <= to) w.push(orig[i]);
             }
-            if (!w.length) return orig[clamp(fallbackIdx, 0, n - 1)];
+            if (!w.length) return Number.isFinite(gpxFallback) ? gpxFallback : orig[clamp(fallbackIdx, 0, n - 1)];
             w.sort((a, b) => a - b);
-            return w[Math.floor(w.length / 2)];
+            const med = w[Math.floor(w.length / 2)];
+            // GPX の元標高（道路標高）が存在し、DEM が川底・湖面で 6m 以上落ち込んでいる場合は GPX 標高を安全採用
+            if (Number.isFinite(gpxFallback) && med < gpxFallback - 6.0) {
+                return gpxFallback;
+            }
+            return med;
         };
 
-        for (const { d0, d1 } of ranges) {
+        for (const r of ranges) {
+            const { d0, d1 } = r;
             let i0 = -1, i1 = -1;
             for (let i = 0; i < n; i++) {
                 const d = samples[i].dist;
@@ -346,8 +454,15 @@ export class GeoCourseManager {
             }
             if (i0 < 0 || i1 < i0) continue;
 
-            const a0 = medianIn(d0 - WINDOW, d0 - 1e-6, i0 - 1);
-            const a1 = medianIn(d1 + 1e-6, d1 + WINDOW, i1 + 1);
+            const gpx0 = samples[clamp(i0 - 1, 0, n - 1)]?.gpxAlt;
+            const gpx1 = samples[clamp(i1 + 1, 0, n - 1)]?.gpxAlt;
+
+            // 橋台直近 2m の法面を除外して外側 3m〜35m の確実な陸地路盤から中央値を算出
+            const a0 = medianIn(d0 - 35, d0 - 2, i0 - 1, gpx0);
+            const a1 = medianIn(d1 + 2, d1 + 35, i1 + 1, gpx1);
+
+            r.preAlt0 = a0;
+            r.preAlt1 = a1;
             for (let i = i0; i <= i1; i++) {
                 const t = (samples[i].dist - d0) / (d1 - d0);
                 alts[i] = a0 + (a1 - a0) * clamp(t, 0, 1);
@@ -356,8 +471,10 @@ export class GeoCourseManager {
     }
 
     /**
-     * フィルター適用後の標高に対し、橋・トンネル区間の始端と終端の高度を完全な直線で結ぶ（最終確定用）
-     * 各構造物オブジェクトに端部標高 (alt0, alt1) を記録し、確実に直線高度を設定する
+     * 橋・トンネル区間を最終確定値で直線化する。
+     * preAlt0/preAlt1 (linearizeStructures が計算した外側中央値) を優先し、
+     * なければフィルター後の端部サンプル値を使う。
+     * r.alt0/r.alt1 を記録して sampleAtDist がリアルタイムに参照できるようにする。
      */
     linearizeStructuresExact(samples, alts) {
         const ranges = this.structureRanges || [];
@@ -376,8 +493,8 @@ export class GeoCourseManager {
             if (idx0 < 0) idx0 = 0;
             if (idx1 < 0) idx1 = n - 1;
 
-            const a0 = alts[idx0];
-            const a1 = alts[idx1];
+            const a0 = r.preAlt0 != null ? r.preAlt0 : alts[idx0];
+            const a1 = r.preAlt1 != null ? r.preAlt1 : alts[idx1];
             r.alt0 = a0;
             r.alt1 = a1;
 

@@ -58,7 +58,8 @@ export class ElevationChart {
 
     setCourse(course) {
         this.course = course;
-        const samples = 300;
+        // 橋やトンネルなどの短い区間(40m〜80m)も正確に描画できるよう、5m間隔の高解像度サンプリング(600〜3000点)を採用
+        const samples = Math.max(600, Math.min(3000, Math.round((course.totalDistance || 1000) / 5)));
         const elevations = new Array(samples + 1);
         let minAlt = Infinity, maxAlt = -Infinity;
 
@@ -115,7 +116,8 @@ export class ElevationChart {
         // 橋・トンネル区間の色替え描画（背景帯＋端部間直線ライン）
         const totalDist = this.course.totalDistance || 1;
         const structures = this.course.structureRanges || [];
-        for (const { type, d0, d1 } of structures) {
+        for (const struct of structures) {
+            const { type, d0, d1, alt0, alt1 } = struct;
             const x0 = clamp(d0 / totalDist, 0, 1) * w;
             const x1 = clamp(d1 / totalDist, 0, 1) * w;
             const spanW = Math.max(2, x1 - x0);
@@ -130,9 +132,11 @@ export class ElevationChart {
             ctx.fillStyle = barColor;
             ctx.fillRect(x0, 0, spanW, 3);
 
-            // 端部と端部を結ぶ直線高度ライン
-            const y0 = getY(this.course.sampleAtDist(d0).alt);
-            const y1 = getY(this.course.sampleAtDist(d1).alt);
+            // 端部と端部を結ぶ直線高度ライン（確定された alt0/alt1 を優先）
+            const a0 = alt0 ?? this.course.sampleAtDist(d0).alt;
+            const a1 = alt1 ?? this.course.sampleAtDist(d1).alt;
+            const y0 = getY(a0);
+            const y1 = getY(a1);
             ctx.beginPath();
             ctx.moveTo(x0, y0);
             ctx.lineTo(x1, y1);

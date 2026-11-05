@@ -12,6 +12,53 @@ const HYBRID_DEM_URL = 'gsi-dem://{z}/{x}/{y}';
 // タイルメモリキャッシュ（3D地形とコンター生成で同一タイルを1回だけフェッチ・変換）
 const tileCache = new Map();
 const inFlightTiles = new Map();
+let activeCourseForDem = null;
+
+/**
+ * 3D地形メッシュが橋の下の谷底・湖面に落ち込まないよう、
+ * タイル内の橋 (bridge) 区間の標高を路面標高（直線高度）に持ち上げる
+ */
+function applyBridgesToDemGrid(grid, z, x, y, course) {
+    const bridges = (course.structureRanges || []).filter((r) => r.type === 'bridge');
+    if (!bridges.length) return;
+
+    const n = 2 ** z;
+    const lonMin = (x / n) * 360 - 180;
+    const lonMax = ((x + 1) / n) * 360 - 180;
+    const latRadMin = Math.atan(Math.sinh(Math.PI * (1 - 2 * (y + 1) / n)));
+    const latRadMax = Math.atan(Math.sinh(Math.PI * (1 - 2 * y / n)));
+    const latMin = (latRadMin * 180) / Math.PI;
+    const latMax = (latRadMax * 180) / Math.PI;
+
+    const pad = 0.001;
+    const pts = course.interpolatedPoints || course.rawSamples || [];
+
+    for (const b of bridges) {
+        for (const p of pts) {
+            if (p.dist < b.d0 || p.dist > b.d1) continue;
+            if (p.lon < lonMin - pad || p.lon > lonMax + pad || p.lat < latMin - pad || p.lat > latMax + pad) continue;
+
+            const latRad = (p.lat * Math.PI) / 180;
+            const my = (1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2;
+            const px = Math.round(((p.lon - lonMin) / (lonMax - lonMin)) * 256);
+            const py = Math.round((my * n - y) * 256);
+
+            const bridgeAlt = p.alt;
+            for (let dy = -1; dy <= 1; dy++) {
+                const gy = py + dy;
+                if (gy < 0 || gy >= 256) continue;
+                for (let dx = -1; dx <= 1; dx++) {
+                    const gx = px + dx;
+                    if (gx < 0 || gx >= 256) continue;
+                    const gIdx = gy * 256 + gx;
+                    if (bridgeAlt > grid[gIdx]) {
+                        grid[gIdx] = bridgeAlt;
+                    }
+                }
+            }
+        }
+    }
+}
 
 /**
  * 国土地理院 10mメッシュ (dem_png z<=14) を取得し、水面補完＋Terrarium形式RGB (ArrayBuffer) に変換する共通関数
@@ -60,6 +107,12 @@ async function fetchGsiTerrariumPng(z, x, y) {
             if (!grid) {
                 const awsRes = await fetch(`${DEM_AWS_BASE}/${z}/${x}/${y}.png?_c=1`);
                 return await awsRes.arrayBuffer();
+            }
+
+            // コース上に橋 (bridge) が存在する場合、3D地形メッシュが谷底・湖面に落ち込まないよう
+            // タイル内の橋区間のメッシュ標高を路面標高（直線高度）に持ち上げる
+            if (activeCourseForDem && Array.isArray(activeCourseForDem.structureRanges)) {
+                applyBridgesToDemGrid(grid, z, x, y, activeCourseForDem);
             }
 
             for (let i = 0; i < 65536; i++) {
@@ -334,6 +387,9 @@ export class MapViewController {
     setCourse(course, initialState) {
         this.cam.bearing = null;
         if (!this.map) return;
+
+        activeCourseForDem = course;
+        tileCache.clear(); // 橋の3D標高持ち上げを反映するためDEMタイルキャッシュを更新
 
         if (!this.isMapLoaded) {
             this.pendingCourse = course;
