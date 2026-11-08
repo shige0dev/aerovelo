@@ -262,8 +262,8 @@ export class MapViewController {
                 paint: {
                     'circle-radius': ['interpolate', ['linear'], ['zoom'], 12, 2.5, 16, 4.5, 18, 6],
                     'circle-color': ['get', 'color'],
-                    'circle-stroke-color': '#ffffff',
-                    'circle-stroke-width': 1.2,
+                    'circle-stroke-color': '#475569',
+                    'circle-stroke-width': 0.8,
                     'circle-opacity': 0.95
                 }
             });
