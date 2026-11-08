@@ -35,7 +35,7 @@ export class CourseRibbonLayer {
         this.type = 'custom';
         this.renderingMode = '3d';
         this.widthMeters = widthMeters;
-        this.altitudeOffset = 2.0; // コース定義点よりも +2.0m 上空
+        this.altitudeOffset = 3.0; // 計測点高度よりも +3.0m 上空
 
         this.camera = null;
         this.scene = null;
