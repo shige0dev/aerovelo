@@ -3,12 +3,11 @@
  * 3D Route Interpolation, Distance, Bearing, and Road-Grade Calculation Engine
  */
 
-import { fetchGsiDem10mElevations, fetchTerrainDemElevations } from './gpx-gsi.js';
+import { clamp, lerp, haversineDistance, calcBearing } from './utils.js';
+import { fetchGsiDem10mElevations, fetchTerrainDemElevations } from './dem-service.js';
 import { fetchOsmStructures } from './osm-structures.js';
 
-const DEG_TO_RAD = Math.PI / 180;
-export const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
-export const lerp = (a, b, t) => a + (b - a) * t;
+export { clamp, lerp };
 
 export const DEFAULT_LAKE_ROUTE = [
     { lon: 138.5830, lat: 35.4740, alt: 902 },
@@ -56,18 +55,13 @@ export class GeoCourseManager {
     }
 
     /**
-     * GPX 読み込み時に 10mメッシュ自動補正をかけるべきコースかを判定
+     * 3D地形DEM（日本: 国土地理院 10m、海外: AWS 30m）とコース標高を同期
      */
-    needsAutoDemCorrection() {
-        return true; // GPX 読み込み時に常に橋・トンネル認識＋高度補正を実行
-    }
-
-    /**
-     * 3D地形DEM（日本国内: 国土地理院 10mメッシュ dem_png、海外: AWS 30m DEM）からコース標高を自動同期
-     * ※必ず橋・トンネル (OSM) の取得完了を確認してから高度補正を実行する
-     */
-    async syncWithTerrainDem() {
-        if (this.isGsiCorrected) return false;
+    async syncElevations({ forceGsi = false, onProgress = null } = {}) {
+        if (this.isGsiCorrected && !forceGsi) return false;
+        if (forceGsi && !this.isWithinJapan()) {
+            throw new Error('国土地理院の標高メッシュは日本国内のコースのみ対応しています。');
+        }
 
         // 1. 先に橋・トンネルを取得し、完了を確認する
         await this.loadOsmStructures();
@@ -77,20 +71,23 @@ export class GeoCourseManager {
         let isGsi = false;
 
         if (this.isWithinJapan()) {
-            const res = await fetchGsiDem10mElevations(this.rawSamples);
+            const res = await fetchGsiDem10mElevations(this.rawSamples, onProgress);
             if (res && res.elevations) {
                 elevations = res.elevations;
                 isGsi = true;
             }
         }
 
-        if (!elevations) {
+        if (!elevations && !forceGsi) {
             elevations = await fetchTerrainDemElevations(this.rawSamples);
         }
 
-        if (!elevations || this.isGsiCorrected) return false;
+        if (!elevations) {
+            if (forceGsi) throw new Error('国土地理院 10mメッシュの取得に失敗しました。');
+            return false;
+        }
 
-        // 3. 橋・トンネル範囲の端部間直線化を含む高度補正を実行
+        // 3. 橋・トンネル範囲の端部直線化を含む高度補正を実行
         this.rawSamples = this.rawSamples.map((s, i) => ({ ...s, alt: elevations[i] }));
         this.isTerrainSynced = true;
         this.applyRoadGradeSmoothing(this.rawSamples);
@@ -98,16 +95,23 @@ export class GeoCourseManager {
         return true;
     }
 
+    syncWithTerrainDem() {
+        return this.syncElevations();
+    }
+
+    recalculateWithGSI10m(onProgress = null) {
+        return this.syncElevations({ forceGsi: true, onProgress });
+    }
+
     /**
      * OpenStreetMap 公式 API から橋・トンネル区間を取得する
-     * @returns {Promise<boolean>} 取得・確認が完了した場合 true
      */
     async loadOsmStructures() {
         if (this.osmStructuresChecked) return true;
         this.osmStructuresChecked = true;
         const res = await fetchOsmStructures(this.rawSamples);
         if (!res) {
-            this.osmStructuresChecked = false; // 通信失敗時は次回再試行可能にする
+            this.osmStructuresChecked = false;
             this.osmStatus = 'error';
             return false;
         }
@@ -156,55 +160,12 @@ export class GeoCourseManager {
         };
     }
 
-    /**
-     * 「10mメッシュ標高で補正」ボタン押下時：
-     * 1. 先に橋・トンネル (OSM) の取得完了を確認
-     * 2. 国土地理院 10mメッシュ（dem_png / DEM10B）を取得
-     * 3. 橋・トンネル範囲を端部の高度を結ぶ直線にする高度補正を実行
-     */
-    async recalculateWithGSI10m(onProgress = null) {
-        if (!this.isWithinJapan()) {
-            throw new Error('国土地理院の標高メッシュは日本国内のコースのみ対応しています。');
-        }
-        // 1. 先に橋・トンネルの取得完了を確認する
-        await this.loadOsmStructures();
-
-        // 2. 国土地理院 10mメッシュ標高を取得
-        const res = await fetchGsiDem10mElevations(this.rawSamples, onProgress);
-        if (!res || !res.elevations) {
-            throw new Error('国土地理院 10mメッシュの取得に失敗しました。');
-        }
-
-        // 3. 橋・トンネル範囲の端部間直線化を含む高度補正を実行
-        this.rawSamples = this.rawSamples.map((s, i) => ({ ...s, alt: res.elevations[i] }));
-        this.isTerrainSynced = true;
-        this.applyRoadGradeSmoothing(this.rawSamples);
-        this.isGsiCorrected = true;
-        return true;
-    }
-
-    static haversineDistance(lon1, lat1, lon2, lat2) {
-        const dLat = (lat2 - lat1) * DEG_TO_RAD;
-        const dLon = (lon2 - lon1) * DEG_TO_RAD;
-        const a = Math.sin(dLat / 2) ** 2 +
-                  Math.cos(lat1 * DEG_TO_RAD) * Math.cos(lat2 * DEG_TO_RAD) * Math.sin(dLon / 2) ** 2;
-        return 6371000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    }
-
-    static calcBearing(lon1, lat1, lon2, lat2) {
-        const dLon = (lon2 - lon1) * DEG_TO_RAD;
-        const rLat1 = lat1 * DEG_TO_RAD, rLat2 = lat2 * DEG_TO_RAD;
-        const y = Math.sin(dLon) * Math.cos(rLat2);
-        const x = Math.cos(rLat1) * Math.sin(rLat2) - Math.sin(rLat1) * Math.cos(rLat2) * Math.cos(dLon);
-        return (Math.atan2(y, x) / DEG_TO_RAD + 360) % 360;
-    }
-
     initInterpolation() {
         this.cumDistances = [0];
         let total = 0;
         for (let i = 0; i < this.rawWaypoints.length - 1; i++) {
             const p1 = this.rawWaypoints[i], p2 = this.rawWaypoints[i + 1];
-            total += GeoCourseManager.haversineDistance(p1.lon, p1.lat, p2.lon, p2.lat);
+            total += haversineDistance(p1.lon, p1.lat, p2.lon, p2.lat);
             this.cumDistances.push(total);
         }
         this.totalDistance = total;
@@ -235,9 +196,6 @@ export class GeoCourseManager {
 
     /**
      * 道路工学設計に基づく標高・勾配スムージング
-     * 1. メディアンフィルター (前後15m): 崖沿い・法面の外れ値をカット
-     * 2. 道路最大勾配制限 (12%双方向パス): トンネル上の山頂や橋の下の谷底等の非道路スパイクを前後の路面標高で自動架橋
-     * 3. 移動平均フィルター (前後20m): 道路設計に即した滑らかでリアルな縦断勾配を生成
      */
     applyRoadGradeSmoothing(samples) {
         const count = samples.length - 1;
@@ -247,7 +205,7 @@ export class GeoCourseManager {
         }
         const stepDist = this.totalDistance / (count || 1);
 
-        // 0. 橋・トンネル区間は地表面(谷底・山頂)ではなく、入口〜出口を直線で結んだ路面標高に置き換える
+        // 0. 橋・トンネル区間は入口〜出口を直線で結んだ路面標高に置き換える
         const srcAlts = Float64Array.from(samples, (s) => s.alt);
         this.linearizeStructures(samples, srcAlts);
 
@@ -292,7 +250,7 @@ export class GeoCourseManager {
             smoothedAlts[idx] = sum / (end - start + 1);
         }
 
-        // 4. 橋・トンネル区間はフィルター後の端部高度と端部高度を厳密な直線で結ぶ
+        // 4. 橋・トンネル区間は端部高度と端部高度を厳密な直線で結ぶ
         this.linearizeStructuresExact(samples, smoothedAlts);
 
         for (let i = 0; i <= count; i++) {
@@ -308,8 +266,7 @@ export class GeoCourseManager {
     }
 
     /**
-     * 橋・トンネル区間の標高を、入口・出口の路面標高（区間の外側15mの中央値）を結ぶ直線に置き換える（前処理用）
-     * 各構造物オブジェクトに端部標高 (alt0, alt1) を記録する
+     * 橋・トンネル区間の標高を、入口・出口の路面標高（外側15mの中央値）を結ぶ直線に置き換える
      */
     linearizeStructures(samples, alts) {
         const ranges = this.structureRanges || [];
@@ -352,7 +309,7 @@ export class GeoCourseManager {
     }
 
     /**
-     * 橋・トンネル区間を端部標高 (alt0, alt1) を結ぶ厳密な直線高度で上書きする（最終確定用）
+     * 橋・トンネル区間を端部標高 (alt0, alt1) を結ぶ厳密な直線高度で上書きする
      */
     linearizeStructuresExact(samples, alts) {
         const ranges = this.structureRanges || [];
@@ -373,40 +330,34 @@ export class GeoCourseManager {
         }
     }
 
+    /**
+     * 指定距離の補間点（lon, lat, alt）を取得
+     * 構造物区間では端部直線高度を返し、通常区間では平滑化DEM標高を返す
+     */
     sampleAtDist(targetDist) {
         const clampedDist = clamp(targetDist, 0, this.totalDistance);
-
-        // 橋・トンネル区間内であれば、端部の高さを維持した直線標高を返す
-        const struct = this.getStructureAtDist(clampedDist);
-        if (struct && struct.d1 > struct.d0 && struct.alt0 != null && struct.alt1 != null) {
-            const t = clamp((clampedDist - struct.d0) / (struct.d1 - struct.d0), 0, 1);
-            const alt = struct.alt0 + (struct.alt1 - struct.alt0) * t;
-
-            const pts = this.interpolatedPoints;
-            const sampleCount = pts.length - 1;
-            const exactIdx = (clampedDist / (this.totalDistance || 1)) * sampleCount;
-            const idx = clamp(Math.floor(exactIdx), 0, sampleCount - 1);
-            const r = exactIdx - idx;
-            const pA = pts[idx], pB = pts[idx + 1];
-            return {
-                dist: clampedDist,
-                lon: lerp(pA.lon, pB.lon, r),
-                lat: lerp(pA.lat, pB.lat, r),
-                alt
-            };
-        }
-
         const pts = this.interpolatedPoints;
         const sampleCount = pts.length - 1;
         const exactIdx = (clampedDist / (this.totalDistance || 1)) * sampleCount;
         const idx = clamp(Math.floor(exactIdx), 0, sampleCount - 1);
         const r = exactIdx - idx;
         const pA = pts[idx], pB = pts[idx + 1];
+
+        // 橋・トンネル区間内であれば、端部の高さを維持した直線標高を返す
+        const struct = this.getStructureAtDist(clampedDist);
+        let alt;
+        if (struct && struct.d1 > struct.d0 && struct.alt0 != null && struct.alt1 != null) {
+            const t = clamp((clampedDist - struct.d0) / (struct.d1 - struct.d0), 0, 1);
+            alt = struct.alt0 + (struct.alt1 - struct.alt0) * t;
+        } else {
+            alt = lerp(pA.alt, pB.alt, r);
+        }
+
         return {
             dist: clampedDist,
             lon: lerp(pA.lon, pB.lon, r),
             lat: lerp(pA.lat, pB.lat, r),
-            alt: lerp(pA.alt, pB.alt, r)
+            alt
         };
     }
 
@@ -450,7 +401,7 @@ export class GeoCourseManager {
             lon: cur.lon,
             lat: cur.lat,
             alt: cur.alt,
-            bearing: GeoCourseManager.calcBearing(b0.lon, b0.lat, b1.lon, b1.lat),
+            bearing: calcBearing(b0.lon, b0.lat, b1.lon, b1.lat),
             slope,
             structure: struct,
             fwdPoint: { lon: p1.lon, lat: p1.lat },
@@ -458,17 +409,11 @@ export class GeoCourseManager {
         };
     }
 
-    /**
-     * 橋・トンネル区間の専用表示カラー
-     */
     static STRUCTURE_COLORS = {
         bridge: '#f59e0b', // 橋: アンバーオレンジ
         tunnel: '#a855f7'  // トンネル: バイオレットパープル
     };
 
-    /**
-     * 指定距離が橋・トンネル区間内であればその区間オブジェクトを返す
-     */
     getStructureAtDist(dist) {
         const ranges = this.structureRanges;
         if (!ranges || !ranges.length) return null;
@@ -478,10 +423,6 @@ export class GeoCourseManager {
         return null;
     }
 
-    /**
-     * MapLibre line-gradient 用の勾配＋構造物（橋・トンネル）カラーストップ配列を生成
-     * 進行度 0.0〜1.0 の各地点の斜度カラーおよび橋・トンネル区間の色替えをマッピング
-     */
     getRouteColorStops() {
         const total = this.totalDistance || 1;
         const STOPS = clamp(Math.round(total / 20), 64, 800);
@@ -490,7 +431,6 @@ export class GeoCourseManager {
             rawProgress.push(i / STOPS);
         }
 
-        // 橋・トンネルの境界前後にストップを挿入してシャープに色を切り替える
         const eps = Math.max(0.0001, 0.5 / total);
         for (const r of (this.structureRanges || [])) {
             const p0 = clamp(r.d0 / total, 0, 1);
@@ -518,12 +458,6 @@ export class GeoCourseManager {
         return stops;
     }
 
-    /**
-     * 勾配（Slope %）→ 走行ラインカラー（彩度・明度で表現）
-     * - 平坦 (0%): 白（彩度 0%・明度 100%）
-     * - 上り: 赤系の色相固定で、勾配が増すほど彩度↑・明度↓（10%以上で最大）
-     * - 下り: 青系の色相固定で、勾配が増すほど彩度↑・明度↓（-10%以下で最大）
-     */
     static slopeToColor(slope) {
         const t = clamp(Math.abs(slope) / 10, 0, 1);
         const hue = slope >= 0 ? 0 : 210;

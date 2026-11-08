@@ -1,5 +1,6 @@
-import { GeoCourseManager, DEFAULT_LAKE_ROUTE, clamp } from './course.js';
-import { GPXParser } from './gpx-gsi.js';
+import { GeoCourseManager, DEFAULT_LAKE_ROUTE } from './course.js';
+import { clamp } from './utils.js';
+import { GPXParser } from './gpx-parser.js';
 import { BleTrainerManager } from './ble.js';
 import { ElevationChart } from './elevation-chart.js';
 import { MapViewController } from './map-view.js';
@@ -106,19 +107,12 @@ class App {
         this.mapView.setCourse(this.course, this.currentState());
         this.updateState(0.0);
 
-        // 1. 橋・トンネルを取得し完了を確認 → 2. その後に高度補正（端部間直線化を含む）
+        // 橋・トンネル認識と標高DEM同期を実行（端部直線高度維持を含む）
         (async () => {
             try {
-                await activeCourse.loadOsmStructures();
+                await activeCourse.syncElevations();
             } catch (err) {
-                console.warn('OSM structures skipped:', err);
-            }
-            if (activeCourse.needsAutoDemCorrection()) {
-                try {
-                    await activeCourse.syncWithTerrainDem();
-                } catch (err) {
-                    console.warn('Terrain DEM sync skipped:', err);
-                }
+                console.warn('Elevation sync skipped:', err);
             }
         })().then(() => {
             if (this.course !== activeCourse) return;

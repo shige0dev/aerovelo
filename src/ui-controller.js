@@ -3,14 +3,7 @@
  * Encapsulates all DOM queries, HUD/Bottom-bar updates, modals, sliders, and file controls.
  */
 
-import { clamp } from './course.js';
-
-const $ = (id) => document.getElementById(id);
-const on = (elOrId, type, fn, opts) => {
-    const el = typeof elOrId === 'string' ? $(elOrId) : elOrId;
-    el?.addEventListener(type, fn, opts);
-    return el;
-};
+import { clamp, $, on } from './utils.js';
 
 const CAM_SLIDER_FORMATTERS = {
     smooth: (v) => v === 0 ? 'OFF' : (v === 5 ? '5 (標準)' : `${v}`),

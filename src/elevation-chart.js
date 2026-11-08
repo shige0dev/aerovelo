@@ -3,7 +3,7 @@
  * Handles 2D canvas rendering, ResizeObserver resolution sync, and pointer scrubbing.
  */
 
-import { clamp } from './course.js';
+import { clamp } from './utils.js';
 
 export class ElevationChart {
     constructor(canvasId = 'elevation-canvas', onSeek = null) {

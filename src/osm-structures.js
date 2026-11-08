@@ -3,6 +3,8 @@
  * コース沿いの橋 (bridge) ・トンネル (tunnel) 区間を確実に取得するモジュール (v2.2.3 実証済み方式)
  */
 
+import { clamp } from './utils.js';
+
 const OSM_API_BASE = 'https://api.openstreetmap.org/api/0.6/map.json';
 const OVERPASS_ENDPOINTS = [
     'https://overpass.kumi.systems/api/interpreter',
@@ -271,6 +273,4 @@ export function matchStructures(samples, ways) {
     return merged;
 }
 
-function clamp(v, min, max) {
-    return Math.max(min, Math.min(max, v));
-}
+
