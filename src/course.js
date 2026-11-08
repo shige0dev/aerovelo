@@ -195,7 +195,8 @@ export class GeoCourseManager {
     }
 
     /**
-     * 道路工学設計に基づく標高・勾配スムージング
+     * 補正を最小にした高度算出
+     * 10mメッシュから計算した生標高（バイリニア補間値）をそのまま採用し、橋・トンネル区間のみ端部直線で結ぶ
      */
     applyRoadGradeSmoothing(samples) {
         const count = samples.length - 1;
@@ -203,65 +204,21 @@ export class GeoCourseManager {
             this.interpolatedPoints = samples.slice();
             return;
         }
-        const stepDist = this.totalDistance / (count || 1);
 
-        // 0. 橋・トンネル区間は入口〜出口を直線で結んだ路面標高に置き換える
-        const srcAlts = Float64Array.from(samples, (s) => s.alt);
-        this.linearizeStructures(samples, srcAlts);
+        const alts = Float64Array.from(samples, (s) => s.alt);
 
-        // 1. メディアンフィルター (前後15m)
-        const medHalf = Math.max(1, Math.round(15 / (stepDist || 1)));
-        const medAlts = new Float64Array(count + 1);
-        for (let i = 0; i <= count; i++) {
-            const start = Math.max(0, i - medHalf);
-            const end = Math.min(count, i + medHalf);
-            const w = [];
-            for (let k = start; k <= end; k++) w.push(srcAlts[k]);
-            w.sort((a, b) => a - b);
-            medAlts[i] = w[Math.floor(w.length / 2)];
-        }
-
-        // 2. 道路物理勾配制限パス (前後双方向で最大許容勾配 12% に制約)
-        const MAX_GRADE = 0.12;
-        const forward = new Float64Array(count + 1);
-        forward[0] = medAlts[0];
-        for (let i = 1; i <= count; i++) {
-            const dx = samples[i].dist - samples[i - 1].dist;
-            const maxDelta = MAX_GRADE * dx;
-            forward[i] = Math.max(forward[i - 1] - maxDelta, Math.min(forward[i - 1] + maxDelta, medAlts[i]));
-        }
-
-        const backward = new Float64Array(count + 1);
-        backward[count] = forward[count];
-        for (let i = count - 1; i >= 0; i--) {
-            const dx = samples[i + 1].dist - samples[i].dist;
-            const maxDelta = MAX_GRADE * dx;
-            backward[i] = Math.max(backward[i + 1] - maxDelta, Math.min(backward[i + 1] + maxDelta, forward[i]));
-        }
-
-        // 3. 移動平均フィルター (前後20m)
-        const avgHalf = Math.max(1, Math.round(20 / (stepDist || 1)));
-        const smoothedAlts = new Float64Array(count + 1);
-        for (let idx = 0; idx <= count; idx++) {
-            const start = Math.max(0, idx - avgHalf);
-            const end = Math.min(count, idx + avgHalf);
-            let sum = 0;
-            for (let k = start; k <= end; k++) sum += backward[k];
-            smoothedAlts[idx] = sum / (end - start + 1);
-        }
-
-        // 4. 橋・トンネル区間は端部高度と端部高度を厳密な直線で結ぶ
-        this.linearizeStructuresExact(samples, smoothedAlts);
+        // 橋・トンネル区間のみ、入口〜出口の端部路面標高（外側15m中央値）を記録して直線で結ぶ
+        this.linearizeStructures(samples, alts);
 
         for (let i = 0; i <= count; i++) {
-            samples[i].alt = smoothedAlts[i];
+            samples[i].alt = alts[i];
         }
 
         this.interpolatedPoints = samples.map((s, idx) => ({
             dist: s.dist,
             lon: s.lon,
             lat: s.lat,
-            alt: smoothedAlts[idx]
+            alt: alts[idx]
         }));
     }
 
@@ -439,77 +396,71 @@ export class GeoCourseManager {
     }
 
     /**
-     * MapLibre line-gradient 用の 50cm単位ステップ高度＋構造物（橋・トンネル）カラーストップ配列を生成
-     * 進行度 0.0〜1.0 の各区間を 50cm の高度バンドごとにパキッとステップ切り替え
+     * MapLibre line-gradient 用のカラーストップ配列を生成
+     * コースライン自体は「基本は白色」、橋・トンネル区間のみ固有色で識別
      */
     getRouteColorStops() {
         const total = this.totalDistance || 1;
-        const startAlt = this.sampleAtDist(0).alt;
-
-        const getColorAt = (p) => {
-            const dist = p * total;
-            const struct = this.getStructureAtDist(dist);
-            if (struct) {
-                return GeoCourseManager.STRUCTURE_COLORS[struct.type] || '#f59e0b';
-            }
-            const alt = this.sampleAtDist(dist).alt;
-            return GeoCourseManager.altToStepColor(alt, startAlt);
-        };
-
-        const SAMPLES = clamp(Math.round(total / 5), 200, 2000);
         const stops = [];
-        const eps = Math.max(0.00001, 0.2 / total);
+        const eps = Math.max(0.0001, 0.5 / total);
 
-        let prevColor = getColorAt(0);
-        stops.push([0, prevColor]);
+        stops.push([0, '#ffffff']);
 
-        for (let i = 1; i <= SAMPLES; i++) {
-            const p = i / SAMPLES;
-            const color = getColorAt(p);
-            if (color !== prevColor) {
-                const pBefore = Math.max(0, p - eps);
-                if (pBefore > stops[stops.length - 1][0] + 0.00001) {
-                    stops.push([pBefore, prevColor]);
-                }
-                stops.push([p, color]);
-                prevColor = color;
-            }
-        }
-
-        const finalColor = getColorAt(1.0);
-        if (stops[stops.length - 1][0] < 1.0) {
-            stops.push([1.0, finalColor]);
-        }
-
-        // 橋・トンネル区間の境界も確実にシャープに挿入
+        // 橋・トンネル区間のみ固有色でシャープに色分け、それ以外は白色
         for (const r of (this.structureRanges || [])) {
             const p0 = clamp(r.d0 / total, 0, 1);
             const p1 = clamp(r.d1 / total, 0, 1);
             const structColor = GeoCourseManager.STRUCTURE_COLORS[r.type] || '#f59e0b';
-            if (p0 > eps) stops.push([p0 - eps, getColorAt(p0 - eps * 2)]);
+            if (p0 > eps) stops.push([p0 - eps, '#ffffff']);
             stops.push([p0, structColor]);
             stops.push([p1, structColor]);
-            if (p1 + eps < 1) stops.push([p1 + eps, getColorAt(p1 + eps * 2)]);
+            if (p1 + eps < 1) stops.push([p1 + eps, '#ffffff']);
         }
 
+        stops.push([1.0, '#ffffff']);
         stops.sort((a, b) => a[0] - b[0]);
 
         const uniqueStops = [];
         let lastP = -1;
         for (const [p, col] of stops) {
-            if (p - lastP < 0.00002) continue;
+            if (p - lastP < 0.00005) continue;
             uniqueStops.push([p, col]);
             lastP = p;
         }
-
-        if (uniqueStops.length === 0 || uniqueStops[0][0] > 0) {
-            uniqueStops.unshift([0, getColorAt(0)]);
-        }
-        if (uniqueStops[uniqueStops.length - 1][0] < 1.0) {
-            uniqueStops.push([1.0, getColorAt(1.0)]);
-        }
-
         return uniqueStops;
+    }
+
+    /**
+     * コースの定義点（GPXウェイポイント各点）を 50cmステップ高度色付き GeoJSON FeatureCollection として出力
+     */
+    toDefinitionPointsGeoJSON() {
+        const startAlt = this.interpolatedPoints[0]?.alt || 0;
+        const features = [];
+
+        for (let i = 0; i < this.rawWaypoints.length; i++) {
+            const wp = this.rawWaypoints[i];
+            const dist = this.cumDistances[i] ?? 0;
+            const pt = this.sampleAtDist(dist);
+            const color = GeoCourseManager.altToStepColor(pt.alt, startAlt);
+
+            features.push({
+                type: 'Feature',
+                properties: {
+                    index: i,
+                    alt: Math.round(pt.alt * 10) / 10,
+                    color
+                },
+                geometry: {
+                    type: 'Point',
+                    coordinates: [pt.lon, pt.lat, pt.alt]
+                }
+            });
+        }
+
+        return {
+            type: 'FeatureCollection',
+            features
+        };
     }
 
     static slopeToColor(slope) {

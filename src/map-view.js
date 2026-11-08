@@ -207,7 +207,9 @@ export class MapViewController {
             geometry: { type: 'LineString', coordinates: course.toGeoJSONCoordinates() }
         };
 
-        // 勾配で彩度・明度を変える line-gradient（line-progress は経路長比率 0〜1）
+        const pointsGeoJson = course.toDefinitionPointsGeoJSON?.() || { type: 'FeatureCollection', features: [] };
+
+        // コースライン色（基本は白、橋はオレンジ、トンネルはパープル）
         const gradientExpr = ['interpolate', ['linear'], ['line-progress']];
         let lastP = -1;
         for (const [p, color] of course.getRouteColorStops()) {
@@ -227,14 +229,33 @@ export class MapViewController {
                 type: 'line',
                 source: 'route',
                 layout,
-                paint: { 'line-color': '#000000', 'line-width': 9, 'line-opacity': 0.45, 'line-blur': 2 }
+                paint: { 'line-color': '#000000', 'line-width': 8, 'line-opacity': 0.5, 'line-blur': 1.5 }
             });
             this.map.addLayer({
                 id: 'route-line',
                 type: 'line',
                 source: 'route',
                 layout,
-                paint: { 'line-width': 5, 'line-gradient': gradientExpr }
+                paint: { 'line-width': 4.5, 'line-gradient': gradientExpr }
+            });
+        }
+
+        // 定義点（GPXポイント）の高度ステップ着色ドットレイヤー
+        if (this.map.getSource('route-points')) {
+            this.map.getSource('route-points').setData(pointsGeoJson);
+        } else {
+            this.map.addSource('route-points', { type: 'geojson', data: pointsGeoJson });
+            this.map.addLayer({
+                id: 'route-points-circle',
+                type: 'circle',
+                source: 'route-points',
+                paint: {
+                    'circle-radius': ['interpolate', ['linear'], ['zoom'], 12, 2.5, 16, 4.5, 18, 6],
+                    'circle-color': ['get', 'color'],
+                    'circle-stroke-color': '#000000',
+                    'circle-stroke-width': 1.2,
+                    'circle-opacity': 0.95
+                }
             });
         }
 
