@@ -167,6 +167,9 @@ export class MapViewController {
             };
 
             this.markers.rider = makeMarker('rider-marker', '<div class="rider-beacon"></div><div class="rider-dot"></div>');
+            if (this.markers.rider) {
+                this.markers.rider.getElement().style.display = 'none'; // ルートメッシュ上の 3D 走行点に一本化
+            }
             this.markers.fwd = makeMarker('target-marker fwd-marker', '<div class="target-dot" title="前方注視点"></div>');
             this.markers.bwd = makeMarker('target-marker bwd-marker', '<div class="target-dot" title="後方注視点"></div>');
             this.syncTargetMarkers(startState);
@@ -299,12 +302,13 @@ export class MapViewController {
 
     updateRiderAndCamera(state, duration = 0, isMoving = false) {
         this.lastState = state;
-        this.markers.rider?.setLngLat([state.lon, state.lat]);
+        if (this.markers.rider) {
+            this.markers.rider.getElement().style.display = 'none';
+        }
         this.syncTargetMarkers(state);
 
-        // トンネル走行中（案A: 山肌の地表面メッシュ上にビーコン表示）
-        const isInTunnel = state?.structure?.type === 'tunnel';
-        this.markers.rider?.getElement()?.classList.toggle('in-tunnel', !!isInTunnel);
+        // ルートメッシュ上を走る 3D 走行点、およびトンネル時の山肌ガイド点と垂直点線を更新
+        this.ribbonLayer?.updateRider(state, state?.groundAlt);
 
         if (!this.cam.isTransitioning && this.cam.mode !== 'free') {
             this.applyCameraTarget(state, duration, isMoving);

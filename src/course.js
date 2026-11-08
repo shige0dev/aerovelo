@@ -222,8 +222,10 @@ export class GeoCourseManager {
         }
 
         const alts = Float64Array.from(samples, (s) => s.alt);
+        // 構造物補正前の地表面（山肌）生DEM標高を保存
+        this.rawGroundElevations = Float64Array.from(alts);
 
-        // 橋・トンネル区間のみ、入口〜出口の端部路面標高（外側15m中央値）を記録して直線で結ぶ
+        // 橋・トンネル区間のみ、入口〜出口の端部路面標高（前後30m外側含む）を記録して直線で結ぶ
         this.linearizeStructures(samples, alts);
 
         for (let i = 0; i <= count; i++) {
@@ -323,6 +325,23 @@ export class GeoCourseManager {
         };
     }
 
+    /**
+     * トンネル等の真上にある純粋な地表面（山肌）のDEM標高を取得
+     */
+    sampleGroundAltAtDist(targetDist) {
+        const clampedDist = clamp(targetDist, 0, this.totalDistance);
+        if (!this.rawGroundElevations || this.rawGroundElevations.length < 2) {
+            return this.sampleAtDist(clampedDist).alt;
+        }
+        const sampleCount = this.rawGroundElevations.length - 1;
+        const exactIdx = (clampedDist / (this.totalDistance || 1)) * sampleCount;
+        const idx = clamp(Math.floor(exactIdx), 0, sampleCount - 1);
+        const r = exactIdx - idx;
+        const gA = this.rawGroundElevations[idx];
+        const gB = this.rawGroundElevations[idx + 1];
+        return lerp(gA, gB, r);
+    }
+
     getStateAtProgress(progress, speedKmh = 25, fwdMult = 2.0, bwdMult = 1.0) {
         const u = clamp(progress, 0, 1);
         const dist = u * this.totalDistance;
@@ -363,6 +382,7 @@ export class GeoCourseManager {
             lon: cur.lon,
             lat: cur.lat,
             alt: cur.alt,
+            groundAlt: this.sampleGroundAltAtDist(dist),
             bearing: calcBearing(b0.lon, b0.lat, b1.lon, b1.lat),
             slope,
             structure: struct,

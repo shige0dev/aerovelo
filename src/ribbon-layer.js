@@ -29,6 +29,44 @@ function getCircleMaskTexture() {
     return sharedCircleMaskTexture;
 }
 
+const riderTextures = {};
+function getRiderTexture(colorHex = '#06b6d4') {
+    if (riderTextures[colorHex]) return riderTextures[colorHex];
+    const size = 128;
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    const c = size / 2;
+
+    // 外側グロー
+    const grad = ctx.createRadialGradient(c, c, 12, c, c, 58);
+    grad.addColorStop(0, colorHex);
+    grad.addColorStop(0.65, colorHex);
+    grad.addColorStop(1, 'transparent');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(c, c, 58, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 白コア
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(c, c, 18, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 枠リング
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.arc(c, c, 38, 0, Math.PI * 2);
+    ctx.stroke();
+
+    const tex = new THREE.CanvasTexture(canvas);
+    riderTextures[colorHex] = tex;
+    return tex;
+}
+
 export class CourseRibbonLayer {
     constructor(id = 'course-ribbon-3d', widthMeters = 3.5) {
         this.id = id;
@@ -44,6 +82,9 @@ export class CourseRibbonLayer {
         this.mesh = null;
         this.tunnelXrayMesh = null; // トンネル区間の地中 X-Ray 透視メッシュ
         this.pointsMesh = null;     // メッシュ側定義点（極小・面だけ）
+        this.riderMesh = null;      // ルートメッシュ上を走る 3D 走行点
+        this.tunnelGuideMesh = null;// トンネル時の山肌地表面ガイド点
+        this.tunnelLineMesh = null; // トンネル時のライダーと山肌を結ぶ垂直点線
         this.origin = { x: 0, y: 0, z: 0 };
     }
 
@@ -93,6 +134,27 @@ export class CourseRibbonLayer {
             this.pointsMesh.geometry.dispose();
             this.pointsMesh.material.dispose();
             this.pointsMesh = null;
+        }
+
+        if (this.riderMesh) {
+            this.scene.remove(this.riderMesh);
+            this.riderMesh.geometry.dispose();
+            this.riderMesh.material.dispose();
+            this.riderMesh = null;
+        }
+
+        if (this.tunnelGuideMesh) {
+            this.scene.remove(this.tunnelGuideMesh);
+            this.tunnelGuideMesh.geometry.dispose();
+            this.tunnelGuideMesh.material.dispose();
+            this.tunnelGuideMesh = null;
+        }
+
+        if (this.tunnelLineMesh) {
+            this.scene.remove(this.tunnelLineMesh);
+            this.tunnelLineMesh.geometry.dispose();
+            this.tunnelLineMesh.material.dispose();
+            this.tunnelLineMesh = null;
         }
 
         if (!course || !course.interpolatedPoints || course.interpolatedPoints.length < 2) return;
@@ -277,11 +339,129 @@ export class CourseRibbonLayer {
             this.scene.add(this.pointsMesh);
         }
 
+        if (this.pendingRider) {
+            this.updateRider(this.pendingRider.state, this.pendingRider.groundAlt);
+            this.pendingRider = null;
+        }
+
+        this.map?.triggerRepaint();
+    }
+
+    /**
+     * ルートメッシュ上を走行する 3D 走行点、およびトンネル時の山肌ガイド点と垂直点線を更新
+     */
+    updateRider(state, groundAlt) {
+        if (!this.scene || !this.origin) {
+            this.pendingRider = { state, groundAlt };
+            return;
+        }
+        if (!state || typeof state.lon !== 'number' || typeof state.lat !== 'number') return;
+
+        const riderAlt = (state.alt || 0) + this.altitudeOffset + 0.15; // ルートメッシュ直上
+        const riderCoord = maplibregl.MercatorCoordinate.fromLngLat([state.lon, state.lat], riderAlt);
+        const rx = riderCoord.x - this.origin.x;
+        const ry = riderCoord.y - this.origin.y;
+        const rz = riderCoord.z - this.origin.z;
+
+        const isInTunnel = state.structure?.type === 'tunnel';
+
+        // 1. ルートメッシュ上の走行点（3D ライダー）
+        if (!this.riderMesh) {
+            const geom = new THREE.BufferGeometry();
+            geom.setAttribute('position', new THREE.BufferAttribute(new Float32Array([rx, ry, rz]), 3));
+            const mat = new THREE.PointsMaterial({
+                size: 24,
+                map: getRiderTexture(isInTunnel ? '#c084fc' : '#06b6d4'),
+                transparent: true,
+                sizeAttenuation: false,
+                depthTest: !isInTunnel
+            });
+            this.riderMesh = new THREE.Points(geom, mat);
+            this.scene.add(this.riderMesh);
+        } else {
+            const pos = this.riderMesh.geometry.attributes.position;
+            pos.setXYZ(0, rx, ry, rz);
+            pos.needsUpdate = true;
+            this.riderMesh.material.map = getRiderTexture(isInTunnel ? '#c084fc' : '#06b6d4');
+            this.riderMesh.material.depthTest = !isInTunnel; // トンネル時は透視（X-Ray）
+            this.riderMesh.visible = true;
+        }
+
+        // 2. トンネル時の山肌ガイド点（おまけ）と 2 点を結ぶ垂直点線
+        const effGroundAlt = (typeof groundAlt === 'number' && !isNaN(groundAlt)) ? groundAlt : (state.alt || 0);
+        // 山肌がルートメッシュより 0.5m 以上高い場合（地中トンネル）
+        const hasTunnelCover = isInTunnel && effGroundAlt > riderAlt + 0.5;
+
+        if (hasTunnelCover) {
+            // 地形メッシュ（山肌）ガイド点
+            const gCoord = maplibregl.MercatorCoordinate.fromLngLat([state.lon, state.lat], effGroundAlt + 0.5);
+            const gx = gCoord.x - this.origin.x;
+            const gy = gCoord.y - this.origin.y;
+            const gz = gCoord.z - this.origin.z;
+
+            if (!this.tunnelGuideMesh) {
+                const gGeom = new THREE.BufferGeometry();
+                gGeom.setAttribute('position', new THREE.BufferAttribute(new Float32Array([gx, gy, gz]), 3));
+                const gMat = new THREE.PointsMaterial({
+                    size: 16,
+                    map: getRiderTexture('#e879f9'),
+                    transparent: true,
+                    sizeAttenuation: false,
+                    depthTest: true
+                });
+                this.tunnelGuideMesh = new THREE.Points(gGeom, gMat);
+                this.scene.add(this.tunnelGuideMesh);
+            } else {
+                const gPos = this.tunnelGuideMesh.geometry.attributes.position;
+                gPos.setXYZ(0, gx, gy, gz);
+                gPos.needsUpdate = true;
+                this.tunnelGuideMesh.visible = true;
+            }
+
+            // 走行点と山肌ガイド点を結ぶ垂直点線（LineSegments）
+            const dh = effGroundAlt - riderAlt;
+            const segs = [];
+            const dash = 0.8;
+            const gap = 0.6;
+            const step = dash + gap;
+            for (let h = 0; h < dh; h += step) {
+                const hA = riderAlt + h;
+                const hB = Math.min(riderAlt + h + dash, effGroundAlt);
+                const cA = maplibregl.MercatorCoordinate.fromLngLat([state.lon, state.lat], hA);
+                const cB = maplibregl.MercatorCoordinate.fromLngLat([state.lon, state.lat], hB);
+                segs.push(rx, ry, cA.z - this.origin.z);
+                segs.push(rx, ry, cB.z - this.origin.z);
+            }
+
+            if (this.tunnelLineMesh) {
+                this.scene.remove(this.tunnelLineMesh);
+                this.tunnelLineMesh.geometry.dispose();
+                this.tunnelLineMesh.material.dispose();
+                this.tunnelLineMesh = null;
+            }
+
+            if (segs.length > 0) {
+                const lineGeom = new THREE.BufferGeometry();
+                lineGeom.setAttribute('position', new THREE.BufferAttribute(new Float32Array(segs), 3));
+                const lineMat = new THREE.LineBasicMaterial({
+                    color: 0xc084fc,
+                    transparent: true,
+                    opacity: 0.9,
+                    depthTest: false // 透視して山肌から地中の走行点まで明瞭に見える
+                });
+                this.tunnelLineMesh = new THREE.LineSegments(lineGeom, lineMat);
+                this.scene.add(this.tunnelLineMesh);
+            }
+        } else {
+            if (this.tunnelGuideMesh) this.tunnelGuideMesh.visible = false;
+            if (this.tunnelLineMesh) this.tunnelLineMesh.visible = false;
+        }
+
         this.map?.triggerRepaint();
     }
 
     render(gl, matrix) {
-        if ((!this.mesh && !this.pointsMesh && !this.tunnelXrayMesh) || !this.renderer || !this.scene || !this.camera) return;
+        if ((!this.mesh && !this.pointsMesh && !this.tunnelXrayMesh && !this.riderMesh) || !this.renderer || !this.scene || !this.camera) return;
 
         // 3D 地形モード時のカメラ基準標高（画面中央の地形標高）のオフセットを補正して上空浮遊を防止
         const terrainElevation = this.map?.transform?.elevation || 0;
