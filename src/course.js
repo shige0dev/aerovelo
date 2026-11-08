@@ -211,8 +211,45 @@ export class GeoCourseManager {
     }
 
     /**
-     * 補正を最小にした高度算出
-     * 10mメッシュから計算した生標高（バイリニア補間値）をそのまま採用し、橋・トンネル区間のみ端部直線で結ぶ
+     * 高度データ自体の平滑化（ガウシアン加重移動平均、全幅 300m）
+     * 10mメッシュ特有の法面・崖ノイズを除去し、高度グラフと道路メッシュの高さを滑らかに均す
+     */
+    smoothElevations(samples, alts, halfWindowMeters = 150) {
+        const n = samples.length;
+        const orig = Float64Array.from(alts);
+        const sigma = halfWindowMeters / 3.0; // 3σ = 150m (全幅 300m)
+        const twoSigmaSq = 2.0 * sigma * sigma;
+
+        for (let i = 0; i < n; i++) {
+            const curDist = samples[i].dist;
+            let weightSum = 0.0;
+            let valSum = 0.0;
+
+            // 手前方向
+            for (let j = i; j >= 0; j--) {
+                const diff = curDist - samples[j].dist;
+                if (diff > halfWindowMeters) break;
+                const w = Math.exp(-(diff * diff) / twoSigmaSq);
+                valSum += orig[j] * w;
+                weightSum += w;
+            }
+
+            // 先方向
+            for (let j = i + 1; j < n; j++) {
+                const diff = samples[j].dist - curDist;
+                if (diff > halfWindowMeters) break;
+                const w = Math.exp(-(diff * diff) / twoSigmaSq);
+                valSum += orig[j] * w;
+                weightSum += w;
+            }
+
+            alts[i] = weightSum > 0 ? valSum / weightSum : orig[i];
+        }
+    }
+
+    /**
+     * 補正された高度算出
+     * 10mメッシュから計算した標高を全幅300mで平滑化し、橋・トンネル区間を端部直線で結ぶ
      */
     applyRoadGradeSmoothing(samples) {
         const count = samples.length - 1;
@@ -225,7 +262,10 @@ export class GeoCourseManager {
         // 構造物補正前の地表面（山肌）生DEM標高を保存
         this.rawGroundElevations = Float64Array.from(alts);
 
-        // 橋・トンネル区間のみ、入口〜出口の端部路面標高（前後30m外側含む）を記録して直線で結ぶ
+        // 1. 高度データ自体の平滑化（全幅300m、ガウシアン加重移動平均）
+        this.smoothElevations(samples, alts, 150);
+
+        // 2. 橋・トンネル区間のみ、入口〜出口の端部路面標高（前後30m外側含む）を記録して直線で結ぶ
         this.linearizeStructures(samples, alts);
 
         for (let i = 0; i <= count; i++) {
