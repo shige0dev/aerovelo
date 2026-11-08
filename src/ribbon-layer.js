@@ -42,8 +42,8 @@ export class CourseRibbonLayer {
         this.renderer = null;
         this.map = null;
         this.mesh = null;
-        this.pointsMesh = null;        // メッシュ側定義点（内側：標高カラー）
-        this.pointsOutlineMesh = null; // メッシュ側定義点（外枠：スレートグレー）
+        this.tunnelXrayMesh = null; // トンネル区間の地中 X-Ray 透視メッシュ
+        this.pointsMesh = null;     // メッシュ側定義点（極小・面だけ）
         this.origin = { x: 0, y: 0, z: 0 };
     }
 
@@ -81,18 +81,19 @@ export class CourseRibbonLayer {
             this.mesh = null;
         }
 
+        if (this.tunnelXrayMesh) {
+            this.scene.remove(this.tunnelXrayMesh);
+            this.tunnelXrayMesh.geometry.dispose();
+            this.tunnelXrayMesh.material.dispose();
+            this.tunnelXrayMesh = null;
+        }
+
         if (this.pointsMesh) {
             this.scene.remove(this.pointsMesh);
             this.pointsMesh.geometry.dispose();
             this.pointsMesh.material.dispose();
             this.pointsMesh = null;
         }
-
-        if (this.pointsOutlineMesh) {
-            this.scene.remove(this.pointsOutlineMesh);
-            this.pointsOutlineMesh.geometry.dispose();
-            this.pointsOutlineMesh.material.dispose();
-            this.pointsOutlineMesh = null;
         }
 
         if (!course || !course.interpolatedPoints || course.interpolatedPoints.length < 2) return;
@@ -119,6 +120,7 @@ export class CourseRibbonLayer {
         const vertices = new Float32Array(n * 2 * 3);
         const colors = new Float32Array(n * 2 * 3);
         const indices = [];
+        const tunnelIndices = [];
 
         // 構造物（橋・トンネル）色判定ヘルパー
         const getPointColor = (dist) => {
@@ -185,6 +187,14 @@ export class CourseRibbonLayer {
                 const iR1 = (i + 1) * 2 + 1;
                 indices.push(iL0, iR0, iL1);
                 indices.push(iR0, iR1, iL1);
+
+                // トンネル区間のインデックス（手前の山肌を透視する X-Ray 用）
+                const isTunnelSeg = course.getStructureAtDist(pts[i].dist)?.type === 'tunnel' ||
+                                    course.getStructureAtDist(pts[i + 1].dist)?.type === 'tunnel';
+                if (isTunnelSeg) {
+                    tunnelIndices.push(iL0, iR0, iL1);
+                    tunnelIndices.push(iR0, iR1, iL1);
+                }
             }
         }
 
@@ -203,7 +213,23 @@ export class CourseRibbonLayer {
         this.mesh = new THREE.Mesh(geometry, material);
         this.scene.add(this.mesh);
 
-        // 3. メッシュ側にも定義点に対応した点（+2.0m 空中ドットマーカー）を生成
+        // トンネル区間の地中 X-Ray 透視メッシュ（手前の山肌をレントゲン透視）
+        if (tunnelIndices.length > 0) {
+            const tunnelGeom = new THREE.BufferGeometry();
+            tunnelGeom.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+            tunnelGeom.setIndex(tunnelIndices);
+            const tunnelMat = new THREE.MeshBasicMaterial({
+                color: 0xc084fc, // ネオンパープル
+                side: THREE.DoubleSide,
+                depthTest: false, // 山肌メッシュを手前に透視！
+                transparent: true,
+                opacity: 0.85
+            });
+            this.tunnelXrayMesh = new THREE.Mesh(tunnelGeom, tunnelMat);
+            this.scene.add(this.tunnelXrayMesh);
+        }
+
+        // 3. メッシュ側にも定義点に対応した点（極小サイズ・面だけで表示）
         if (course.rawWaypoints && course.rawWaypoints.length > 0) {
             const numWp = course.rawWaypoints.length;
             const ptVerts = new Float32Array(numWp * 3);
@@ -215,7 +241,7 @@ export class CourseRibbonLayer {
                 const samplePt = course.sampleAtDist(dist);
                 const wpAlt = (typeof samplePt.alt === 'number' && !isNaN(samplePt.alt)) ? samplePt.alt : startAlt;
 
-                // メッシュ上面（+2.0m）の直上（+0.06m）に配置してリボンとZファイトしないようにする
+                // メッシュ上面（+3.0m）の直上（+0.06m）に配置してリボンとZファイトしないようにする
                 const wpCoord = maplibregl.MercatorCoordinate.fromLngLat(
                     [samplePt.lon, samplePt.lat],
                     wpAlt + this.altitudeOffset + 0.06
@@ -226,7 +252,7 @@ export class CourseRibbonLayer {
                 ptVerts[pIdx + 1] = wpCoord.y - this.origin.y;
                 ptVerts[pIdx + 2] = wpCoord.z - this.origin.z;
 
-                // 20cm ごとに 1/256 ずつ明るくなるモノクロ明度カラー（地表面と完全一致）
+                // 20cm ごとに 1/256 ずつ明るくなるモノクロ明度カラー
                 const [pr, pg, pb] = GeoCourseManager.altToStepRgb(wpAlt, startAlt);
                 ptColors[pIdx] = pr;
                 ptColors[pIdx + 1] = pg;
@@ -235,27 +261,12 @@ export class CourseRibbonLayer {
 
             const maskTex = getCircleMaskTexture();
 
-            // 3-A. 外枠ポイント（スレートグレー #475569、サイズ 13px）
-            const outlineGeom = new THREE.BufferGeometry();
-            outlineGeom.setAttribute('position', new THREE.BufferAttribute(ptVerts, 3));
-            const outlineMat = new THREE.PointsMaterial({
-                size: 13,
-                color: 0x475569,
-                map: maskTex,
-                transparent: true,
-                alphaTest: 0.05,
-                sizeAttenuation: false,
-                depthTest: true
-            });
-            this.pointsOutlineMesh = new THREE.Points(outlineGeom, outlineMat);
-            this.scene.add(this.pointsOutlineMesh);
-
-            // 3-B. 内側標高ポイント（純粋な vertexColors、サイズ 9px）
+            // 極小サイズの純粋な面ドット（枠線なし、サイズ 5px）
             const innerGeom = new THREE.BufferGeometry();
             innerGeom.setAttribute('position', new THREE.BufferAttribute(ptVerts, 3));
             innerGeom.setAttribute('color', new THREE.BufferAttribute(ptColors, 3));
             const innerMat = new THREE.PointsMaterial({
-                size: 9,
+                size: 5, // 極小サイズ（面だけで上品に表示）
                 map: maskTex,
                 vertexColors: true,
                 transparent: true,
@@ -271,7 +282,7 @@ export class CourseRibbonLayer {
     }
 
     render(gl, matrix) {
-        if ((!this.mesh && !this.pointsMesh) || !this.renderer || !this.scene || !this.camera) return;
+        if ((!this.mesh && !this.pointsMesh && !this.tunnelXrayMesh) || !this.renderer || !this.scene || !this.camera) return;
 
         // 3D 地形モード時のカメラ基準標高（画面中央の地形標高）のオフセットを補正して上空浮遊を防止
         const terrainElevation = this.map?.transform?.elevation || 0;

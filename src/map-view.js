@@ -302,6 +302,10 @@ export class MapViewController {
         this.markers.rider?.setLngLat([state.lon, state.lat]);
         this.syncTargetMarkers(state);
 
+        // トンネル走行中（案A: 山肌の地表面メッシュ上にビーコン表示）
+        const isInTunnel = state?.structure?.type === 'tunnel';
+        this.markers.rider?.getElement()?.classList.toggle('in-tunnel', !!isInTunnel);
+
         if (!this.cam.isTransitioning && this.cam.mode !== 'free') {
             this.applyCameraTarget(state, duration, isMoving);
         }
