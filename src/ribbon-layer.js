@@ -254,6 +254,7 @@ export class CourseRibbonLayer {
             vertexColors: true,
             side: THREE.DoubleSide,
             depthTest: true,
+            depthWrite: false, // 半透明メッシュが背後や走行点を遮蔽しないように深度壁の書き込みを無効化
             transparent: true,
             opacity: 0.5 // 半透明（透明度50%）
         });
@@ -272,6 +273,7 @@ export class CourseRibbonLayer {
                 color: 0xc084fc, // ネオンパープル
                 side: THREE.DoubleSide,
                 depthTest: false, // 山肌メッシュを手前に透視！
+                depthWrite: false,
                 transparent: true,
                 opacity: 0.5 // 半透明（透明度50%）
             });
@@ -362,8 +364,8 @@ export class CourseRibbonLayer {
         }
         if (!state || typeof state.lon !== 'number' || typeof state.lat !== 'number') return;
 
-        // 走行メッシュ（+3.0m）よりさらに +0.5m 上空に配置してリボン埋まりを完全防止
-        const riderAlt = (state.alt || 0) + this.altitudeOffset + 0.5;
+        // 走行メッシュ（+3.0m）よりさらに +1.0m 上空に配置してリボン埋まりを完全防止
+        const riderAlt = (state.alt || 0) + this.altitudeOffset + 1.0;
         const riderCoord = maplibregl.MercatorCoordinate.fromLngLat([state.lon, state.lat], riderAlt);
         const rx = riderCoord.x - this.origin.x;
         const ry = riderCoord.y - this.origin.y;
@@ -376,16 +378,16 @@ export class CourseRibbonLayer {
             const geom = new THREE.BufferGeometry();
             geom.setAttribute('position', new THREE.BufferAttribute(new Float32Array([rx, ry, rz]), 3));
             const mat = new THREE.PointsMaterial({
-                size: 26,
+                size: 28,
                 map: getRiderTexture(isInTunnel ? '#c084fc' : '#06b6d4'),
                 transparent: true,
                 sizeAttenuation: false,
-                depthTest: !isInTunnel,
+                depthTest: false, // 常時最前面表示（メッシュや地形による隠れを100%防止）
                 depthWrite: false
             });
             this.riderMesh = new THREE.Points(geom, mat);
             this.riderMesh.frustumCulled = false; // カメラ移動による視錐台カリング（途中で消える不具合）を防止
-            this.riderMesh.renderOrder = 10;     // リボンの前面に確実にレンダリング
+            this.riderMesh.renderOrder = 999;    // 最前面に確実にレンダリング
             this.scene.add(this.riderMesh);
         } else {
             const pos = this.riderMesh.geometry.attributes.position;
@@ -394,7 +396,8 @@ export class CourseRibbonLayer {
             this.riderMesh.geometry.computeBoundingSphere?.();
             this.riderMesh.frustumCulled = false;
             this.riderMesh.material.map = getRiderTexture(isInTunnel ? '#c084fc' : '#06b6d4');
-            this.riderMesh.material.depthTest = !isInTunnel; // トンネル時は地中透視（X-Ray）
+            this.riderMesh.material.depthTest = false; // 常時最前面表示
+            this.riderMesh.renderOrder = 999;
             this.riderMesh.visible = true;
         }
 
