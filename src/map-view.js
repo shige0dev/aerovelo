@@ -435,21 +435,32 @@ export class MapViewController {
     }
 
     /**
-     * メイン画面上下スワイプによるカメラピッチ調整（スマホでの引っ掛かり・フレーム落ちを防止）
+     * メイン画面スワイプによるカメラアングル（横スワイプ: ライダー上下を境に反転）およびピッチ調整（縦スワイプ）
      */
     setupMainScreenSwipe() {
         const container = document.getElementById(this.containerId);
         if (!container) return;
 
-        let isDragging = false, startY = 0, startPitch = 0;
-        let pendingPitch = null;
+        let isDragging = false;
+        let startX = 0, startY = 0;
+        let startPitch = 0, startOrbit = 0;
+        let pendingPitch = null, pendingOrbit = null;
+        let isAboveRider = true;
         let rafId = null;
 
-        const flushPitchUpdate = () => {
+        const flushCameraUpdate = () => {
             rafId = null;
-            if (pendingPitch !== null && this.lastState) {
+            let changed = false;
+            if (pendingPitch !== null && pendingPitch !== this.cam.pitch) {
                 this.cam.pitch = pendingPitch;
-                this.onCameraChange?.({ pitch: pendingPitch });
+                changed = true;
+            }
+            if (pendingOrbit !== null && pendingOrbit !== this.cam.orbit) {
+                this.cam.orbit = pendingOrbit;
+                changed = true;
+            }
+            if (changed && this.lastState) {
+                this.onCameraChange?.({ pitch: this.cam.pitch, orbit: this.cam.orbit });
                 this.applyCameraTarget(this.lastState, 0);
             }
         };
@@ -459,9 +470,26 @@ export class MapViewController {
             if (e.target.closest('#top-bar, #hud-metrics, #bottom-bar, .floating-dialog, .compass-widget')) return;
 
             isDragging = true;
+            startX = e.clientX;
             startY = e.clientY;
             startPitch = this.cam.pitch;
+            startOrbit = this.cam.orbit;
             pendingPitch = startPitch;
+            pendingOrbit = startOrbit;
+
+            // 現在ポイント（ライダー位置）の画面Y座標を取得し、上下どちらをタップしたか判定
+            const rect = container.getBoundingClientRect();
+            let riderScreenY = rect.top + rect.height * 0.65;
+            if (this.map && this.lastState) {
+                try {
+                    const pt = this.map.project([this.lastState.lon, this.lastState.lat]);
+                    if (pt && typeof pt.y === 'number') {
+                        riderScreenY = rect.top + pt.y;
+                    }
+                } catch {}
+            }
+            isAboveRider = startY < riderScreenY;
+
             container.setPointerCapture?.(e.pointerId);
             e.preventDefault();
         }, { passive: false });
@@ -469,12 +497,23 @@ export class MapViewController {
         container.addEventListener('pointermove', (e) => {
             if (!isDragging || this.cam.mode !== 'track') return;
             e.preventDefault();
+            const dx = e.clientX - startX;
             const dy = e.clientY - startY;
+
+            // 1. 縦スワイプ: ピッチ調整 (20〜75度)
             const nextPitch = clamp(Math.round((startPitch - dy * 0.2) * 10) / 10, 20, 75);
-            if (nextPitch !== pendingPitch) {
+
+            // 2. 横スワイプ: アングル(orbit)調整 (-180〜180度)
+            // 現在ポイント（ライダー位置）の上下を境に反応を反転
+            const direction = isAboveRider ? 1 : -1;
+            const deltaAngle = dx * 0.35 * direction;
+            const nextOrbit = clamp(Math.round(startOrbit + deltaAngle), -180, 180);
+
+            if (nextPitch !== pendingPitch || nextOrbit !== pendingOrbit) {
                 pendingPitch = nextPitch;
+                pendingOrbit = nextOrbit;
                 if (!rafId) {
-                    rafId = requestAnimationFrame(flushPitchUpdate);
+                    rafId = requestAnimationFrame(flushCameraUpdate);
                 }
             }
         }, { passive: false });
@@ -485,7 +524,7 @@ export class MapViewController {
                 try { container.releasePointerCapture?.(e.pointerId); } catch {}
                 if (rafId) {
                     cancelAnimationFrame(rafId);
-                    flushPitchUpdate();
+                    flushCameraUpdate();
                 }
             }
         };

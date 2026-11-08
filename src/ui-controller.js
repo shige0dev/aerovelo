@@ -306,7 +306,7 @@ export class UIController {
         const osmBadge = s.osmStatus === 'ok'
             ? `<span style="color:#4ade80;font-weight:700;">🟢 接続成功 (${s.osmSource || 'OSM API v0.6'})</span>`
             : s.osmStatus === 'error'
-                ? `<span style="color:#f87171;font-weight:700;">🔴 OSM接続失敗${s.hasFileStructures ? '（GeoJSON内タグのみ適用）' : ''}</span>`
+                ? `<span style="color:#f87171;font-weight:700;">🔴 OSM接続失敗</span>`
                 : `<span style="color:#fbbf24;font-weight:700;">⏳ OSM照合中...</span>`;
 
         const formatList = (items, color) => {

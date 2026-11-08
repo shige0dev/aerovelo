@@ -26,12 +26,10 @@ export const DEFAULT_LAKE_ROUTE = [
 ];
 
 export class GeoCourseManager {
-    constructor(waypoints = DEFAULT_LAKE_ROUTE, name = 'コース', isWebEditor = false, structures = []) {
+    constructor(waypoints = DEFAULT_LAKE_ROUTE, name = 'コース', isWebEditor = false) {
         this.name = name;
         this.rawWaypoints = waypoints;
         this.isWebEditor = isWebEditor;
-        // 橋・トンネル区間 [{ type, startIdx, endIdx }]（waypoint インデックス）
-        this.structures = structures;
         this.structureRanges = [];
         this.osmStructuresChecked = false;
         this.osmStatus = 'pending';
@@ -58,10 +56,10 @@ export class GeoCourseManager {
     }
 
     /**
-     * GPX / GeoJSON 読み込み時に 10mメッシュ自動補正をかけるべきコースかを判定
+     * GPX 読み込み時に 10mメッシュ自動補正をかけるべきコースかを判定
      */
     needsAutoDemCorrection() {
-        return true; // GPX / GeoJSON 読み込み時に常に橋・トンネル認識＋高度補正を実行
+        return true; // GPX 読み込み時に常に橋・トンネル認識＋高度補正を実行
     }
 
     /**
@@ -101,7 +99,7 @@ export class GeoCourseManager {
     }
 
     /**
-     * OpenStreetMap 公式 API から橋・トンネル区間を取得し、GeoJSON タグ由来の区間とマージする
+     * OpenStreetMap 公式 API から橋・トンネル区間を取得する
      * @returns {Promise<boolean>} 取得・確認が完了した場合 true
      */
     async loadOsmStructures() {
@@ -116,8 +114,7 @@ export class GeoCourseManager {
         this.osmStatus = 'ok';
         this.osmSource = res.source || 'OSM API v0.6';
 
-        const combined = [...this.structureRanges, ...(res.ranges || [])];
-        this.structureRanges = GeoCourseManager.mergeStructureRanges(combined);
+        this.structureRanges = GeoCourseManager.mergeStructureRanges(res.ranges || []);
         this.applyRoadGradeSmoothing(this.rawSamples);
         return true;
     }
@@ -155,8 +152,7 @@ export class GeoCourseManager {
             bridgeCount: bridges.length,
             tunnelCount: tunnels.length,
             osmStatus: this.osmStatus,
-            osmSource: this.osmSource,
-            hasFileStructures: Array.isArray(this.structures) && this.structures.length > 0
+            osmSource: this.osmSource
         };
     }
 
@@ -212,11 +208,7 @@ export class GeoCourseManager {
             this.cumDistances.push(total);
         }
         this.totalDistance = total;
-
-        // 橋・トンネル区間を距離範囲 (m) に変換
-        this.structureRanges = (this.structures || [])
-            .map((s) => ({ type: s.type, d0: this.cumDistances[s.startIdx], d1: this.cumDistances[s.endIdx] }))
-            .filter((r) => r.d0 !== undefined && r.d1 !== undefined && r.d1 > r.d0);
+        this.structureRanges = [];
 
         const SAMPLES = Math.min(4000, Math.max(1000, Math.round(total / 5)));
         this.rawSamples = [];
