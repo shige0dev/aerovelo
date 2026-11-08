@@ -168,12 +168,10 @@ export class CourseRibbonLayer {
         const indices = [];
         const tunnelIndices = [];
 
-        // 構造物（橋・トンネル）色判定ヘルパー
+        // 勾配（-20% ~ +20%, 0.2%刻み）に応じた色相カラー
         const getPointColor = (dist) => {
-            const struct = course.getStructureAtDist(dist);
-            if (struct?.type === 'bridge') return [0.96, 0.62, 0.07]; // アンバー
-            if (struct?.type === 'tunnel') return [0.66, 0.33, 0.97]; // パープル
-            return [1.0, 1.0, 1.0]; // 基本は白色
+            const slope = course.getSlopeAtDist(dist);
+            return GeoCourseManager.slopeToRgb(slope);
         };
 
         for (let i = 0; i < n; i++) {
