@@ -5,6 +5,7 @@
 
 import { clamp } from './utils.js';
 import { HYBRID_DEM_URL, registerGsiDemProtocol } from './dem-service.js';
+import { CourseRibbonLayer } from './ribbon-layer.js';
 
 export class MapViewController {
     constructor(containerId = 'map', initialState = { lon: 138.583, lat: 35.474, bearing: 0 }, onCameraChange = null) {
@@ -25,6 +26,7 @@ export class MapViewController {
         this.markerVisible = { fwd: false, bwd: false, contour: false };
         this.isMapLoaded = false;
         this.demSource = null;
+        this.ribbonLayer = new CourseRibbonLayer('course-ribbon-3d', 3.5);
 
         registerGsiDemProtocol();
         this.initMap(initialState);
@@ -169,6 +171,11 @@ export class MapViewController {
             this.markers.bwd = makeMarker('target-marker bwd-marker', '<div class="target-dot" title="後方注視点"></div>');
             this.syncTargetMarkers(startState);
 
+            // 3D コースリボンレイヤー（地面 + 1.0m の空中・立体道路オブジェクト）を追加
+            if (!this.map.getLayer(this.ribbonLayer.id)) {
+                this.map.addLayer(this.ribbonLayer);
+            }
+
             if (this.pendingCourse) {
                 this.setCourse(this.pendingCourse, this.pendingState);
                 this.pendingCourse = null;
@@ -200,6 +207,9 @@ export class MapViewController {
             this.pendingState = initialState;
             return;
         }
+
+        // 3D コースリボン（地面 + 1.0m）の更新
+        this.ribbonLayer?.updateCourse(course);
 
         const geojsonData = {
             type: 'Feature',
