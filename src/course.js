@@ -58,10 +58,10 @@ export class GeoCourseManager {
     }
 
     /**
-     * Webエディタ製や標高なし等、10mメッシュ自動補正をかけるべきコースかを判定
+     * GPX / GeoJSON 読み込み時に 10mメッシュ自動補正をかけるべきコースかを判定
      */
     needsAutoDemCorrection() {
-        return !this.hasElevationData() || this.isWebEditor || /hiyoshi|shimanami|kashida/i.test(this.name);
+        return true; // GPX / GeoJSON 読み込み時に常に橋・トンネル認識＋高度補正を実行
     }
 
     /**
@@ -303,6 +303,10 @@ export class GeoCourseManager {
         // 4. 橋・トンネル区間はフィルター後の端部高度と端部高度を厳密な直線で結ぶ
         this.linearizeStructuresExact(samples, smoothedAlts);
 
+        for (let i = 0; i <= count; i++) {
+            samples[i].alt = smoothedAlts[i];
+        }
+
         this.interpolatedPoints = samples.map((s, idx) => ({
             dist: s.dist,
             lon: s.lon,
@@ -313,6 +317,7 @@ export class GeoCourseManager {
 
     /**
      * 橋・トンネル区間の標高を、入口・出口の路面標高（区間の外側15mの中央値）を結ぶ直線に置き換える（前処理用）
+     * 各構造物オブジェクトに端部標高 (alt0, alt1) を記録する
      */
     linearizeStructures(samples, alts) {
         const ranges = this.structureRanges || [];
@@ -332,7 +337,8 @@ export class GeoCourseManager {
             return w[Math.floor(w.length / 2)];
         };
 
-        for (const { d0, d1 } of ranges) {
+        for (const r of ranges) {
+            const { d0, d1 } = r;
             let i0 = -1, i1 = -1;
             for (let i = 0; i < n; i++) {
                 const d = samples[i].dist;
@@ -343,6 +349,9 @@ export class GeoCourseManager {
 
             const a0 = medianIn(d0 - WINDOW, d0 - 1e-6, i0 - 1);
             const a1 = medianIn(d1 + 1e-6, d1 + WINDOW, i1 + 1);
+            r.alt0 = a0;
+            r.alt1 = a1;
+
             for (let i = i0; i <= i1; i++) {
                 const t = (samples[i].dist - d0) / (d1 - d0);
                 alts[i] = a0 + (a1 - a0) * clamp(t, 0, 1);
@@ -351,42 +360,52 @@ export class GeoCourseManager {
     }
 
     /**
-     * フィルター適用後の標高に対し、橋・トンネル区間の始端と終端の高度を完全な直線で結ぶ（最終確定用）
+     * 橋・トンネル区間を端部標高 (alt0, alt1) を結ぶ厳密な直線高度で上書きする（最終確定用）
      */
     linearizeStructuresExact(samples, alts) {
         const ranges = this.structureRanges || [];
         if (!ranges.length) return;
         const n = samples.length;
 
-        for (const { d0, d1 } of ranges) {
-            let i0 = -1, i1 = -1;
+        for (const r of ranges) {
+            const { d0, d1, alt0, alt1 } = r;
+            if (d1 <= d0 || alt0 == null || alt1 == null) continue;
+
             for (let i = 0; i < n; i++) {
                 const d = samples[i].dist;
-                if (i0 < 0 && d >= d0) i0 = i;
-                if (d <= d1) i1 = i;
-            }
-            if (i0 < 0 || i1 < i0) continue;
-
-            const idx0 = Math.max(0, i0 - 1);
-            const idx1 = Math.min(n - 1, i1 + 1);
-            const dist0 = samples[idx0].dist;
-            const dist1 = samples[idx1].dist;
-            const a0 = alts[idx0];
-            const a1 = alts[idx1];
-            const span = dist1 - dist0;
-            if (span <= 0) continue;
-
-            for (let i = i0; i <= i1; i++) {
-                const t = clamp((samples[i].dist - dist0) / span, 0, 1);
-                alts[i] = a0 + (a1 - a0) * t;
+                if (d >= d0 && d <= d1) {
+                    const t = clamp((d - d0) / (d1 - d0), 0, 1);
+                    alts[i] = alt0 + (alt1 - alt0) * t;
+                }
             }
         }
     }
 
     sampleAtDist(targetDist) {
+        const clampedDist = clamp(targetDist, 0, this.totalDistance);
+
+        // 橋・トンネル区間内であれば、端部の高さを維持した直線標高を返す
+        const struct = this.getStructureAtDist(clampedDist);
+        if (struct && struct.d1 > struct.d0 && struct.alt0 != null && struct.alt1 != null) {
+            const t = clamp((clampedDist - struct.d0) / (struct.d1 - struct.d0), 0, 1);
+            const alt = struct.alt0 + (struct.alt1 - struct.alt0) * t;
+
+            const pts = this.interpolatedPoints;
+            const sampleCount = pts.length - 1;
+            const exactIdx = (clampedDist / (this.totalDistance || 1)) * sampleCount;
+            const idx = clamp(Math.floor(exactIdx), 0, sampleCount - 1);
+            const r = exactIdx - idx;
+            const pA = pts[idx], pB = pts[idx + 1];
+            return {
+                dist: clampedDist,
+                lon: lerp(pA.lon, pB.lon, r),
+                lat: lerp(pA.lat, pB.lat, r),
+                alt
+            };
+        }
+
         const pts = this.interpolatedPoints;
         const sampleCount = pts.length - 1;
-        const clampedDist = clamp(targetDist, 0, this.totalDistance);
         const exactIdx = (clampedDist / (this.totalDistance || 1)) * sampleCount;
         const idx = clamp(Math.floor(exactIdx), 0, sampleCount - 1);
         const r = exactIdx - idx;

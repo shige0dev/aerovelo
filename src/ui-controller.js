@@ -311,7 +311,7 @@ export class UIController {
 
         const formatList = (items, color) => {
             if (!items.length) {
-                return `<div style="color:#64748b;font-size:12px;padding:4px 0 8px 8px;">該当区間なし (0箇所)</div>`;
+                return `<div style="color:#64748b;font-size:11px;padding:2px 0 6px 6px;">該当なし (0箇所)</div>`;
             }
             const rows = items.map((r, i) => {
                 const km0 = (r.d0 / 1000).toFixed(2);
@@ -320,33 +320,33 @@ export class UIController {
                 const alt0 = Math.round(course.sampleAtDist(r.d0).alt);
                 const alt1 = Math.round(course.sampleAtDist(r.d1).alt);
                 const nameLabel = r.name ? ` <span style="color:#cbd5e1;">[${r.name}]</span>` : '';
-                return `<div style="display:flex;justify-content:space-between;padding:3px 8px;border-left:3px solid ${color};margin:3px 0;background:rgba(30,41,59,0.55);border-radius:0 4px 4px 0;font-size:12px;">
+                return `<div style="display:flex;justify-content:space-between;padding:2px 6px;border-left:3px solid ${color};margin:2px 0;background:rgba(30,41,59,0.55);border-radius:0 4px 4px 0;font-size:11px;">
                     <span>#${i + 1} ${km0}〜${km1}km (${lenM}m)${nameLabel}</span>
-                    <span style="color:#94a3b8;font-family:monospace;">標高 ${alt0}m→${alt1}m</span>
+                    <span style="color:#94a3b8;font-family:monospace;">${alt0}m→${alt1}m</span>
                 </div>`;
             }).join('');
-            return `<div style="margin:4px 0 10px 0;">${rows}</div>`;
+            return `<div style="margin:2px 0 6px 0;">${rows}</div>`;
         };
 
         modalStructuresBody.innerHTML = `
-            <div style="margin-bottom:10px;padding:8px 10px;background:rgba(15,23,42,0.8);border-radius:6px;border:1px solid rgba(148,163,184,0.2);font-size:12px;">
+            <div style="margin-bottom:8px;padding:6px 8px;background:rgba(15,23,42,0.8);border-radius:6px;border:1px solid rgba(148,163,184,0.2);font-size:11px;line-height:1.4;">
                 <div><strong>コース:</strong> ${course.name} (${(course.totalDistance / 1000).toFixed(2)} km)</div>
-                <div><strong>OSMアクセス:</strong> ${osmBadge}</div>
-                <div><strong>高度補正:</strong> ${course.isGsiCorrected ? '国土地理院 10mメッシュ (DEM10B)' : 'コース標高'} ＋ 構造物端部間直線補間</div>
+                <div><strong>OSM:</strong> ${osmBadge}</div>
+                <div><strong>高度:</strong> ${course.isGsiCorrected ? '国土地理院 10m' : 'コース標高'} ＋ 端部直線維持</div>
             </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
-                <div style="padding:10px;border-radius:8px;background:rgba(245,158,11,0.15);border:1px solid #f59e0b;text-align:center;">
-                    <div style="font-size:11px;color:#fbbf24;font-weight:700;">🌉 BRIDGE (橋)</div>
-                    <div style="font-size:22px;font-weight:800;color:#ffffff;">${s.bridgeCount} <span style="font-size:12px;font-weight:400;">箇所</span></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px;">
+                <div style="padding:6px;border-radius:6px;background:rgba(245,158,11,0.15);border:1px solid #f59e0b;text-align:center;">
+                    <div style="font-size:10px;color:#fbbf24;font-weight:700;">🌉 BRIDGE (橋)</div>
+                    <div style="font-size:18px;font-weight:800;color:#ffffff;">${s.bridgeCount} <span style="font-size:11px;font-weight:400;">箇所</span></div>
                 </div>
-                <div style="padding:10px;border-radius:8px;background:rgba(168,85,247,0.15);border:1px solid #a855f7;text-align:center;">
-                    <div style="font-size:11px;color:#c084fc;font-weight:700;">🚇 TUNNEL (トンネル)</div>
-                    <div style="font-size:22px;font-weight:800;color:#ffffff;">${s.tunnelCount} <span style="font-size:12px;font-weight:400;">箇所</span></div>
+                <div style="padding:6px;border-radius:6px;background:rgba(168,85,247,0.15);border:1px solid #a855f7;text-align:center;">
+                    <div style="font-size:10px;color:#c084fc;font-weight:700;">🚇 TUNNEL (トンネル)</div>
+                    <div style="font-size:18px;font-weight:800;color:#ffffff;">${s.tunnelCount} <span style="font-size:11px;font-weight:400;">箇所</span></div>
                 </div>
             </div>
-            <div style="font-weight:700;color:#fbbf24;font-size:12px;">🌉 BRIDGE 区間一覧 (コース色: オレンジ / 端部間直線高度)</div>
+            <div style="font-weight:700;color:#fbbf24;font-size:11px;">🌉 BRIDGE (オレンジ / 端部直線維持)</div>
             ${formatList(s.bridges, '#f59e0b')}
-            <div style="font-weight:700;color:#c084fc;font-size:12px;margin-top:6px;">🚇 TUNNEL 区間一覧 (コース色: パープル / 端部間直線高度)</div>
+            <div style="font-weight:700;color:#c084fc;font-size:11px;margin-top:4px;">🚇 TUNNEL (パープル / 端部直線維持)</div>
             ${formatList(s.tunnels, '#a855f7')}
         `;
         modalStructures.style.display = 'flex';
