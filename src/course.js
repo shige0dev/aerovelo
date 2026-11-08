@@ -223,65 +223,48 @@ export class GeoCourseManager {
     }
 
     /**
-     * 橋・トンネル区間の標高を、入口・出口の路面標高（外側15mの中央値）を結ぶ直線に置き換える
+     * 橋・トンネル区間の標高を、端点よりも前後10m外側の地点の高さに合わせ、その間を直線で結ぶ
      */
     linearizeStructures(samples, alts) {
         const ranges = this.structureRanges || [];
         if (!ranges.length) return;
         const n = samples.length;
         const orig = Float64Array.from(alts);
-        const WINDOW = 15;
+        const OFFSET = 10; // 端点よりも前後10m外まで含める
 
-        const medianIn = (from, to, fallbackIdx) => {
-            const w = [];
+        const sampleAltAt = (targetD) => {
+            let closestIdx = 0;
+            let minDiff = Infinity;
             for (let i = 0; i < n; i++) {
-                const d = samples[i].dist;
-                if (d >= from && d <= to) w.push(orig[i]);
+                const diff = Math.abs(samples[i].dist - targetD);
+                if (diff < minDiff) {
+                    minDiff = diff;
+                    closestIdx = i;
+                }
             }
-            if (!w.length) return orig[clamp(fallbackIdx, 0, n - 1)];
-            w.sort((a, b) => a - b);
-            return w[Math.floor(w.length / 2)];
+            return orig[closestIdx];
         };
 
         for (const r of ranges) {
             const { d0, d1 } = r;
-            let i0 = -1, i1 = -1;
-            for (let i = 0; i < n; i++) {
-                const d = samples[i].dist;
-                if (i0 < 0 && d >= d0) i0 = i;
-                if (d <= d1) i1 = i;
-            }
-            if (i0 < 0 || i1 < i0) continue;
+            const extD0 = Math.max(0, d0 - OFFSET);
+            const extD1 = Math.min(this.totalDistance, d1 + OFFSET);
+            if (extD1 <= extD0) continue;
 
-            const a0 = medianIn(d0 - WINDOW, d0 - 1e-6, i0 - 1);
-            const a1 = medianIn(d1 + 1e-6, d1 + WINDOW, i1 + 1);
+            // 前後10m外側の端の高さ
+            const a0 = sampleAltAt(extD0);
+            const a1 = sampleAltAt(extD1);
             r.alt0 = a0;
             r.alt1 = a1;
+            r.extD0 = extD0;
+            r.extD1 = extD1;
 
-            for (let i = i0; i <= i1; i++) {
-                const t = (samples[i].dist - d0) / (d1 - d0);
-                alts[i] = a0 + (a1 - a0) * clamp(t, 0, 1);
-            }
-        }
-    }
-
-    /**
-     * 橋・トンネル区間を端部標高 (alt0, alt1) を結ぶ厳密な直線高度で上書きする
-     */
-    linearizeStructuresExact(samples, alts) {
-        const ranges = this.structureRanges || [];
-        if (!ranges.length) return;
-        const n = samples.length;
-
-        for (const r of ranges) {
-            const { d0, d1, alt0, alt1 } = r;
-            if (d1 <= d0 || alt0 == null || alt1 == null) continue;
-
+            // 前後10m外まで含めた全区間を端部直線で上書き
             for (let i = 0; i < n; i++) {
                 const d = samples[i].dist;
-                if (d >= d0 && d <= d1) {
-                    const t = clamp((d - d0) / (d1 - d0), 0, 1);
-                    alts[i] = alt0 + (alt1 - alt0) * t;
+                if (d >= extD0 && d <= extD1) {
+                    const t = (d - extD0) / (extD1 - extD0);
+                    alts[i] = a0 + (a1 - a0) * clamp(t, 0, 1);
                 }
             }
         }
@@ -289,7 +272,7 @@ export class GeoCourseManager {
 
     /**
      * 指定距離の補間点（lon, lat, alt）を取得
-     * 構造物区間では端部直線高度を返し、通常区間では平滑化DEM標高を返す
+     * 構造物区間（前後10m外側含む）では端部直線高度を返し、通常区間では平滑化DEM標高を返す
      */
     sampleAtDist(targetDist) {
         const clampedDist = clamp(targetDist, 0, this.totalDistance);
@@ -300,12 +283,18 @@ export class GeoCourseManager {
         const r = exactIdx - idx;
         const pA = pts[idx], pB = pts[idx + 1];
 
-        // 橋・トンネル区間内であれば、端部の高さを維持した直線標高を返す
+        // 橋・トンネル区間内であれば、前後10m外側の高さを維持した直線標高を返す
         const struct = this.getStructureAtDist(clampedDist);
         let alt;
-        if (struct && struct.d1 > struct.d0 && struct.alt0 != null && struct.alt1 != null) {
-            const t = clamp((clampedDist - struct.d0) / (struct.d1 - struct.d0), 0, 1);
-            alt = struct.alt0 + (struct.alt1 - struct.alt0) * t;
+        if (struct && struct.alt0 != null && struct.alt1 != null) {
+            const d0 = struct.extD0 ?? struct.d0;
+            const d1 = struct.extD1 ?? struct.d1;
+            if (d1 > d0) {
+                const t = clamp((clampedDist - d0) / (d1 - d0), 0, 1);
+                alt = struct.alt0 + (struct.alt1 - struct.alt0) * t;
+            } else {
+                alt = lerp(pA.alt, pB.alt, r);
+            }
         } else {
             alt = lerp(pA.alt, pB.alt, r);
         }
@@ -375,7 +364,9 @@ export class GeoCourseManager {
         const ranges = this.structureRanges;
         if (!ranges || !ranges.length) return null;
         for (const r of ranges) {
-            if (dist >= r.d0 && dist <= r.d1) return r;
+            const d0 = r.extD0 ?? r.d0;
+            const d1 = r.extD1 ?? r.d1;
+            if (dist >= d0 && dist <= d1) return r;
         }
         return null;
     }
