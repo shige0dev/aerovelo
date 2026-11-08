@@ -230,10 +230,11 @@ export class MapViewController {
 
         if (this.map.getSource('route')) {
             this.map.getSource('route').setData(geojsonData);
-            this.map.setPaintProperty('route-line', 'line-gradient', gradientExpr);
+            this.map.setLayoutProperty('route-glow', 'visibility', 'none');
+            this.map.setLayoutProperty('route-line', 'visibility', 'none');
         } else {
             this.map.addSource('route', { type: 'geojson', data: geojsonData, lineMetrics: true });
-            const layout = { 'line-join': 'round', 'line-cap': 'round' };
+            const layout = { 'line-join': 'round', 'line-cap': 'round', 'visibility': 'none' };
             this.map.addLayer({
                 id: 'route-glow',
                 type: 'line',
@@ -250,15 +251,17 @@ export class MapViewController {
             });
         }
 
-        // 定義点（GPXポイント）の高度ステップ着色ドットレイヤー
+        // 定義点（GPXポイント）の高度ステップ着色ドットレイヤー（地盤メッシュ上は非表示）
         if (this.map.getSource('route-points')) {
             this.map.getSource('route-points').setData(pointsGeoJson);
+            this.map.setLayoutProperty('route-points-circle', 'visibility', 'none');
         } else {
             this.map.addSource('route-points', { type: 'geojson', data: pointsGeoJson });
             this.map.addLayer({
                 id: 'route-points-circle',
                 type: 'circle',
                 source: 'route-points',
+                layout: { 'visibility': 'none' },
                 paint: {
                     'circle-radius': ['interpolate', ['linear'], ['zoom'], 12, 2.5, 16, 4.5, 18, 6],
                     'circle-color': ['get', 'color'],
