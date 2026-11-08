@@ -381,18 +381,19 @@ export class GeoCourseManager {
     }
 
     /**
-     * 標高（alt）から 10cm 単位の 256階調ステップ着色カラーを返す
-     * 10cm の範囲内は均一な同一色
-     * 25.6m (256 * 0.1m) の標高差で 360° ラップアラウンド
+     * 標高（alt）から 10cm 単位のモノクロ明度（256階調）カラーを返す
+     * 10cm の範囲内は均一な同一明度（完全モノクロ）
+     * 25.6m (256 * 0.1m) の標高差で明度が黒〜白へラップアラウンド
      */
     static altToStepColor(alt, startAlt = 0) {
         const STEP_M = 0.1; // 10cm 刻み
-        const STEPS = 256;  // 256色で1周（25.6m）
+        const STEPS = 256;  // 256階調（25.6mで1周期）
         const dh = alt - startAlt;
         const step = Math.floor(dh / STEP_M);
         const idx = ((step % STEPS) + STEPS) % STEPS;
-        const hue = Math.round((idx / STEPS) * 360);
-        return `hsl(${hue}, 85%, 55%)`;
+        // 明度: 15% (黒に近いグレー) 〜 95% (白)
+        const lightness = Math.round(15 + (idx / (STEPS - 1)) * 80);
+        return `hsl(0, 0%, ${lightness}%)`;
     }
 
     /**

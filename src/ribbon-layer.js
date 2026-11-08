@@ -71,6 +71,7 @@ export class CourseRibbonLayer {
 
         // 原点は最初の点
         this.origin = { x: mercs[0].x, y: mercs[0].y, z: mercs[0].z };
+        this.originScale = scales[0];
 
         // 2. 各点での左右頂点（L, R）を生成
         const vertices = new Float32Array(n * 2 * 3);
@@ -166,9 +167,17 @@ export class CourseRibbonLayer {
     render(gl, matrix) {
         if (!this.mesh || !this.renderer || !this.scene || !this.camera) return;
 
-        // MapLibre の投影・ビュー行列に、ローカル原点への平行移動を合成
+        // 3D 地形モード時のカメラ基準標高（画面中央の地形標高）のオフセットを補正して上空浮遊を防止
+        const terrainElevation = this.map?.transform?.elevation || 0;
+        const scale = this.originScale || 1e-7;
+        const zCorrection = terrainElevation * scale;
+
         const m = new THREE.Matrix4().fromArray(matrix);
-        const l = new THREE.Matrix4().makeTranslation(this.origin.x, this.origin.y, this.origin.z);
+        const l = new THREE.Matrix4().makeTranslation(
+            this.origin.x,
+            this.origin.y,
+            this.origin.z - zCorrection
+        );
         this.camera.projectionMatrix = m.multiply(l);
 
         this.renderer.resetState();
