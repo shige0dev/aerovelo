@@ -344,8 +344,8 @@ export class GeoCourseManager {
 
     /**
      * 指定距離地点における勾配（%）を算出
-     * 前後100m（20m刻み、計11点）の高度から均等重み線形回帰トレンド勾配を計算
-     * 遠く（±100m）までしっかりと捉え、傾斜地での走行ラインの微妙なブレを吸収
+     * 平均範囲300m（前後150m、30m刻み、計11点）の高度から均等重み線形回帰トレンド勾配を計算
+     * 大局的な標高トレンドを捉え、局所的な起伏や走行ラインのブレを完全に吸収
      */
     getSlopeAtDist(targetDist) {
         const clampedDist = clamp(targetDist, 0, this.totalDistance);
@@ -356,28 +356,28 @@ export class GeoCourseManager {
             return Math.round(((s1.alt - s0.alt) / (struct.d1 - struct.d0)) * 1000) / 10;
         }
 
-        // 前後100m（20m刻み、計11点）の均等重み最小二乗線形回帰トレンド
-        // 各距離点 (±20m, ±40m, ±60m, ±80m, ±100m) の標高差から大局的な勾配を導出
+        // 平均範囲300m（前後150m、30m刻み計11点）の均等重み最小二乗線形回帰トレンド
+        // 相対距離: ±30m, ±60m, ±90m, ±120m, ±150m の標高差から大局的な勾配を導出
         const d = clampedDist;
-        const h_m100 = this.sampleAtDist(d - 100).alt;
-        const h_m80  = this.sampleAtDist(d - 80).alt;
+        const h_m150 = this.sampleAtDist(d - 150).alt;
+        const h_m120 = this.sampleAtDist(d - 120).alt;
+        const h_m90  = this.sampleAtDist(d - 90).alt;
         const h_m60  = this.sampleAtDist(d - 60).alt;
-        const h_m40  = this.sampleAtDist(d - 40).alt;
-        const h_m20  = this.sampleAtDist(d - 20).alt;
-        const h_p20  = this.sampleAtDist(d + 20).alt;
-        const h_p40  = this.sampleAtDist(d + 40).alt;
+        const h_m30  = this.sampleAtDist(d - 30).alt;
+        const h_p30  = this.sampleAtDist(d + 30).alt;
         const h_p60  = this.sampleAtDist(d + 60).alt;
-        const h_p80  = this.sampleAtDist(d + 80).alt;
-        const h_p100 = this.sampleAtDist(d + 100).alt;
+        const h_p90  = this.sampleAtDist(d + 90).alt;
+        const h_p120 = this.sampleAtDist(d + 120).alt;
+        const h_p150 = this.sampleAtDist(d + 150).alt;
 
-        const num = 1.0 * (h_p20 - h_m20) +
-                    2.0 * (h_p40 - h_m40) +
-                    3.0 * (h_p60 - h_m60) +
-                    4.0 * (h_p80 - h_m80) +
-                    5.0 * (h_p100 - h_m100);
+        const num = 1.0 * (h_p30  - h_m30) +
+                    2.0 * (h_p60  - h_m60) +
+                    3.0 * (h_p90  - h_m90) +
+                    4.0 * (h_p120 - h_m120) +
+                    5.0 * (h_p150 - h_m150);
 
-        // 分母定数 22.0 により数学的に 100% 正確な傾き（%）を導出
-        return Math.round((num / 22.0) * 10) / 10;
+        // 分母定数 33.0 (99,000 / (100 * 30)) により数学的に 100% 正確な傾き（%）を導出
+        return Math.round((num / 33.0) * 10) / 10;
     }
 
     getStateAtProgress(progress, speedKmh = 25, fwdMult = 2.0, bwdMult = 1.0) {
