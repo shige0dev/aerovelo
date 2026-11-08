@@ -297,6 +297,9 @@ export class MapViewController {
             }
             this.map.setPaintProperty('contour-lines', 'line-opacity', visibility.contour ? 0.55 : 0);
         }
+        if (typeof visibility.points === 'boolean') {
+            this.ribbonLayer?.setDefinitionPointsVisible(visibility.points);
+        }
         this.syncTargetMarkers();
     }
 
@@ -307,8 +310,8 @@ export class MapViewController {
         }
         this.syncTargetMarkers(state);
 
-        // ルートメッシュ上を走る 3D 走行点、およびトンネル時の山肌ガイド点と垂直点線を更新
-        this.ribbonLayer?.updateRider(state, state?.groundAlt);
+        // ルートメッシュ上を走る 3D 走行点を更新
+        this.ribbonLayer?.updateRider(state);
 
         if (!this.cam.isTransitioning && this.cam.mode !== 'free') {
             this.applyCameraTarget(state, duration, isMoving);
