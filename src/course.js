@@ -423,39 +423,93 @@ export class GeoCourseManager {
         return null;
     }
 
+    /**
+     * 標高（alt）から 50cm 単位の 256階調ステップ着色カラーを返す
+     * 50cm の範囲内は均一な同一色（ベタ塗り）
+     * 128m (256 * 0.5m) の標高差で 360° ラップアラウンド
+     */
+    static altToStepColor(alt, startAlt = 0) {
+        const STEP_M = 0.5; // 50cm 刻み
+        const STEPS = 256;  // 256色で1周（128m）
+        const dh = alt - startAlt;
+        const step = Math.floor(dh / STEP_M);
+        const idx = ((step % STEPS) + STEPS) % STEPS;
+        const hue = Math.round((idx / STEPS) * 360);
+        return `hsl(${hue}, 85%, 55%)`;
+    }
+
+    /**
+     * MapLibre line-gradient 用の 50cm単位ステップ高度＋構造物（橋・トンネル）カラーストップ配列を生成
+     * 進行度 0.0〜1.0 の各区間を 50cm の高度バンドごとにパキッとステップ切り替え
+     */
     getRouteColorStops() {
         const total = this.totalDistance || 1;
-        const STOPS = clamp(Math.round(total / 20), 64, 800);
-        const rawProgress = [];
-        for (let i = 0; i <= STOPS; i++) {
-            rawProgress.push(i / STOPS);
+        const startAlt = this.sampleAtDist(0).alt;
+
+        const getColorAt = (p) => {
+            const dist = p * total;
+            const struct = this.getStructureAtDist(dist);
+            if (struct) {
+                return GeoCourseManager.STRUCTURE_COLORS[struct.type] || '#f59e0b';
+            }
+            const alt = this.sampleAtDist(dist).alt;
+            return GeoCourseManager.altToStepColor(alt, startAlt);
+        };
+
+        const SAMPLES = clamp(Math.round(total / 5), 200, 2000);
+        const stops = [];
+        const eps = Math.max(0.00001, 0.2 / total);
+
+        let prevColor = getColorAt(0);
+        stops.push([0, prevColor]);
+
+        for (let i = 1; i <= SAMPLES; i++) {
+            const p = i / SAMPLES;
+            const color = getColorAt(p);
+            if (color !== prevColor) {
+                const pBefore = Math.max(0, p - eps);
+                if (pBefore > stops[stops.length - 1][0] + 0.00001) {
+                    stops.push([pBefore, prevColor]);
+                }
+                stops.push([p, color]);
+                prevColor = color;
+            }
         }
 
-        const eps = Math.max(0.0001, 0.5 / total);
+        const finalColor = getColorAt(1.0);
+        if (stops[stops.length - 1][0] < 1.0) {
+            stops.push([1.0, finalColor]);
+        }
+
+        // 橋・トンネル区間の境界も確実にシャープに挿入
         for (const r of (this.structureRanges || [])) {
             const p0 = clamp(r.d0 / total, 0, 1);
             const p1 = clamp(r.d1 / total, 0, 1);
-            if (p0 > eps) rawProgress.push(p0 - eps);
-            rawProgress.push(p0);
-            rawProgress.push(p1);
-            if (p1 + eps < 1) rawProgress.push(p1 + eps);
+            const structColor = GeoCourseManager.STRUCTURE_COLORS[r.type] || '#f59e0b';
+            if (p0 > eps) stops.push([p0 - eps, getColorAt(p0 - eps * 2)]);
+            stops.push([p0, structColor]);
+            stops.push([p1, structColor]);
+            if (p1 + eps < 1) stops.push([p1 + eps, getColorAt(p1 + eps * 2)]);
         }
 
-        rawProgress.sort((a, b) => a - b);
+        stops.sort((a, b) => a[0] - b[0]);
 
-        const stops = [];
+        const uniqueStops = [];
         let lastP = -1;
-        for (const p of rawProgress) {
-            if (p - lastP < 0.00005) continue;
-            const dist = p * total;
-            const struct = this.getStructureAtDist(dist);
-            const color = struct
-                ? (GeoCourseManager.STRUCTURE_COLORS[struct.type] || '#f59e0b')
-                : GeoCourseManager.slopeToColor(this.getStateAtProgress(p).slope);
-            stops.push([p, color]);
+        for (const [p, col] of stops) {
+            if (p - lastP < 0.00002) continue;
+            uniqueStops.push([p, col]);
             lastP = p;
         }
-        return stops;
+
+        if (uniqueStops.length === 0 || uniqueStops[0][0] > 0) {
+            uniqueStops.unshift([0, getColorAt(0)]);
+        }
+        if (uniqueStops[uniqueStops.length - 1][0] < 1.0) {
+            uniqueStops.push([1.0, getColorAt(1.0)]);
+        }
+
+        return uniqueStops;
     }
 
     static slopeToColor(slope) {
