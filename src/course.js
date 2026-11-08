@@ -149,7 +149,8 @@ export class GeoCourseManager {
         for (let i = 1; i < valid.length; i++) {
             const cur = valid[i];
             const prev = merged[merged.length - 1];
-            if (cur.type === prev.type && cur.d0 <= prev.d1 + 12) {
+            // 前後30m（計60m）の直線化範囲が重複・隣接する同種構造物は1つの区間に結合
+            if (cur.type === prev.type && cur.d0 <= prev.d1 + 60) {
                 prev.d1 = Math.max(prev.d1, cur.d1);
                 if (!prev.name && cur.name) prev.name = cur.name;
             } else {
@@ -238,14 +239,14 @@ export class GeoCourseManager {
     }
 
     /**
-     * 橋・トンネル区間の標高を、端点よりも前後10m外側の地点の高さに合わせ、その間を直線で結ぶ
+     * 橋・トンネル区間の標高を、端点よりも前後30m外側の地点の高さに合わせ、その間を直線で結ぶ
      */
     linearizeStructures(samples, alts) {
         const ranges = this.structureRanges || [];
         if (!ranges.length) return;
         const n = samples.length;
         const orig = Float64Array.from(alts);
-        const OFFSET = 10; // 端点よりも前後10m外まで含める
+        const OFFSET = 30; // 端点よりも前後30m外まで含める
 
         const sampleAltAt = (targetD) => {
             let closestIdx = 0;
@@ -266,7 +267,7 @@ export class GeoCourseManager {
             const extD1 = Math.min(this.totalDistance, d1 + OFFSET);
             if (extD1 <= extD0) continue;
 
-            // 前後10m外側の端の高さ
+            // 前後30m外側の端の高さ
             const a0 = sampleAltAt(extD0);
             const a1 = sampleAltAt(extD1);
             r.alt0 = a0;
@@ -274,7 +275,7 @@ export class GeoCourseManager {
             r.extD0 = extD0;
             r.extD1 = extD1;
 
-            // 前後10m外まで含めた全区間を端部直線で上書き
+            // 前後30m外まで含めた全区間を端部直線で上書き
             for (let i = 0; i < n; i++) {
                 const d = samples[i].dist;
                 if (d >= extD0 && d <= extD1) {
@@ -287,7 +288,7 @@ export class GeoCourseManager {
 
     /**
      * 指定距離の補間点（lon, lat, alt）を取得
-     * 構造物区間（前後10m外側含む）では端部直線高度を返し、通常区間では平滑化DEM標高を返す
+     * 構造物区間（前後30m外側含む）では端部直線高度を返し、通常区間では平滑化DEM標高を返す
      */
     sampleAtDist(targetDist) {
         const clampedDist = clamp(targetDist, 0, this.totalDistance);
@@ -298,7 +299,7 @@ export class GeoCourseManager {
         const r = exactIdx - idx;
         const pA = pts[idx], pB = pts[idx + 1];
 
-        // 橋・トンネル区間内であれば、前後10m外側の高さを維持した直線標高を返す
+        // 橋・トンネル区間内であれば、前後30m外側の高さを維持した直線標高を返す
         const struct = this.getStructureAtDist(clampedDist);
         let alt;
         if (struct && struct.alt0 != null && struct.alt1 != null) {
