@@ -316,7 +316,8 @@ export async function fetchGsiDem10mElevations(points, onProgress = null) {
         return cur[cy * 256 + cx];
     };
 
-    const sampleElevation = (tx, ty, px, py) => {
+    // 単一地点のバイリニア補間標高を取得
+    const sampleBilinearSingle = (tx, ty, px, py) => {
         const fx = px - 0.5, fy = py - 0.5;
         const x0 = Math.floor(fx), y0 = Math.floor(fy);
         const x1 = x0 + 1, y1 = y0 + 1;
@@ -335,6 +336,32 @@ export async function fetchGsiDem10mElevations(points, onProgress = null) {
         const top = e00 + (v10 - e00) * dx;
         const bot = v01 + (v11 - v01) * dx;
         return top + (bot - top) * dy;
+    };
+
+    // 半径約20m 円形ディスク（13点）ガウシアンカーネル: [dx, dy, weight]
+    // 道路脇の崖・法面の局所特異点をブレンドし、タイル境界もシームレスにまたいで平滑化
+    const CIRCLE_13_KERNEL = [
+        [ 0,  0, 8],
+        [ 1,  0, 4], [-1,  0, 4], [ 0,  1, 4], [ 0, -1, 4],
+        [ 1,  1, 2], [-1,  1, 2], [ 1, -1, 2], [-1, -1, 2],
+        [ 2,  0, 1], [-2,  0, 1], [ 0,  2, 1], [ 0, -2, 1]
+    ];
+
+    const sampleElevation = (tx, ty, px, py) => {
+        let weightedSum = 0;
+        let totalWeight = 0;
+
+        for (let i = 0; i < 13; i++) {
+            const [ox, oy, w] = CIRCLE_13_KERNEL[i];
+            const val = sampleBilinearSingle(tx, ty, px + ox, py + oy);
+            if (val !== null && !isNaN(val)) {
+                weightedSum += val * w;
+                totalWeight += w;
+            }
+        }
+
+        if (totalWeight === 0) return null;
+        return weightedSum / totalWeight;
     };
 
     let validCount = 0;

@@ -362,7 +362,7 @@ export class GeoCourseManager {
             b1 = this.sampleAtDist(Math.min(this.totalDistance, b0.dist + span));
         }
 
-        // 橋・トンネル範囲内であれば端部の高度を結ぶ直線勾配、それ以外は前後15m（計30mスパン）の標高差から算出
+        // 橋・トンネル範囲内であれば端部の高度を結ぶ直線勾配、それ以外は前後25m（計50mスパン）の標高差から算出
         const struct = this.getStructureAtDist(dist);
         let slope = 0;
         if (struct && struct.d1 - struct.d0 > 2) {
@@ -370,8 +370,8 @@ export class GeoCourseManager {
             const s1 = this.sampleAtDist(struct.d1);
             slope = Math.round(((s1.alt - s0.alt) / (struct.d1 - struct.d0)) * 1000) / 10;
         } else {
-            const bwdSlope = this.sampleAtDist(dist - 15);
-            const fwdSlope = this.sampleAtDist(dist + 15);
+            const bwdSlope = this.sampleAtDist(dist - 25);
+            const fwdSlope = this.sampleAtDist(dist + 25);
             const roadDist = fwdSlope.dist - bwdSlope.dist;
             slope = roadDist > 5 ? Math.round(((fwdSlope.alt - bwdSlope.alt) / roadDist) * 1000) / 10 : 0;
         }
