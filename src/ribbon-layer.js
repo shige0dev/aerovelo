@@ -259,6 +259,8 @@ export class CourseRibbonLayer {
         });
 
         this.mesh = new THREE.Mesh(geometry, material);
+        this.mesh.frustumCulled = false; // カメラ移動による描画スキップを防止
+        this.mesh.renderOrder = 1;
         this.scene.add(this.mesh);
 
         // トンネル区間の地中 X-Ray 透視メッシュ（手前の山肌をレントゲン透視）
@@ -274,6 +276,8 @@ export class CourseRibbonLayer {
                 opacity: 0.5 // 半透明（透明度50%）
             });
             this.tunnelXrayMesh = new THREE.Mesh(tunnelGeom, tunnelMat);
+            this.tunnelXrayMesh.frustumCulled = false;
+            this.tunnelXrayMesh.renderOrder = 2;
             this.scene.add(this.tunnelXrayMesh);
         }
 
@@ -323,6 +327,8 @@ export class CourseRibbonLayer {
                 depthTest: true
             });
             this.pointsMesh = new THREE.Points(innerGeom, innerMat);
+            this.pointsMesh.frustumCulled = false;
+            this.pointsMesh.renderOrder = 3;
             this.pointsMesh.visible = this.showDefinitionPoints; // デフォルト非表示（いつでも出せるように保持）
             this.scene.add(this.pointsMesh);
         }
@@ -356,7 +362,8 @@ export class CourseRibbonLayer {
         }
         if (!state || typeof state.lon !== 'number' || typeof state.lat !== 'number') return;
 
-        const riderAlt = (state.alt || 0) + this.altitudeOffset + 0.15; // ルートメッシュ直上
+        // 走行メッシュ（+3.0m）よりさらに +0.5m 上空に配置してリボン埋まりを完全防止
+        const riderAlt = (state.alt || 0) + this.altitudeOffset + 0.5;
         const riderCoord = maplibregl.MercatorCoordinate.fromLngLat([state.lon, state.lat], riderAlt);
         const rx = riderCoord.x - this.origin.x;
         const ry = riderCoord.y - this.origin.y;
@@ -369,18 +376,23 @@ export class CourseRibbonLayer {
             const geom = new THREE.BufferGeometry();
             geom.setAttribute('position', new THREE.BufferAttribute(new Float32Array([rx, ry, rz]), 3));
             const mat = new THREE.PointsMaterial({
-                size: 24,
+                size: 26,
                 map: getRiderTexture(isInTunnel ? '#c084fc' : '#06b6d4'),
                 transparent: true,
                 sizeAttenuation: false,
-                depthTest: !isInTunnel
+                depthTest: !isInTunnel,
+                depthWrite: false
             });
             this.riderMesh = new THREE.Points(geom, mat);
+            this.riderMesh.frustumCulled = false; // カメラ移動による視錐台カリング（途中で消える不具合）を防止
+            this.riderMesh.renderOrder = 10;     // リボンの前面に確実にレンダリング
             this.scene.add(this.riderMesh);
         } else {
             const pos = this.riderMesh.geometry.attributes.position;
             pos.setXYZ(0, rx, ry, rz);
             pos.needsUpdate = true;
+            this.riderMesh.geometry.computeBoundingSphere?.();
+            this.riderMesh.frustumCulled = false;
             this.riderMesh.material.map = getRiderTexture(isInTunnel ? '#c084fc' : '#06b6d4');
             this.riderMesh.material.depthTest = !isInTunnel; // トンネル時は地中透視（X-Ray）
             this.riderMesh.visible = true;
