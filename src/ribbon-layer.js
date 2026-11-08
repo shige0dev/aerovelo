@@ -6,29 +6,27 @@
 
 import { GeoCourseManager } from './course.js';
 
-let sharedCircleTexture = null;
-function getCirclePointTexture() {
-    if (sharedCircleTexture) return sharedCircleTexture;
+let sharedCircleMaskTexture = null;
+function getCircleMaskTexture() {
+    if (sharedCircleMaskTexture) return sharedCircleMaskTexture;
     const size = 64;
     const canvas = document.createElement('canvas');
     canvas.width = size;
     canvas.height = size;
     const ctx = canvas.getContext('2d');
 
-    // 外枠（スレートグレー）
+    // 綺麗なアンチエイリアス白円マスク（中心から半径 28px、エッジ 2px 滑らかにフェード）
+    const r = 28;
+    const grad = ctx.createRadialGradient(size / 2, size / 2, r - 2, size / 2, size / 2, r);
+    grad.addColorStop(0, 'rgba(255, 255, 255, 1.0)');
+    grad.addColorStop(1, 'rgba(255, 255, 255, 0.0)');
+    ctx.fillStyle = grad;
     ctx.beginPath();
-    ctx.arc(size / 2, size / 2, size / 2 - 2, 0, Math.PI * 2);
-    ctx.fillStyle = '#475569';
+    ctx.arc(size / 2, size / 2, r, 0, Math.PI * 2);
     ctx.fill();
 
-    // 内側（白ベース：vertexColorsが乗る）
-    ctx.beginPath();
-    ctx.arc(size / 2, size / 2, size / 2 - 8, 0, Math.PI * 2);
-    ctx.fillStyle = '#ffffff';
-    ctx.fill();
-
-    sharedCircleTexture = new THREE.CanvasTexture(canvas);
-    return sharedCircleTexture;
+    sharedCircleMaskTexture = new THREE.CanvasTexture(canvas);
+    return sharedCircleMaskTexture;
 }
 
 export class CourseRibbonLayer {
@@ -44,7 +42,8 @@ export class CourseRibbonLayer {
         this.renderer = null;
         this.map = null;
         this.mesh = null;
-        this.pointsMesh = null; // メッシュ側の定義点オブジェクト
+        this.pointsMesh = null;        // メッシュ側定義点（内側：標高カラー）
+        this.pointsOutlineMesh = null; // メッシュ側定義点（外枠：スレートグレー）
         this.origin = { x: 0, y: 0, z: 0 };
     }
 
@@ -87,6 +86,13 @@ export class CourseRibbonLayer {
             this.pointsMesh.geometry.dispose();
             this.pointsMesh.material.dispose();
             this.pointsMesh = null;
+        }
+
+        if (this.pointsOutlineMesh) {
+            this.scene.remove(this.pointsOutlineMesh);
+            this.pointsOutlineMesh.geometry.dispose();
+            this.pointsOutlineMesh.material.dispose();
+            this.pointsOutlineMesh = null;
         }
 
         if (!course || !course.interpolatedPoints || course.interpolatedPoints.length < 2) return;
@@ -202,7 +208,7 @@ export class CourseRibbonLayer {
             const numWp = course.rawWaypoints.length;
             const ptVerts = new Float32Array(numWp * 3);
             const ptColors = new Float32Array(numWp * 3);
-            const startAlt = pts[0]?.alt || course.rawWaypoints[0]?.alt || 0;
+            const startAlt = course.interpolatedPoints[0]?.alt || course.rawWaypoints[0]?.alt || 0;
 
             for (let i = 0; i < numWp; i++) {
                 const dist = course.cumDistances[i] ?? 0;
@@ -220,28 +226,44 @@ export class CourseRibbonLayer {
                 ptVerts[pIdx + 1] = wpCoord.y - this.origin.y;
                 ptVerts[pIdx + 2] = wpCoord.z - this.origin.z;
 
-                // 20cm ごとに 1/256 ずつ明るくなるモノクロ明度カラー
+                // 20cm ごとに 1/256 ずつ明るくなるモノクロ明度カラー（地表面と完全一致）
                 const [pr, pg, pb] = GeoCourseManager.altToStepRgb(wpAlt, startAlt);
                 ptColors[pIdx] = pr;
                 ptColors[pIdx + 1] = pg;
                 ptColors[pIdx + 2] = pb;
             }
 
-            const ptGeom = new THREE.BufferGeometry();
-            ptGeom.setAttribute('position', new THREE.BufferAttribute(ptVerts, 3));
-            ptGeom.setAttribute('color', new THREE.BufferAttribute(ptColors, 3));
+            const maskTex = getCircleMaskTexture();
 
-            const ptMat = new THREE.PointsMaterial({
+            // 3-A. 外枠ポイント（スレートグレー #475569、サイズ 13px）
+            const outlineGeom = new THREE.BufferGeometry();
+            outlineGeom.setAttribute('position', new THREE.BufferAttribute(ptVerts, 3));
+            const outlineMat = new THREE.PointsMaterial({
                 size: 13,
-                map: getCirclePointTexture(),
+                color: 0x475569,
+                map: maskTex,
                 transparent: true,
-                alphaTest: 0.1,
-                vertexColors: true,
+                alphaTest: 0.05,
                 sizeAttenuation: false,
                 depthTest: true
             });
+            this.pointsOutlineMesh = new THREE.Points(outlineGeom, outlineMat);
+            this.scene.add(this.pointsOutlineMesh);
 
-            this.pointsMesh = new THREE.Points(ptGeom, ptMat);
+            // 3-B. 内側標高ポイント（純粋な vertexColors、サイズ 9px）
+            const innerGeom = new THREE.BufferGeometry();
+            innerGeom.setAttribute('position', new THREE.BufferAttribute(ptVerts, 3));
+            innerGeom.setAttribute('color', new THREE.BufferAttribute(ptColors, 3));
+            const innerMat = new THREE.PointsMaterial({
+                size: 9,
+                map: maskTex,
+                vertexColors: true,
+                transparent: true,
+                alphaTest: 0.05,
+                sizeAttenuation: false,
+                depthTest: true
+            });
+            this.pointsMesh = new THREE.Points(innerGeom, innerMat);
             this.scene.add(this.pointsMesh);
         }
 
