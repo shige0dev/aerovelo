@@ -48,6 +48,38 @@ export class GeoCourseManager {
     }
 
     /**
+     * コース全体の経度・緯度バウンディングボックス [[minLon, minLat], [maxLon, maxLat]] を取得
+     */
+    getBounds() {
+        if (!this.rawWaypoints || this.rawWaypoints.length === 0) return null;
+        let minLon = Infinity, minLat = Infinity, maxLon = -Infinity, maxLat = -Infinity;
+        for (const p of this.rawWaypoints) {
+            if (p.lon < minLon) minLon = p.lon;
+            if (p.lon > maxLon) maxLon = p.lon;
+            if (p.lat < minLat) minLat = p.lat;
+            if (p.lat > maxLat) maxLat = p.lat;
+        }
+        return [[minLon, minLat], [maxLon, maxLat]];
+    }
+
+    /**
+     * 描画エンジン（MapLibre queryTerrainElevation）で取得した 3D 地形メッシュ標高を適用
+     * 地面メッシュと 1:1 完全一致させ、橋・トンネル（前後10m外側含む）の端部直線架橋を再計算
+     */
+    applyTerrainMeshElevations(elevations) {
+        if (!elevations || !this.rawSamples || this.rawSamples.length === 0) return;
+        const n = Math.min(elevations.length, this.rawSamples.length);
+        for (let i = 0; i < n; i++) {
+            const h = elevations[i];
+            if (h !== null && !isNaN(h)) {
+                this.rawSamples[i].alt = h;
+            }
+        }
+        this.isTerrainSynced = true;
+        this.applyRoadGradeSmoothing(this.rawSamples);
+    }
+
+    /**
      * GPXファイル自体に有効な標高データ (<ele>) が含まれているかを判定
      */
     hasElevationData() {

@@ -298,31 +298,49 @@ export async function fetchGsiDem10mElevations(points, onProgress = null) {
 
     await Promise.all(Array.from(z14Set).map(loadTile));
 
-    const sampleTileGrid = (grid, px, py) => {
-        if (!grid) return null;
+    const getGridPixel = (tx, ty, x, y) => {
+        let tX = tx, tY = ty, pX = x, pY = y;
+        if (pX < 0) { tX--; pX += 256; }
+        else if (pX >= 256) { tX++; pX -= 256; }
+        if (pY < 0) { tY--; pY += 256; }
+        else if (pY >= 256) { tY++; pY -= 256; }
+
+        const g = localTileCache.get(`${tX}/${tY}`);
+        if (g) return g[pY * 256 + pX];
+
+        // 隣接タイル未ロード時は現在タイル端でクランプ
+        const cur = localTileCache.get(`${tx}/${ty}`);
+        if (!cur) return null;
+        const cx = Math.max(0, Math.min(255, x));
+        const cy = Math.max(0, Math.min(255, y));
+        return cur[cy * 256 + cx];
+    };
+
+    const sampleElevation = (tx, ty, px, py) => {
         const fx = px - 0.5, fy = py - 0.5;
-        const x0 = Math.max(0, Math.min(255, Math.floor(fx)));
-        const y0 = Math.max(0, Math.min(255, Math.floor(fy)));
-        const x1 = Math.min(255, x0 + 1);
-        const y1 = Math.min(255, y0 + 1);
-        const dx = Math.max(0, Math.min(1, fx - x0));
-        const dy = Math.max(0, Math.min(1, fy - y0));
+        const x0 = Math.floor(fx), y0 = Math.floor(fy);
+        const x1 = x0 + 1, y1 = y0 + 1;
+        const dx = fx - x0, dy = fy - y0;
 
-        const e00 = grid[y0 * 256 + x0];
-        const e10 = grid[y0 * 256 + x1];
-        const e01 = grid[y1 * 256 + x0];
-        const e11 = grid[y1 * 256 + x1];
+        const e00 = getGridPixel(tx, ty, x0, y0);
+        const e10 = getGridPixel(tx, ty, x1, y0);
+        const e01 = getGridPixel(tx, ty, x0, y1);
+        const e11 = getGridPixel(tx, ty, x1, y1);
 
-        const top = e00 + (e10 - e00) * dx;
-        const bot = e01 + (e11 - e01) * dx;
+        if (e00 === null || isNaN(e00)) return null;
+        const v10 = (e10 !== null && !isNaN(e10)) ? e10 : e00;
+        const v01 = (e01 !== null && !isNaN(e01)) ? e01 : e00;
+        const v11 = (e11 !== null && !isNaN(e11)) ? e11 : v10;
+
+        const top = e00 + (v10 - e00) * dx;
+        const bot = v01 + (v11 - v01) * dx;
         return top + (bot - top) * dy;
     };
 
     let validCount = 0;
     const elevations = points.map((p) => {
         const { tx, ty, px, py } = lonLatToTileCoords(p.lon, p.lat, ZOOM);
-        const grid = localTileCache.get(`${tx}/${ty}`);
-        const alt = sampleTileGrid(grid, px, py);
+        const alt = sampleElevation(tx, ty, px, py);
         if (alt !== null && !isNaN(alt)) {
             validCount++;
             return alt;
@@ -364,26 +382,35 @@ export async function fetchTerrainDemElevations(points) {
     await Promise.all(Array.from(tileKeys).map(loadTile));
     if (tilePixels.size === 0) return null;
 
-    const decodePixel = (data, x, y) => {
-        const cx = Math.max(0, Math.min(255, x));
-        const cy = Math.max(0, Math.min(255, y));
-        const idx = (cy * 256 + cx) * 4;
+    const getPixel = (tx, ty, x, y) => {
+        let tX = tx, tY = ty, pX = x, pY = y;
+        if (pX < 0) { tX--; pX += 256; }
+        else if (pX >= 256) { tX++; pX -= 256; }
+        if (pY < 0) { tY--; pY += 256; }
+        else if (pY >= 256) { tY++; pY -= 256; }
+
+        let data = tilePixels.get(`${tX}/${tY}`);
+        if (!data) {
+            data = tilePixels.get(`${tx}/${ty}`);
+            if (!data) return null;
+            pX = Math.max(0, Math.min(255, x));
+            pY = Math.max(0, Math.min(255, y));
+        }
+        const idx = (pY * 256 + pX) * 4;
         return (data[idx] * 256 + data[idx + 1] + data[idx + 2] / 256) - 32768;
     };
 
     return points.map((p) => {
         const { tx, ty, px, py } = lonLatToTileCoords(p.lon, p.lat, zoom);
-        const data = tilePixels.get(`${tx}/${ty}`);
-        if (!data) return p.alt;
-
         const fx = px - 0.5, fy = py - 0.5;
         const x0 = Math.floor(fx), y0 = Math.floor(fy);
         const dx = fx - x0, dy = fy - y0;
 
-        const e00 = decodePixel(data, x0, y0);
-        const e10 = decodePixel(data, x0 + 1, y0);
-        const e01 = decodePixel(data, x0, y0 + 1);
-        const e11 = decodePixel(data, x0 + 1, y0 + 1);
+        const e00 = getPixel(tx, ty, x0, y0);
+        if (e00 === null) return p.alt;
+        const e10 = getPixel(tx, ty, x0 + 1, y0) ?? e00;
+        const e01 = getPixel(tx, ty, x0, y0 + 1) ?? e00;
+        const e11 = getPixel(tx, ty, x0 + 1, y0 + 1) ?? e10;
 
         const top = e00 + (e10 - e00) * dx;
         const bot = e01 + (e11 - e01) * dx;
