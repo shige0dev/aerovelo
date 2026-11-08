@@ -344,6 +344,7 @@ export class GeoCourseManager {
 
     /**
      * 指定距離地点における勾配（%）を算出
+     * 前後100m（20m刻み、計11点）の高度から加重線形回帰トレンド勾配を計算
      */
     getSlopeAtDist(targetDist) {
         const clampedDist = clamp(targetDist, 0, this.totalDistance);
@@ -353,10 +354,29 @@ export class GeoCourseManager {
             const s1 = this.sampleAtDist(struct.d1);
             return Math.round(((s1.alt - s0.alt) / (struct.d1 - struct.d0)) * 1000) / 10;
         }
-        const bwdSlope = this.sampleAtDist(clampedDist - 25);
-        const fwdSlope = this.sampleAtDist(clampedDist + 25);
-        const roadDist = fwdSlope.dist - bwdSlope.dist;
-        return roadDist > 5 ? Math.round(((fwdSlope.alt - bwdSlope.alt) / roadDist) * 1000) / 10 : 0;
+
+        // 前後100m（20m刻み）の標高加重線形回帰トレンド（計11点）
+        // 相対距離: ±20m(重み9), ±40m(重み7), ±60m(重み4), ±80m(重み2), ±100m(重み1)
+        const d = clampedDist;
+        const h_m100 = this.sampleAtDist(d - 100).alt;
+        const h_m80  = this.sampleAtDist(d - 80).alt;
+        const h_m60  = this.sampleAtDist(d - 60).alt;
+        const h_m40  = this.sampleAtDist(d - 40).alt;
+        const h_m20  = this.sampleAtDist(d - 20).alt;
+        const h_p20  = this.sampleAtDist(d + 20).alt;
+        const h_p40  = this.sampleAtDist(d + 40).alt;
+        const h_p60  = this.sampleAtDist(d + 60).alt;
+        const h_p80  = this.sampleAtDist(d + 80).alt;
+        const h_p100 = this.sampleAtDist(d + 100).alt;
+
+        const num = 18.0 * (h_p20 - h_m20) +
+                    28.0 * (h_p40 - h_m40) +
+                    24.0 * (h_p60 - h_m60) +
+                    16.0 * (h_p80 - h_m80) +
+                    10.0 * (h_p100 - h_m100);
+
+        // 分母定数 104.0 により数学的に 100% 正確な傾き（%）を導出
+        return Math.round((num / 104.0) * 10) / 10;
     }
 
     getStateAtProgress(progress, speedKmh = 25, fwdMult = 2.0, bwdMult = 1.0) {
