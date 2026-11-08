@@ -381,13 +381,13 @@ export class GeoCourseManager {
     }
 
     /**
-     * 標高（alt）から 50cm 単位の 256階調ステップ着色カラーを返す
-     * 50cm の範囲内は均一な同一色（ベタ塗り）
-     * 128m (256 * 0.5m) の標高差で 360° ラップアラウンド
+     * 標高（alt）から 10cm 単位の 256階調ステップ着色カラーを返す
+     * 10cm の範囲内は均一な同一色
+     * 25.6m (256 * 0.1m) の標高差で 360° ラップアラウンド
      */
     static altToStepColor(alt, startAlt = 0) {
-        const STEP_M = 0.5; // 50cm 刻み
-        const STEPS = 256;  // 256色で1周（128m）
+        const STEP_M = 0.1; // 10cm 刻み
+        const STEPS = 256;  // 256色で1周（25.6m）
         const dh = alt - startAlt;
         const step = Math.floor(dh / STEP_M);
         const idx = ((step % STEPS) + STEPS) % STEPS;
