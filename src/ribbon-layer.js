@@ -94,7 +94,6 @@ export class CourseRibbonLayer {
             this.pointsMesh.material.dispose();
             this.pointsMesh = null;
         }
-        }
 
         if (!course || !course.interpolatedPoints || course.interpolatedPoints.length < 2) return;
 
