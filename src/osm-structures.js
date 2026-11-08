@@ -16,6 +16,9 @@ const BBOX_PAD_DEG = 0.0005;     // タイル端の余白（約 50m）
 const MATCH_TOL_M = 18;          // コース線分と OSM way の一致許容距離 (m)
 const MAX_ANGLE_RAD = Math.PI / 4; // コースと way の向きの許容差 (45°: 立体交差を除外しつつカーブ橋・トンネルを許容)
 const MERGE_GAP_M = 12;          // 連続する同種構造物 way を結合する距離閾値 (m)
+const SPLIT_GAP_M = 35;          // 往復路や離れた地点での通過を別々に分割する間隔閾値 (m)
+const MAX_BRIDGE_LEN_M = 1500;   // 橋の物理的上限長 (m)
+const MAX_TUNNEL_LEN_M = 5000;   // トンネルの物理的上限長 (m)
 const REQUEST_TIMEOUT_MS = 15000;
 
 function isStructureTag(value) {
@@ -200,8 +203,7 @@ export function matchStructures(samples, ways) {
 
         const wxy = w.geometry.map((g) => toXY(g.lon, g.lat));
 
-        let matchedMinD = Infinity;
-        let matchedMaxD = -Infinity;
+        const matchedDistances = [];
 
         for (let k = 0; k < wxy.length - 1; k++) {
             const [wax, way_] = wxy[k];
@@ -239,19 +241,46 @@ export function matchStructures(samples, ways) {
                 }
 
                 if (bestRouteD !== null) {
-                    if (bestRouteD < matchedMinD) matchedMinD = bestRouteD;
-                    if (bestRouteD > matchedMaxD) matchedMaxD = bestRouteD;
+                    matchedDistances.push(bestRouteD);
                 }
             }
         }
 
-        if (matchedMaxD > matchedMinD && (matchedMaxD - matchedMinD) >= 3) {
-            rawIntervals.push({
-                type,
-                d0: matchedMinD,
-                d1: matchedMaxD,
-                name: w.tags?.name || ''
-            });
+        // 往復コース等で同一 way を複数回（行きと帰り）通過した場合に対応するため、
+        // マッチした距離をソートし、連続する区間（間隔が SPLIT_GAP_M 以内）ごとに独立した構造物として分割登録する
+        if (matchedDistances.length > 0) {
+            matchedDistances.sort((a, b) => a - b);
+            const maxLen = type === 'bridge' ? MAX_BRIDGE_LEN_M : MAX_TUNNEL_LEN_M;
+            let segStart = matchedDistances[0];
+            let segEnd = matchedDistances[0];
+
+            for (let i = 1; i < matchedDistances.length; i++) {
+                const d = matchedDistances[i];
+                if (d - segEnd <= SPLIT_GAP_M) {
+                    segEnd = d;
+                } else {
+                    const span = segEnd - segStart;
+                    if (span >= 3 && span <= maxLen) {
+                        rawIntervals.push({
+                            type,
+                            d0: segStart,
+                            d1: segEnd,
+                            name: w.tags?.name || ''
+                        });
+                    }
+                    segStart = d;
+                    segEnd = d;
+                }
+            }
+            const span = segEnd - segStart;
+            if (span >= 3 && span <= maxLen) {
+                rawIntervals.push({
+                    type,
+                    d0: segStart,
+                    d1: segEnd,
+                    name: w.tags?.name || ''
+                });
+            }
         }
     }
 
@@ -262,8 +291,10 @@ export function matchStructures(samples, ways) {
     for (let i = 1; i < rawIntervals.length; i++) {
         const cur = rawIntervals[i];
         const prev = merged[merged.length - 1];
-        if (cur.type === prev.type && cur.d0 <= prev.d1 + MERGE_GAP_M) {
-            prev.d1 = Math.max(prev.d1, cur.d1);
+        const maxLen = cur.type === 'bridge' ? MAX_BRIDGE_LEN_M : MAX_TUNNEL_LEN_M;
+        const candidateEnd = Math.max(prev.d1, cur.d1);
+        if (cur.type === prev.type && cur.d0 <= prev.d1 + MERGE_GAP_M && (candidateEnd - prev.d0) <= maxLen) {
+            prev.d1 = candidateEnd;
             if (!prev.name && cur.name) prev.name = cur.name;
         } else {
             merged.push(cur);

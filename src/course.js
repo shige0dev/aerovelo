@@ -149,9 +149,11 @@ export class GeoCourseManager {
         for (let i = 1; i < valid.length; i++) {
             const cur = valid[i];
             const prev = merged[merged.length - 1];
-            // 前後30m（計60m）の直線化範囲が重複・隣接する同種構造物は1つの区間に結合
-            if (cur.type === prev.type && cur.d0 <= prev.d1 + 60) {
-                prev.d1 = Math.max(prev.d1, cur.d1);
+            const maxLen = cur.type === 'bridge' ? 1500 : 5000;
+            const candidateEnd = Math.max(prev.d1, cur.d1);
+            // 前後30m（計60m）の直線化範囲が重複・隣接する同種構造物は1つの区間に結合（最大長上限内）
+            if (cur.type === prev.type && cur.d0 <= prev.d1 + 60 && (candidateEnd - prev.d0) <= maxLen) {
+                prev.d1 = candidateEnd;
                 if (!prev.name && cur.name) prev.name = cur.name;
             } else {
                 merged.push({ ...cur });
@@ -305,6 +307,13 @@ export class GeoCourseManager {
 
         for (const r of ranges) {
             const { d0, d1 } = r;
+            const maxAllowedLen = r.type === 'bridge' ? 1500 : 5000;
+            // 異常に長い構造物（またはコース全長の25%超）は直線化補正をスキップ
+            if ((d1 - d0) > maxAllowedLen || (d1 - d0) > this.totalDistance * 0.25) {
+                console.warn(`[linearizeStructures] Structure length ${Math.round(d1 - d0)}m exceeds limit (${maxAllowedLen}m), skipping.`, r);
+                continue;
+            }
+
             const extD0 = Math.max(0, d0 - OFFSET);
             const extD1 = Math.min(this.totalDistance, d1 + OFFSET);
             if (extD1 <= extD0) continue;
