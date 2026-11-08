@@ -387,18 +387,31 @@ export class GeoCourseManager {
     }
 
     /**
-     * 標高（alt）から 10cm 単位のモノクロ明度カラーを返す
-     * 10cm ごとに 1/256 ずつ明るくなり、25.6m (256 * 0.1m) で黒〜白へ推移
+     * 標高（alt）から 20cm 単位のモノクロ明度カラーを返す
+     * 20cm ごとに 1/256 ずつ明るくなり、51.2m (256 * 0.2m) で黒〜白へ推移
      */
     static altToStepColor(alt, startAlt = 0) {
-        const STEP_M = 0.1; // 10cm 刻み
-        const STEPS = 256;  // 256階調（25.6m で 1 周期）
+        const STEP_M = 0.2; // 20cm 刻み（20cm ごとに 1 UP）
+        const STEPS = 256;  // 256階調（51.2m で 1 周期）
         const dh = Math.round(((alt || 0) - startAlt) * 100) / 100;
         const step = Math.floor(dh / STEP_M);
         const idx = ((step % STEPS) + STEPS) % STEPS;
-        // 10cm ごとに 1/256 ずつ明るくなる (0% 〜 100%)
+        // 20cm ごとに 1/256 ずつ明るくなる (0% 〜 100%)
         const lightness = ((idx / (STEPS - 1)) * 100).toFixed(2);
         return `hsl(0, 0%, ${lightness}%)`;
+    }
+
+    /**
+     * 標高（alt）から 20cm 単位（256階調・51.2m周期）の [r, g, b] (0.0〜1.0) を返す
+     */
+    static altToStepRgb(alt, startAlt = 0) {
+        const STEP_M = 0.2; // 20cm 刻み
+        const STEPS = 256;  // 256階調
+        const dh = Math.round(((alt || 0) - startAlt) * 100) / 100;
+        const step = Math.floor(dh / STEP_M);
+        const idx = ((step % STEPS) + STEPS) % STEPS;
+        const val = idx / (STEPS - 1);
+        return [val, val, val];
     }
 
     /**
