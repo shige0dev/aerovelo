@@ -15,10 +15,8 @@ const TILE_DEG = 0.025;          // コース沿いを分割する bbox タイ�
 const BBOX_PAD_DEG = 0.0005;     // タイル端の余白（約 50m）
 const MATCH_TOL_M = 18;          // コース線分と OSM way の一致許容距離 (m)
 const MAX_ANGLE_RAD = Math.PI / 4; // コースと way の向きの許容差 (45°: 立体交差を除外しつつカーブ橋・トンネルを許容)
-const MERGE_GAP_M = 12;          // 連続する同種構造物 way を結合する距離閾値 (m)
-const SPLIT_GAP_M = 35;          // 往復路や離れた地点での通過を別々に分割する間隔閾値 (m)
-const MAX_BRIDGE_LEN_M = 1500;   // 橋の物理的上限長 (m)
-const MAX_TUNNEL_LEN_M = 5000;   // トンネルの物理的上限長 (m)
+const MERGE_GAP_M = 15;          // 同一構造物内で連続とみなす距離閾値 (m)
+const SCAN_STEP_M = 3;           // コースを先頭から走査するステップ間隔 (m)
 const REQUEST_TIMEOUT_MS = 15000;
 
 function isStructureTag(value) {
@@ -165,8 +163,8 @@ export async function fetchOsmStructures(samples) {
 }
 
 /**
- * OSM の橋・トンネル way の各セグメントをコース折れ線へ射影し、
- * コースに沿っている構造物の正確な始端距離 (d0) 〜 終端距離 (d1) を算出する
+ * コースの先頭（0km）からゴールまで順番に走査（1次元ストリーム判定）し、
+ * 現在地が OSM の橋・トンネル上にある区間 [d0, d1] をシンプルかつ確実に抽出する
  */
 export function matchStructures(samples, ways) {
     if (!samples || samples.length < 2 || !ways || !ways.length) return [];
@@ -177,131 +175,98 @@ export function matchStructures(samples, ways) {
     const ky = 110540;
     const toXY = (lon, lat) => [(lon - lon0) * kx, (lat - lat0) * ky];
 
-    const routeXY = samples.map((s) => toXY(s.lon, s.lat));
+    // 1. OSM の橋・トンネル線分リストを抽出
+    const structSegs = [];
+    for (const w of ways) {
+        const type = isStructureTag(w.tags?.tunnel) ? 'tunnel' : isStructureTag(w.tags?.bridge) ? 'bridge' : null;
+        if (!type || !Array.isArray(w.geometry) || !w.geometry.length) continue;
+        const name = w.tags?.name || '';
+        const wxy = w.geometry.map((g) => toXY(g.lon, g.lat));
 
-    const routeSegs = [];
+        for (let k = 0; k < wxy.length - 1; k++) {
+            const [ax, ay] = wxy[k];
+            const [bx, by] = wxy[k + 1];
+            const dx = bx - ax, dy = by - ay;
+            const len2 = dx * dx + dy * dy;
+            if (len2 < 0.25) continue;
+            structSegs.push({
+                type,
+                name,
+                ax, ay, bx, by, dx, dy, len2,
+                minX: Math.min(ax, bx) - MATCH_TOL_M,
+                maxX: Math.max(ax, bx) + MATCH_TOL_M,
+                minY: Math.min(ay, by) - MATCH_TOL_M,
+                maxY: Math.max(ay, by) + MATCH_TOL_M,
+                angle: Math.atan2(dx, dy)
+            });
+        }
+    }
+
+    if (!structSegs.length) return [];
+
+    // 2. コースを 0m からゴールまで順番に走査し、連続する構造物区間を記録
+    const routeXY = samples.map((s) => toXY(s.lon, s.lat));
+    const intervals = [];
+    let current = null;
+
     for (let i = 0; i < n - 1; i++) {
         const [ax, ay] = routeXY[i];
         const [bx, by] = routeXY[i + 1];
-        const dx = bx - ax, dy = by - ay;
-        const len2 = dx * dx + dy * dy;
-        if (len2 < 1e-6) continue;
-        routeSegs.push({
-            i,
-            ax, ay, bx, by, dx, dy, len2,
-            angle: Math.atan2(dx, dy),
-            d0: samples[i].dist,
-            d1: samples[i + 1].dist
-        });
-    }
+        const rdx = bx - ax, rdy = by - ay;
+        const segLen = Math.hypot(rdx, rdy);
+        if (segLen < 1e-3) continue;
 
-    const rawIntervals = [];
+        const rAngle = Math.atan2(rdx, rdy);
+        const d0 = samples[i].dist;
+        const d1 = samples[i + 1].dist;
+        const steps = Math.max(1, Math.ceil(segLen / SCAN_STEP_M));
 
-    for (const w of ways) {
-        const type = isStructureTag(w.tags?.tunnel) ? 'tunnel' : isStructureTag(w.tags?.bridge) ? 'bridge' : null;
-        if (!type || !Array.isArray(w.geometry) || w.geometry.length < 2) continue;
+        for (let s = 0; s <= steps; s++) {
+            if (i > 0 && s === 0) continue; // 前セグメント終端との重複をスキップ
+            const t = s / steps;
+            const px = ax + rdx * t;
+            const py = ay + rdy * t;
+            const d = d0 + (d1 - d0) * t;
 
-        const wxy = w.geometry.map((g) => toXY(g.lon, g.lat));
+            let matchedType = null;
+            let matchedName = '';
+            let bestDist = Infinity;
 
-        const matchedDistances = [];
+            for (const ss of structSegs) {
+                if (px < ss.minX || px > ss.maxX || py < ss.minY || py > ss.maxY) continue;
 
-        for (let k = 0; k < wxy.length - 1; k++) {
-            const [wax, way_] = wxy[k];
-            const [wbx, wby] = wxy[k + 1];
-            const wdx = wbx - wax, wdy = wby - way_;
-            const wlen = Math.hypot(wdx, wdy);
-            if (wlen < 0.5) continue;
-            const wAngle = Math.atan2(wdx, wdy);
+                let angDiff = Math.abs(rAngle - ss.angle) % Math.PI;
+                angDiff = Math.min(angDiff, Math.PI - angDiff);
+                if (angDiff > MAX_ANGLE_RAD) continue;
 
-            const steps = Math.max(2, Math.ceil(wlen / 4));
-            for (let s = 0; s <= steps; s++) {
-                const t = s / steps;
-                const px = wax + wdx * t;
-                const py = way_ + wdy * t;
-
-                let bestDist = Infinity;
-                let bestRouteD = null;
-
-                for (const rs of routeSegs) {
-                    if (px < Math.min(rs.ax, rs.bx) - MATCH_TOL_M || px > Math.max(rs.ax, rs.bx) + MATCH_TOL_M ||
-                        py < Math.min(rs.ay, rs.by) - MATCH_TOL_M || py > Math.max(rs.ay, rs.by) + MATCH_TOL_M) {
-                        continue;
-                    }
-
-                    let angDiff = Math.abs(wAngle - rs.angle) % Math.PI;
-                    angDiff = Math.min(angDiff, Math.PI - angDiff);
-                    if (angDiff > MAX_ANGLE_RAD) continue;
-
-                    const proj = clamp(((px - rs.ax) * rs.dx + (py - rs.ay) * rs.dy) / rs.len2, 0, 1);
-                    const dist = Math.hypot(px - (rs.ax + proj * rs.dx), py - (rs.ay + proj * rs.dy));
-                    if (dist <= MATCH_TOL_M && dist < bestDist) {
-                        bestDist = dist;
-                        bestRouteD = rs.d0 + (rs.d1 - rs.d0) * proj;
-                    }
-                }
-
-                if (bestRouteD !== null) {
-                    matchedDistances.push(bestRouteD);
+                const proj = clamp(((px - ss.ax) * ss.dx + (py - ss.ay) * ss.dy) / ss.len2, 0, 1);
+                const dist = Math.hypot(px - (ss.ax + proj * ss.dx), py - (ss.ay + proj * ss.dy));
+                if (dist <= MATCH_TOL_M && dist < bestDist) {
+                    bestDist = dist;
+                    matchedType = ss.type;
+                    matchedName = ss.name;
                 }
             }
-        }
 
-        // 往復コース等で同一 way を複数回（行きと帰り）通過した場合に対応するため、
-        // マッチした距離をソートし、連続する区間（間隔が SPLIT_GAP_M 以内）ごとに独立した構造物として分割登録する
-        if (matchedDistances.length > 0) {
-            matchedDistances.sort((a, b) => a - b);
-            const maxLen = type === 'bridge' ? MAX_BRIDGE_LEN_M : MAX_TUNNEL_LEN_M;
-            let segStart = matchedDistances[0];
-            let segEnd = matchedDistances[0];
-
-            for (let i = 1; i < matchedDistances.length; i++) {
-                const d = matchedDistances[i];
-                if (d - segEnd <= SPLIT_GAP_M) {
-                    segEnd = d;
+            if (matchedType) {
+                if (current && current.type === matchedType && (d - current.d1) <= MERGE_GAP_M) {
+                    current.d1 = d;
+                    if (!current.name && matchedName) current.name = matchedName;
                 } else {
-                    const span = segEnd - segStart;
-                    if (span >= 3 && span <= maxLen) {
-                        rawIntervals.push({
-                            type,
-                            d0: segStart,
-                            d1: segEnd,
-                            name: w.tags?.name || ''
-                        });
+                    if (current && (current.d1 - current.d0) >= 3) {
+                        intervals.push(current);
                     }
-                    segStart = d;
-                    segEnd = d;
+                    current = { type: matchedType, d0: d, d1: d, name: matchedName };
                 }
             }
-            const span = segEnd - segStart;
-            if (span >= 3 && span <= maxLen) {
-                rawIntervals.push({
-                    type,
-                    d0: segStart,
-                    d1: segEnd,
-                    name: w.tags?.name || ''
-                });
-            }
         }
     }
 
-    if (!rawIntervals.length) return [];
-
-    rawIntervals.sort((a, b) => a.d0 - b.d0 || a.d1 - b.d1);
-    const merged = [rawIntervals[0]];
-    for (let i = 1; i < rawIntervals.length; i++) {
-        const cur = rawIntervals[i];
-        const prev = merged[merged.length - 1];
-        const maxLen = cur.type === 'bridge' ? MAX_BRIDGE_LEN_M : MAX_TUNNEL_LEN_M;
-        const candidateEnd = Math.max(prev.d1, cur.d1);
-        if (cur.type === prev.type && cur.d0 <= prev.d1 + MERGE_GAP_M && (candidateEnd - prev.d0) <= maxLen) {
-            prev.d1 = candidateEnd;
-            if (!prev.name && cur.name) prev.name = cur.name;
-        } else {
-            merged.push(cur);
-        }
+    if (current && (current.d1 - current.d0) >= 3) {
+        intervals.push(current);
     }
 
-    return merged;
+    return intervals;
 }
 
 
