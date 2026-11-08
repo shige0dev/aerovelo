@@ -8,10 +8,9 @@ import { HYBRID_DEM_URL, registerGsiDemProtocol } from './dem-service.js';
 import { CourseRibbonLayer } from './ribbon-layer.js';
 
 export class MapViewController {
-    constructor(containerId = 'map', initialState = { lon: 138.583, lat: 35.474, bearing: 0 }, onCameraChange = null, onTerrainSync = null) {
+    constructor(containerId = 'map', initialState = { lon: 138.583, lat: 35.474, bearing: 0 }, onCameraChange = null) {
         this.containerId = containerId;
         this.onCameraChange = onCameraChange;
-        this.onTerrainSync = onTerrainSync;
         this.cam = {
             mode: 'track', // 'track' | 'free'
             isTransitioning: false,
@@ -28,8 +27,6 @@ export class MapViewController {
         this.isMapLoaded = false;
         this.demSource = null;
         this.ribbonLayer = new CourseRibbonLayer('course-ribbon-3d', 3.5);
-        this.activeCourse = null;
-        this.isTerrainFullySynced = false;
 
         registerGsiDemProtocol();
         this.initMap(initialState);
@@ -194,14 +191,6 @@ export class MapViewController {
             this.map.on('rotate', () => {
                 this.onCameraChange?.({ bearing: this.map.getBearing() });
             });
-
-            // 地形タイルのロード・レンダリング完了（idle）時に、描画エンジンの地表面メッシュ標高をコースに同期
-            this.map.on('idle', () => {
-                if (this.activeCourse && !this.isTerrainFullySynced) {
-                    const done = this.syncCourseWithMapTerrain(this.activeCourse);
-                    if (done) this.isTerrainFullySynced = true;
-                }
-            });
         });
     }
 
@@ -209,70 +198,8 @@ export class MapViewController {
         return { left: 0, top: Math.round(window.innerHeight * 0.35), right: 0, bottom: 0 };
     }
 
-    /**
-     * MapLibre の現在の描画 3D 地形メッシュ標高（queryTerrainElevation）をコースに完全同期
-     */
-    syncCourseWithMapTerrain(course = this.activeCourse) {
-        if (!this.map || !this.isMapLoaded || !course || !course.rawSamples || course.rawSamples.length === 0) {
-            return false;
-        }
-
-        const samples = course.rawSamples;
-        const n = samples.length;
-        const elevations = new Float64Array(n);
-        let validCount = 0;
-
-        for (let i = 0; i < n; i++) {
-            const s = samples[i];
-            try {
-                const h = this.map.queryTerrainElevation([s.lon, s.lat]);
-                if (typeof h === 'number' && !isNaN(h)) {
-                    elevations[i] = h;
-                    validCount++;
-                } else {
-                    elevations[i] = s.alt;
-                }
-            } catch {
-                elevations[i] = s.alt;
-            }
-        }
-
-        if (validCount > 0) {
-            course.applyTerrainMeshElevations(elevations);
-            this.refreshCourseLayers(course);
-            this.onTerrainSync?.(course);
-        }
-
-        return validCount >= Math.floor(n * 0.98); // ほぼ全点（98%以上）取得できたら完了
-    }
-
-    refreshCourseLayers(course) {
-        if (!this.map || !this.isMapLoaded || !course) return;
-
-        // 3D コースリボン（地面 + 1.0m）の更新
-        this.ribbonLayer?.updateCourse(course);
-
-        // 2D コースライン GeoJSON の更新
-        const geojsonData = {
-            type: 'Feature',
-            properties: {},
-            geometry: { type: 'LineString', coordinates: course.toGeoJSONCoordinates() }
-        };
-        if (this.map.getSource('route')) {
-            this.map.getSource('route').setData(geojsonData);
-        }
-
-        // 定義点（GPXポイント）の高度ステップ着色ドットレイヤーの更新
-        const pointsGeoJson = course.toDefinitionPointsGeoJSON?.() || { type: 'FeatureCollection', features: [] };
-        if (this.map.getSource('route-points')) {
-            this.map.getSource('route-points').setData(pointsGeoJson);
-        }
-    }
-
     setCourse(course, initialState) {
         this.cam.bearing = null;
-        this.activeCourse = course;
-        this.isTerrainFullySynced = false;
         if (!this.map) return;
 
         if (!this.isMapLoaded) {
@@ -335,7 +262,7 @@ export class MapViewController {
                 paint: {
                     'circle-radius': ['interpolate', ['linear'], ['zoom'], 12, 2.5, 16, 4.5, 18, 6],
                     'circle-color': ['get', 'color'],
-                    'circle-stroke-color': '#000000',
+                    'circle-stroke-color': '#ffffff',
                     'circle-stroke-width': 1.2,
                     'circle-opacity': 0.95
                 }
@@ -343,14 +270,6 @@ export class MapViewController {
         }
 
         if (initialState) this.updateRiderAndCamera(initialState, 1500);
-
-        // 地形メッシュ標高の即時同期を試行（既にロード済みのタイルから順次反映）
-        setTimeout(() => {
-            if (this.activeCourse === course && !this.isTerrainFullySynced) {
-                const done = this.syncCourseWithMapTerrain(course);
-                if (done) this.isTerrainFullySynced = true;
-            }
-        }, 100);
     }
 
     syncTargetMarkers(state = this.lastState) {

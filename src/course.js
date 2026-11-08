@@ -63,23 +63,6 @@ export class GeoCourseManager {
     }
 
     /**
-     * 描画エンジン（MapLibre queryTerrainElevation）で取得した 3D 地形メッシュ標高を適用
-     * 地面メッシュと 1:1 完全一致させ、橋・トンネル（前後10m外側含む）の端部直線架橋を再計算
-     */
-    applyTerrainMeshElevations(elevations) {
-        if (!elevations || !this.rawSamples || this.rawSamples.length === 0) return;
-        const n = Math.min(elevations.length, this.rawSamples.length);
-        for (let i = 0; i < n; i++) {
-            const h = elevations[i];
-            if (h !== null && !isNaN(h)) {
-                this.rawSamples[i].alt = h;
-            }
-        }
-        this.isTerrainSynced = true;
-        this.applyRoadGradeSmoothing(this.rawSamples);
-    }
-
-    /**
      * GPXファイル自体に有効な標高データ (<ele>) が含まれているかを判定
      */
     hasElevationData() {
@@ -404,17 +387,17 @@ export class GeoCourseManager {
     }
 
     /**
-     * 標高（alt）から 10cm 単位のモノクロ明度（256階調）カラーを返す
+     * 標高（alt）から 10cm 単位のモノクロ明度ステップカラーを返す
      * 10cm の範囲内は均一な同一明度（完全モノクロ）
-     * 25.6m (256 * 0.1m) の標高差で明度が黒〜白へラップアラウンド
+     * 10cm ごとに明度が 15% (濃いグレー/黒) 〜 95% (白) まで 10段階（1.0m周期）で明確にステップ変化
      */
     static altToStepColor(alt, startAlt = 0) {
         const STEP_M = 0.1; // 10cm 刻み
-        const STEPS = 256;  // 256階調（25.6mで1周期）
-        const dh = alt - startAlt;
+        const STEPS = 10;   // 10段階（1.0m で 1 周期）
+        const dh = Math.round(((alt || 0) - startAlt) * 100) / 100;
         const step = Math.floor(dh / STEP_M);
         const idx = ((step % STEPS) + STEPS) % STEPS;
-        // 明度: 15% (黒に近いグレー) 〜 95% (白)
+        // 明度: 15% 〜 95%
         const lightness = Math.round(15 + (idx / (STEPS - 1)) * 80);
         return `hsl(0, 0%, ${lightness}%)`;
     }
@@ -458,25 +441,26 @@ export class GeoCourseManager {
      * コースの定義点（GPXウェイポイント各点）を 50cmステップ高度色付き GeoJSON FeatureCollection として出力
      */
     toDefinitionPointsGeoJSON() {
-        const startAlt = this.interpolatedPoints[0]?.alt || 0;
+        const startAlt = this.interpolatedPoints[0]?.alt || this.rawWaypoints[0]?.alt || 0;
         const features = [];
 
         for (let i = 0; i < this.rawWaypoints.length; i++) {
             const wp = this.rawWaypoints[i];
             const dist = this.cumDistances[i] ?? 0;
             const pt = this.sampleAtDist(dist);
-            const color = GeoCourseManager.altToStepColor(pt.alt, startAlt);
+            const alt = (typeof pt.alt === 'number' && !isNaN(pt.alt)) ? pt.alt : (wp.alt || startAlt);
+            const color = GeoCourseManager.altToStepColor(alt, startAlt);
 
             features.push({
                 type: 'Feature',
                 properties: {
                     index: i,
-                    alt: Math.round(pt.alt * 10) / 10,
+                    alt: Math.round(alt * 10) / 10,
                     color
                 },
                 geometry: {
                     type: 'Point',
-                    coordinates: [pt.lon, pt.lat, pt.alt]
+                    coordinates: [pt.lon, pt.lat, alt]
                 }
             });
         }

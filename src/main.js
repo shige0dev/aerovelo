@@ -67,18 +67,7 @@ class App {
         this.chart.setCourse(this.course);
 
         const startState = this.currentState();
-        this.mapView = new MapViewController(
-            'map',
-            startState,
-            (params) => this.ui.syncCameraParams(params),
-            (syncedCourse) => {
-                if (this.course === syncedCourse) {
-                    this.chart.setCourse(this.course);
-                    this.ui.updateCourseMeta(this.course, this.currentProgress);
-                    this.updateState(this.currentProgress);
-                }
-            }
-        );
+        this.mapView = new MapViewController('map', startState, (params) => this.ui.syncCameraParams(params));
         this.mapView.setCourse(this.course, startState);
 
         // 3. イベント配線 & メインループ開始
