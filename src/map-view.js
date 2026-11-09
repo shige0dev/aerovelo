@@ -6,6 +6,7 @@
 import { clamp } from './utils.js';
 import { HYBRID_DEM_URL, registerGsiDemProtocol } from './dem-service.js';
 import { CourseRibbonLayer } from './ribbon-layer.js';
+import { Google3DTilesLayer } from './google-3d-layer.js';
 
 export class MapViewController {
     constructor(containerId = 'map', initialState = { lon: 138.583, lat: 35.474, bearing: 0 }, onCameraChange = null) {
@@ -22,11 +23,12 @@ export class MapViewController {
         };
         this.lastState = initialState;
         this.markers = { fwd: null, bwd: null };
-        // 前後注視点マーカー・等高線は起動時非表示 (SHOWボタン押下で表示)
-        this.markerVisible = { fwd: false, bwd: false, contour: false };
+        // 前後注視点マーカー・等高線・3D建物は起動時非表示 (SHOWボタン押下で表示)
+        this.markerVisible = { fwd: false, bwd: false, contour: false, bldgA: false, bldgB: false };
         this.isMapLoaded = false;
         this.demSource = null;
         this.ribbonLayer = new CourseRibbonLayer('course-ribbon-3d', 3.0);
+        this.google3dLayer = new Google3DTilesLayer('google-3d-tiles');
 
         registerGsiDemProtocol();
         this.initMap(initialState);
@@ -234,7 +236,76 @@ export class MapViewController {
             }
             this.map.setPaintProperty('contour-lines', 'line-opacity', visibility.contour ? 0.55 : 0);
         }
+        if (typeof visibility.bldgA === 'boolean') {
+            this.setOsmBuildingVisible(visibility.bldgA);
+        }
+        if (typeof visibility.bldgB === 'boolean') {
+            this.setGoogleBuildingVisible(visibility.bldgB, visibility.googleApiKey);
+        }
         this.syncTargetMarkers();
+    }
+
+    /**
+     * タイプA: OSM 3D立体建物 (OpenFreeMap fill-extrusion) の表示切替
+     */
+    setOsmBuildingVisible(visible) {
+        if (!this.map || !this.isMapLoaded) return;
+        const sourceId = 'openfreemap-buildings';
+        const layerId = 'osm-3d-buildings';
+
+        if (visible && !this.map.getLayer(layerId)) {
+            if (!this.map.getSource(sourceId)) {
+                this.map.addSource(sourceId, {
+                    type: 'vector',
+                    url: 'https://tiles.openfreemap.org/planet'
+                });
+            }
+            const beforeId = this.map.getLayer(this.ribbonLayer.id) ? this.ribbonLayer.id : undefined;
+            this.map.addLayer({
+                id: layerId,
+                type: 'fill-extrusion',
+                source: sourceId,
+                'source-layer': 'building',
+                minzoom: 14,
+                filter: ['!=', ['get', 'hide_3d'], true],
+                layout: {
+                    visibility: 'visible'
+                },
+                paint: {
+                    'fill-extrusion-color': [
+                        'interpolate', ['linear'],
+                        ['coalesce', ['get', 'render_height'], 6],
+                        0, '#cbd5e1',
+                        15, '#94a3b8',
+                        40, '#64748b',
+                        100, '#38bdf8'
+                    ],
+                    'fill-extrusion-height': ['coalesce', ['get', 'render_height'], 6],
+                    'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], 0],
+                    'fill-extrusion-opacity': 0.78
+                }
+            }, beforeId);
+            return;
+        }
+
+        if (this.map.getLayer(layerId)) {
+            this.map.setLayoutProperty(layerId, 'visibility', visible ? 'visible' : 'none');
+        }
+    }
+
+    /**
+     * タイプB: Google Photorealistic 3D Tiles の表示切替
+     */
+    setGoogleBuildingVisible(visible, apiKey) {
+        if (!this.map || !this.isMapLoaded) return;
+        if (apiKey !== undefined) {
+            this.google3dLayer.setApiKey(apiKey);
+        }
+        if (visible && !this.map.getLayer(this.google3dLayer.id)) {
+            const beforeId = this.map.getLayer(this.ribbonLayer.id) ? this.ribbonLayer.id : undefined;
+            this.map.addLayer(this.google3dLayer, beforeId);
+        }
+        this.google3dLayer.setVisible(visible);
     }
 
     updateRiderAndCamera(state, duration = 0, isMoving = false, forceCamera = false) {

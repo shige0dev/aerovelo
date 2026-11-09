@@ -11,7 +11,15 @@
     <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
     <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
     <script src="https://unpkg.com/maplibre-contour@0.0.5/dist/index.min.js"></script>
-    <!-- Three.js (for True 3D Course Ribbon Objects) -->
+    <!-- Three.js (for True 3D Course Ribbon & Google 3D Tiles) -->
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
     <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
 </head>
 <body>
@@ -22,7 +30,7 @@
     <div id="top-bar">
         <div class="top-title-group">
             <h1 class="top-app-title">AeroVelo</h1>
-            <span class="version-badge" id="app-version">v2.4.33</span>
+            <span class="version-badge" id="app-version">v2.4.34</span>
         </div>
         <div class="top-course-group">
             <span id="course-name-display" class="top-course-title" title="クリックでコース選定・標高補正">読み込み中...</span>
@@ -115,15 +123,31 @@
                 <button type="button" id="cam-free" class="btn toggle mini-cam-free">FREE</button>
             </div>
         </div>
-        <div id="camera-adjust-box" class="camera-adjust-box">
-            <div class="label-row" style="margin-bottom: 2px;">
+        <div class="camera-layer-box">
+            <div class="label-row">
                 <div class="label-with-btn">
                     <label>Contour</label>
                     <button type="button" id="btn-toggle-contour" class="btn mini-cam-free marker-toggle-btn" title="等高線 (5m) の表示切替">SHOW</button>
                 </div>
                 <span class="sub-val">5m</span>
             </div>
-
+            <div class="label-row">
+                <div class="label-with-btn">
+                    <label>Bldg A</label>
+                    <button type="button" id="btn-toggle-bldg-a" class="btn mini-cam-free marker-toggle-btn" title="タイプA: OSM 3D立体建物表示 (APIキー不要)">SHOW</button>
+                </div>
+                <span class="sub-val">OSM</span>
+            </div>
+            <div class="label-row">
+                <div class="label-with-btn">
+                    <label>Bldg B</label>
+                    <button type="button" id="btn-toggle-bldg-b" class="btn mini-cam-free marker-toggle-btn" title="タイプB: Google Earth 3D建物表示 (要APIキー)">SHOW</button>
+                    <button type="button" id="btn-google-api-key" class="btn mini-cam-free marker-toggle-btn" title="Google Maps Platform (Map Tiles API) キー設定">KEY</button>
+                </div>
+                <span class="sub-val">G-Earth</span>
+            </div>
+        </div>
+        <div id="camera-adjust-box" class="camera-adjust-box">
             <div class="label-row" style="margin-bottom: 2px;">
                 <label for="cam-smooth-slider">Smooth</label>
                 <span id="cam-smooth-val" class="sub-val">5 (標準)</span>

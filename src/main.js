@@ -47,7 +47,7 @@ class App {
                 if (bwdMult !== undefined) this.camBwdMult = bwdMult;
                 this.updateState(this.currentProgress, true);
             },
-            onToggleMarker: (type, isVisible) => this.mapView.setMarkerVisibility({ [type]: isVisible }),
+            onToggleMarker: (type, isVisible, extra) => this.mapView.setMarkerVisibility({ [type]: isVisible, googleApiKey: extra }),
             onResetNorth: () => {
                 this.mapView.setCameraParams({ orbit: 0 }, this.currentState());
                 this.ui.syncCameraParams({ orbit: 0 });

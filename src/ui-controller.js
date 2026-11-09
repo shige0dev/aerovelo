@@ -212,9 +212,10 @@ export class UIController {
         on(el.camFreeBtn, 'click', () => cb.onToggleCameraFree?.());
         on(el.compassBtn, 'click', () => cb.onResetNorth?.());
 
-        // 等高線・注視点 SHOW ボタン（初期非表示、押すと点灯して表示）
+        // 等高線・3D建物(A/B)・注視点 SHOW ボタン（初期非表示、押すと点灯して表示）
         [
             ['btn-toggle-contour', 'contour'],
+            ['btn-toggle-bldg-a', 'bldgA'],
             ['btn-toggle-fwd-marker', 'fwd'],
             ['btn-toggle-bwd-marker', 'bwd']
         ].forEach(([id, key]) => {
@@ -225,6 +226,49 @@ export class UIController {
                 btn?.classList.toggle('active', visible);
                 cb.onToggleMarker?.(key, visible);
             });
+        });
+
+        // タイプB: Google Earth 3D建物 (Photorealistic 3D Tiles) SHOW & KEY ボタン
+        const btnBldgB = $('btn-toggle-bldg-b');
+        const btnGoogleKey = $('btn-google-api-key');
+        const STORAGE_KEY_GOOGLE = 'aerovelo_google_3d_key';
+        let bldgBVisible = false;
+
+        const promptGoogleKey = (forcePrompt = false) => {
+            let key = localStorage.getItem(STORAGE_KEY_GOOGLE) || '';
+            if (!key || forcePrompt) {
+                const input = window.prompt('Google Maps Platform (Map Tiles API) の API キーを入力してください:', key);
+                if (input === null) return key;
+                key = input.trim();
+                if (key) localStorage.setItem(STORAGE_KEY_GOOGLE, key);
+                else localStorage.removeItem(STORAGE_KEY_GOOGLE);
+            }
+            return key;
+        };
+
+        on(btnBldgB, 'click', () => {
+            if (!bldgBVisible) {
+                const key = promptGoogleKey(false);
+                if (!key) return;
+                bldgBVisible = true;
+                btnBldgB?.classList.add('active');
+                cb.onToggleMarker?.('bldgB', true, key);
+            } else {
+                bldgBVisible = false;
+                btnBldgB?.classList.remove('active');
+                cb.onToggleMarker?.('bldgB', false);
+            }
+        });
+
+        on(btnGoogleKey, 'click', () => {
+            const key = promptGoogleKey(true);
+            if (bldgBVisible && key) {
+                cb.onToggleMarker?.('bldgB', true, key);
+            } else if (!key && bldgBVisible) {
+                bldgBVisible = false;
+                btnBldgB?.classList.remove('active');
+                cb.onToggleMarker?.('bldgB', false, '');
+            }
         });
 
         // カメラ調整スライダー一括バインド (camControls と CAM_SLIDER_FORMATTERS を共有)
