@@ -6,7 +6,6 @@
 import { clamp } from './utils.js';
 import { HYBRID_DEM_URL, registerGsiDemProtocol } from './dem-service.js';
 import { CourseRibbonLayer } from './ribbon-layer.js';
-import { Google3DTilesLayer } from './google-3d-layer.js';
 
 export class MapViewController {
     constructor(containerId = 'map', initialState = { lon: 138.583, lat: 35.474, bearing: 0 }, onCameraChange = null) {
@@ -24,14 +23,10 @@ export class MapViewController {
         this.lastState = initialState;
         this.markers = { fwd: null, bwd: null };
         // 前後注視点マーカー・等高線・3D建物は起動時非表示 (SHOWボタン押下で表示)
-        this.markerVisible = { fwd: false, bwd: false, contour: false, bldgA: false, bldgB: false };
+        this.markerVisible = { fwd: false, bwd: false, contour: false, building: false };
         this.isMapLoaded = false;
         this.demSource = null;
         this.ribbonLayer = new CourseRibbonLayer('course-ribbon-3d', 3.0);
-        this.google3dLayer = new Google3DTilesLayer('google-3d-tiles', (statusText) => {
-            const el = document.getElementById('bldg-b-status');
-            if (el) el.textContent = statusText;
-        });
 
         registerGsiDemProtocol();
         this.initMap(initialState);
@@ -195,11 +190,6 @@ export class MapViewController {
             this.map.on('rotate', () => {
                 this.onCameraChange?.({ bearing: this.map.getBearing() });
             });
-            this.map.on('moveend', () => {
-                if (this.markerVisible.bldgB) {
-                    this.google3dLayer.updateTilesForCurrentView(false);
-                }
-            });
         });
     }
 
@@ -224,11 +214,6 @@ export class MapViewController {
         // 新規コース読み込み時は FREE カメラモード中であっても視点を新コースへ強制更新する
         if (initialState) {
             this.updateRiderAndCamera(initialState, 0, false, true);
-            if (this.markerVisible.bldgB) {
-                this.google3dLayer.clearTiles();
-                this.google3dLayer.origin = null;
-                this.google3dLayer.updateTilesForCurrentView(true);
-            }
         }
     }
 
@@ -251,19 +236,17 @@ export class MapViewController {
             }
             this.map.setPaintProperty('contour-lines', 'line-opacity', visibility.contour ? 0.55 : 0);
         }
-        if (typeof visibility.bldgA === 'boolean') {
-            this.setOsmBuildingVisible(visibility.bldgA);
-        }
-        if (typeof visibility.bldgB === 'boolean') {
-            this.setGoogleBuildingVisible(visibility.bldgB, visibility.googleApiKey);
+        if (typeof visibility.building === 'boolean' || typeof visibility.bldgA === 'boolean') {
+            const bldgVisible = typeof visibility.building === 'boolean' ? visibility.building : visibility.bldgA;
+            this.setBuildingVisible(bldgVisible);
         }
         this.syncTargetMarkers();
     }
 
     /**
-     * タイプA: OSM 3D立体建物 (OpenFreeMap fill-extrusion) の表示切替
+     * OSM 3D立体建物 (OpenFreeMap fill-extrusion) の表示切替
      */
-    setOsmBuildingVisible(visible) {
+    setBuildingVisible(visible) {
         if (!this.map || !this.isMapLoaded) return;
         const sourceId = 'openfreemap-buildings';
         const layerId = 'osm-3d-buildings';
@@ -308,19 +291,8 @@ export class MapViewController {
         }
     }
 
-    /**
-     * タイプB: Google Photorealistic 3D Tiles の表示切替
-     */
-    setGoogleBuildingVisible(visible, apiKey) {
-        if (!this.map || !this.isMapLoaded) return;
-        if (apiKey !== undefined) {
-            this.google3dLayer.setApiKey(apiKey);
-        }
-        if (visible && !this.map.getLayer(this.google3dLayer.id)) {
-            const beforeId = this.map.getLayer(this.ribbonLayer.id) ? this.ribbonLayer.id : undefined;
-            this.map.addLayer(this.google3dLayer, beforeId);
-        }
-        this.google3dLayer.setVisible(visible);
+    setOsmBuildingVisible(visible) {
+        this.setBuildingVisible(visible);
     }
 
     updateRiderAndCamera(state, duration = 0, isMoving = false, forceCamera = false) {

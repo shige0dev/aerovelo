@@ -29,7 +29,7 @@
     <div id="top-bar">
         <div class="top-title-group">
             <h1 class="top-app-title">AeroVelo</h1>
-            <span class="version-badge" id="app-version">v2.4.36</span>
+            <span class="version-badge" id="app-version">v2.4.37</span>
         </div>
         <div class="top-course-group">
             <span id="course-name-display" class="top-course-title" title="クリックでコース選定・標高補正">読み込み中...</span>
@@ -132,18 +132,10 @@
             </div>
             <div class="label-row">
                 <div class="label-with-btn">
-                    <label>Bldg A</label>
-                    <button type="button" id="btn-toggle-bldg-a" class="btn mini-cam-free marker-toggle-btn" title="タイプA: OSM 3D立体建物表示 (APIキー不要)">SHOW</button>
+                    <label>Building</label>
+                    <button type="button" id="btn-toggle-bldg" class="btn mini-cam-free marker-toggle-btn" title="3D立体建物表示 (OSM Buildings)">SHOW</button>
                 </div>
-                <span class="sub-val">OSM</span>
-            </div>
-            <div class="label-row">
-                <div class="label-with-btn">
-                    <label>Bldg B</label>
-                    <button type="button" id="btn-toggle-bldg-b" class="btn mini-cam-free marker-toggle-btn" title="タイプB: Google Earth 3D建物表示 (要APIキー)">SHOW</button>
-                    <button type="button" id="btn-google-api-key" class="btn mini-cam-free marker-toggle-btn" title="Google Maps Platform (Map Tiles API) キー設定">KEY</button>
-                </div>
-                <span id="bldg-b-status" class="sub-val">G-Earth</span>
+                <span class="sub-val">3D</span>
             </div>
         </div>
         <div id="camera-adjust-box" class="camera-adjust-box">
