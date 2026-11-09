@@ -86,7 +86,7 @@ class App {
 
         this.animate = this.animate.bind(this);
         requestAnimationFrame(this.animate);
-        this.loadDefaultGPX('gpx/hiyoshi_12.5km_D738.gpx');
+        this.loadDefaultGPX('gpx/midousuji_4.20km_D45.gpx');
     }
 
     currentState() {
