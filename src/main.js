@@ -56,10 +56,9 @@ class App {
             onFullscreenChange: () => setTimeout(() => this.handleResize(), 100),
             onBleConnect: () => this.connectBle(),
             onBleDisconnect: () => this.bleManager.disconnect(),
-            onSelectPreset: (url) => this.loadDefaultGPX(url, true),
+            onSelectPreset: (url) => this.loadDefaultGPX(url),
             onLoadGpxFile: (file) => this.loadGPXFile(file),
-            onRequestGsiDem: () => this.applyGsiDem(),
-            onShowStructures: () => this.ui.showStructureDialog(this.course)
+            onRequestGsiDem: () => this.applyGsiDem()
         });
 
         // 2. 標高プロファイル Canvas & 3D マップ
@@ -94,7 +93,7 @@ class App {
 
     // --- Course & GPX Management ---
 
-    parseAndApplyGPX(gpxText, fallbackName, showDialog = false) {
+    parseAndApplyGPX(gpxText, fallbackName) {
         const { courseName, waypoints } = GPXParser.parse(gpxText);
         const finalName = courseName !== 'カスタムコース' ? courseName : fallbackName.replace(/\.gpx$/i, '');
         const activeCourse = new GeoCourseManager(waypoints, finalName);
@@ -120,17 +119,14 @@ class App {
             this.chart.setCourse(this.course);
             this.mapView.setCourse(this.course, null);
             this.updateState(this.currentProgress);
-            if (showDialog) {
-                this.ui.showStructureDialog(this.course);
-            }
         });
     }
 
-    async loadDefaultGPX(url, showDialog = false) {
+    async loadDefaultGPX(url) {
         try {
             const res = await fetch(url);
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            this.parseAndApplyGPX(await res.text(), url.split('/').pop(), showDialog);
+            this.parseAndApplyGPX(await res.text(), url.split('/').pop());
         } catch (err) {
             console.warn(`デフォルトGPX取得エラー (${url}):`, err);
         }
@@ -140,7 +136,7 @@ class App {
         const reader = new FileReader();
         reader.onload = (e) => {
             try {
-                this.parseAndApplyGPX(e.target.result, file.name, true);
+                this.parseAndApplyGPX(e.target.result, file.name);
             } catch (err) {
                 console.error(err);
                 alert(`GPX読み込みエラー: ${err.message}`);
@@ -157,7 +153,6 @@ class App {
             this.chart.setCourse(this.course);
             this.mapView.setCourse(this.course, null);
             this.updateState(this.currentProgress);
-            this.ui.showStructureDialog(this.course);
         } catch (err) {
             console.error('GSI DEM error:', err);
             alert(`10mメッシュ標高の取得に失敗しました: ${err.message}`);

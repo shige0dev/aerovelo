@@ -58,12 +58,7 @@ export class UIController {
             compassDial: $('compass-dial'),
             btnGsiDem: $('btn-gsi-dem'),
             gsiBtnText: $('gsi-btn-text'),
-            structureSummaryRow: $('structure-summary-row'),
             structureSummaryText: $('structure-summary-text'),
-            modalStructures: $('modal-structures'),
-            modalStructuresBody: $('modal-structures-body'),
-            btnCloseStructures: $('btn-close-structures'),
-            btnOkStructures: $('btn-ok-structures'),
             btnBleConnect: $('btn-ble-connect'),
             btnBleDisconnect: $('btn-ble-disconnect'),
             bleStatusText: $('ble-status-text'),
@@ -132,19 +127,35 @@ export class UIController {
     }
 
     /**
-     * フローティングダイアログの開閉バインド共通ヘルパー
+     * フローティングダイアログの開閉バインド（他場所を触ると自動で消える）
      */
-    bindDialog(toggleBtnId, closeBtnId, dialogId) {
-        const btnToggle = $(toggleBtnId), dialog = $(dialogId);
-        if (!btnToggle || !dialog) return;
-        on(btnToggle, 'click', () => {
-            const show = dialog.style.display === 'none' || !dialog.style.display;
-            dialog.style.display = show ? 'flex' : 'none';
-            btnToggle.classList.toggle('active', show);
-        });
-        on(closeBtnId, 'click', () => {
-            dialog.style.display = 'none';
-            btnToggle.classList.remove('active');
+    bindDialogs(pairs) {
+        const items = pairs
+            .map(([btnId, dlgId]) => ({ btn: $(btnId), dlg: $(dlgId) }))
+            .filter((x) => x.btn && x.dlg);
+
+        const closeAll = (exceptDlg = null) => {
+            for (const { btn, dlg } of items) {
+                if (dlg === exceptDlg) continue;
+                dlg.style.display = 'none';
+                btn.classList.remove('active');
+            }
+        };
+
+        for (const { btn, dlg } of items) {
+            on(btn, 'click', (e) => {
+                e.stopPropagation();
+                const show = dlg.style.display === 'none' || !dlg.style.display;
+                closeAll(dlg);
+                dlg.style.display = show ? 'flex' : 'none';
+                btn.classList.toggle('active', show);
+            });
+        }
+
+        // ダイアログ以外の場所を触ると消える
+        on(document, 'pointerdown', (e) => {
+            const insideAny = items.some(({ btn, dlg }) => dlg.contains(e.target) || btn.contains(e.target));
+            if (!insideAny) closeAll();
         });
     }
 
@@ -184,9 +195,12 @@ export class UIController {
             }
         });
 
-        // 4. フローティングダイアログ (カメラ / 設定) & カメラ操作
-        this.bindDialog('btn-toggle-cam-dialog', 'btn-close-cam-dialog', 'camera-dialog');
-        this.bindDialog('btn-modal-settings', 'btn-close-settings', 'modal-settings');
+        // 4. フローティングダイアログ (コース / カメラ / トレーナー設定) & カメラ操作
+        this.bindDialogs([
+            ['course-name-display', 'modal-course'],
+            ['btn-modal-settings', 'modal-settings'],
+            ['btn-toggle-cam-dialog', 'camera-dialog']
+        ]);
         on(el.camFreeBtn, 'click', () => cb.onToggleCameraFree?.());
         on(el.compassBtn, 'click', () => cb.onResetNorth?.());
 
@@ -237,16 +251,6 @@ export class UIController {
         on(el.btnBleDisconnect, 'click', (e) => { e.stopPropagation(); cb.onBleDisconnect?.(); });
         on('preset-select', 'change', (e) => cb.onSelectPreset?.(e.target.value));
         on(el.btnGsiDem, 'click', () => cb.onRequestGsiDem?.());
-        on(el.structureSummaryRow, 'click', () => cb.onShowStructures?.());
-
-        const closeStructModal = () => {
-            if (el.modalStructures) el.modalStructures.style.display = 'none';
-        };
-        on(el.btnCloseStructures, 'click', closeStructModal);
-        on(el.btnOkStructures, 'click', closeStructModal);
-        on(el.modalStructures, 'click', (e) => {
-            if (e.target === el.modalStructures) closeStructModal();
-        });
 
         const fileInput = $('gpx-file-input');
         on('btn-browse', 'click', (e) => { e.stopPropagation(); fileInput?.click(); });
@@ -272,7 +276,7 @@ export class UIController {
                 : '';
             const title = `${course.name}${course.isGsiCorrected ? ' [DEM10B]' : ''}${structTag}`;
             el.courseName.textContent = title;
-            el.courseName.title = `${title} (${totalKm} km)`;
+            el.courseName.title = `${title} (${totalKm} km) - クリックでコース選定`;
         }
         if (el.btnGsiDem) {
             el.btnGsiDem.style.display = course.isWithinJapan() ? 'flex' : 'none';
@@ -283,66 +287,8 @@ export class UIController {
             }
         }
         if (el.structureSummaryText) {
-            const statusIcon = summary.osmStatus === 'ok' ? '🟢 OSM済' : summary.osmStatus === 'error' ? '🔴 OSM失敗' : '⏳ OSM照合中';
-            el.structureSummaryText.textContent = `🌉 BRIDGE: ${summary.bridgeCount}箇所 / 🚇 TUNNEL: ${summary.tunnelCount}箇所 (${statusIcon})`;
+            el.structureSummaryText.textContent = `🌉 Bridge: ${summary.bridgeCount} / 🚇 Tunnel: ${summary.tunnelCount}`;
         }
-    }
-
-    /**
-     * 高度補正時またはサマリークリック時に BRIDGE / TUNNEL の検出数と詳細区間をダイアログ表示
-     */
-    showStructureDialog(course) {
-        const { modalStructures, modalStructuresBody } = this.el;
-        if (!modalStructures || !modalStructuresBody || !course) return;
-
-        const s = course.getStructureSummary();
-        const osmBadge = s.osmStatus === 'ok'
-            ? `<span style="color:#4ade80;font-weight:700;">🟢 接続成功 (${s.osmSource || 'OSM API v0.6'})</span>`
-            : s.osmStatus === 'error'
-                ? `<span style="color:#f87171;font-weight:700;">🔴 OSM接続失敗</span>`
-                : `<span style="color:#fbbf24;font-weight:700;">⏳ OSM照合中...</span>`;
-
-        const formatList = (items, color) => {
-            if (!items.length) {
-                return `<div style="color:#64748b;font-size:11px;padding:2px 0 6px 6px;">該当なし (0箇所)</div>`;
-            }
-            const rows = items.map((r, i) => {
-                const km0 = (r.d0 / 1000).toFixed(2);
-                const km1 = (r.d1 / 1000).toFixed(2);
-                const lenM = Math.round(r.d1 - r.d0);
-                const alt0 = Math.round(course.sampleAtDist(r.d0).alt);
-                const alt1 = Math.round(course.sampleAtDist(r.d1).alt);
-                const nameLabel = r.name ? ` <span style="color:#cbd5e1;">[${r.name}]</span>` : '';
-                return `<div style="display:flex;justify-content:space-between;padding:2px 6px;border-left:3px solid ${color};margin:2px 0;background:rgba(30,41,59,0.55);border-radius:0 4px 4px 0;font-size:11px;">
-                    <span>#${i + 1} ${km0}〜${km1}km (${lenM}m)${nameLabel}</span>
-                    <span style="color:#94a3b8;font-family:monospace;">${alt0}m→${alt1}m</span>
-                </div>`;
-            }).join('');
-            return `<div style="margin:2px 0 6px 0;">${rows}</div>`;
-        };
-
-        modalStructuresBody.innerHTML = `
-            <div style="margin-bottom:8px;padding:6px 8px;background:rgba(15,23,42,0.8);border-radius:6px;border:1px solid rgba(148,163,184,0.2);font-size:11px;line-height:1.4;">
-                <div><strong>コース:</strong> ${course.name} (${(course.totalDistance / 1000).toFixed(2)} km)</div>
-                <div><strong>OSM:</strong> ${osmBadge}</div>
-                <div><strong>高度:</strong> ${course.isGsiCorrected ? '国土地理院 10m' : 'コース標高'} ＋ 端部直線維持</div>
-            </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px;">
-                <div style="padding:6px;border-radius:6px;background:rgba(245,158,11,0.15);border:1px solid #f59e0b;text-align:center;">
-                    <div style="font-size:10px;color:#fbbf24;font-weight:700;">🌉 BRIDGE (橋)</div>
-                    <div style="font-size:18px;font-weight:800;color:#ffffff;">${s.bridgeCount} <span style="font-size:11px;font-weight:400;">箇所</span></div>
-                </div>
-                <div style="padding:6px;border-radius:6px;background:rgba(168,85,247,0.15);border:1px solid #a855f7;text-align:center;">
-                    <div style="font-size:10px;color:#c084fc;font-weight:700;">🚇 TUNNEL (トンネル)</div>
-                    <div style="font-size:18px;font-weight:800;color:#ffffff;">${s.tunnelCount} <span style="font-size:11px;font-weight:400;">箇所</span></div>
-                </div>
-            </div>
-            <div style="font-weight:700;color:#fbbf24;font-size:11px;">🌉 BRIDGE (オレンジ / 端部直線維持)</div>
-            ${formatList(s.bridges, '#f59e0b')}
-            <div style="font-weight:700;color:#c084fc;font-size:11px;margin-top:4px;">🚇 TUNNEL (パープル / 端部直線維持)</div>
-            ${formatList(s.tunnels, '#a855f7')}
-        `;
-        modalStructures.style.display = 'flex';
     }
 
     setGsiLoading(isLoading, pct = 0) {

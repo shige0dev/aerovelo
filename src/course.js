@@ -427,36 +427,23 @@ export class GeoCourseManager {
     }
 
     /**
-     * 勾配（-20% ~ +20%）を 0.2% 刻みで色相変化させた RGB [r, g, b] (各 0.0 ~ 1.0) に変換
-     * -20% : 青 (Hue 240°) - 下り坂
-     *   0% : 緑 (Hue 120°) - 平坦
-     * +20% : 赤 (Hue 0°)   - 激坂
+     * 勾配をもとに RGB [r, g, b] (各 0.0 ~ 1.0) に変換
+     * 標準 (0%) : 白 [1.0, 1.0, 1.0]
+     * 上り (+)  : 赤 [1.0, 0.0, 0.0] (0.5% ごとに彩度が高くなり、+16% 以上で MAX)
+     * 下り (-)  : 青 [0.0, 0.0, 1.0] (0.5% ごとに彩度が高くなり、-16% 以下で MAX)
      */
     static slopeToRgb(slope) {
-        const clamped = clamp(slope, -20.0, 20.0);
-        // 0.2% 刻みにステップ化（201段階）
-        const stepped = Math.round(clamped / 0.2) * 0.2;
-        // -20% -> 0.0, +20% -> 1.0
-        const t = (stepped - (-20.0)) / 40.0;
-        // 色相: -20% で 240度（青）、0% で 120度（緑）、+20% で 0度（赤）
-        const hue = (1.0 - t) * 240.0;
+        const absSlope = Math.abs(slope || 0);
+        // 0.5% 刻みでステップ化（0% ~ 16% で 32 段階、16% 越えで MAX）
+        const stepped = Math.min(16.0, Math.floor(absSlope / 0.5) * 0.5);
+        const t = clamp(stepped / 16.0, 0.0, 1.0);
 
-        // HSL to RGB (Saturation: 0.9, Lightness: 0.5)
-        const c = 0.9;
-        const x = c * (1 - Math.abs(((hue / 60) % 2) - 1));
-        const m = 0.5 - c / 2;
-        let r = 0, g = 0, b = 0;
-        if (hue >= 0 && hue < 60) {
-            r = c; g = x; b = 0;
-        } else if (hue >= 60 && hue < 120) {
-            r = x; g = c; b = 0;
-        } else if (hue >= 120 && hue < 180) {
-            r = 0; g = c; b = x;
-        } else if (hue >= 180 && hue < 240) {
-            r = 0; g = x; b = c;
-        } else {
-            r = x; g = 0; b = c;
+        if (t === 0) return [1.0, 1.0, 1.0];
+        if (slope > 0) {
+            // 上り: 白 -> 赤
+            return [1.0, 1.0 - t, 1.0 - t];
         }
-        return [r + m, g + m, b + m];
+        // 下り: 白 -> 青
+        return [1.0 - t, 1.0 - t, 1.0];
     }
 }

@@ -26,7 +26,7 @@ export class MapViewController {
         this.markerVisible = { fwd: false, bwd: false, contour: false };
         this.isMapLoaded = false;
         this.demSource = null;
-        this.ribbonLayer = new CourseRibbonLayer('course-ribbon-3d', 3.5);
+        this.ribbonLayer = new CourseRibbonLayer('course-ribbon-3d', 0.7);
 
         registerGsiDemProtocol();
         this.initMap(initialState);

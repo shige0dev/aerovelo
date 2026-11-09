@@ -18,19 +18,19 @@
     <!-- Fullscreen 3D Map Container -->
     <div id="map"></div>
 
-    <!-- 画面最上段バー: タイトル, コース名, アクション (⚙️ ⛶ 🎥) -->
+    <!-- 画面最上段バー: タイトル, コース名(クリックでコース選定), アクション (⚙️ 🎥 ⛶) -->
     <div id="top-bar">
         <div class="top-title-group">
             <h1 class="top-app-title">AeroVelo</h1>
-            <span class="version-badge" id="app-version">v2.4.25</span>
+            <span class="version-badge" id="app-version">v2.4.26</span>
         </div>
         <div class="top-course-group">
-            <span id="course-name-display" class="top-course-title">読み込み中...</span>
+            <span id="course-name-display" class="top-course-title" title="クリックでコース選定・標高補正">読み込み中...</span>
         </div>
         <div class="top-actions-group">
-            <button type="button" id="btn-modal-settings" class="icon-btn" title="設定 (GPX / トレーナー / テスト)">⚙️</button>
+            <button type="button" id="btn-modal-settings" class="icon-btn" title="スマートトレーナー連携">⚙️</button>
+            <button type="button" id="btn-toggle-cam-dialog" class="icon-btn" title="カメラ調整">🎥</button>
             <button type="button" id="btn-fullscreen" class="icon-btn" title="全画面表示 (F11)">⛶</button>
-            <button type="button" id="btn-toggle-cam-dialog" class="icon-btn" title="カメラ調整を展開">🎥</button>
         </div>
     </div>
 
@@ -107,14 +107,13 @@
         </div>
     </div>
 
-    <!-- カメラ調整フローティングダイアログ (他操作を遮らないモードレスダイアログ) -->
+    <!-- カメラ調整フローティングダイアログ (他場所タップで消去) -->
     <div id="camera-dialog" class="floating-dialog" style="display: none;">
         <div class="dialog-header">
             <div class="dialog-title-wrap">
                 <span class="dialog-title">CAMERA</span>
                 <button type="button" id="cam-free" class="btn toggle mini-cam-free">FREE</button>
             </div>
-            <button type="button" id="btn-close-cam-dialog" class="dialog-close" title="閉じる">✕</button>
         </div>
         <div id="camera-adjust-box" class="camera-adjust-box">
             <div class="label-row" style="margin-bottom: 2px;">
@@ -185,97 +184,83 @@
         <span id="bottom-total-dist-tag" class="canvas-total-dist-tag">Total 000.00Km</span>
     </div>
 
-    <!-- 統合設定フローティングダイアログ (⚙️ ボタン直上に展開、他操作を遮らないモードレスダイアログ) -->
-    <div id="modal-settings" class="floating-dialog" style="display: none;">
+    <!-- コース選定フローティングダイアログ (中央コース名クリックで展開、他場所タップで消去) -->
+    <div id="modal-course" class="floating-dialog center-dialog" style="display: none;">
         <div class="dialog-header">
-            <span class="dialog-title">SETTINGS</span>
-            <button type="button" id="btn-close-settings" class="dialog-close" title="閉じる">✕</button>
+            <span class="dialog-title">COURSE / GPX</span>
         </div>
         <div class="modal-body">
-                <!-- セクション 1: コース選定・GPX (枠線なし) -->
-                <div class="settings-section">
-                    <div class="settings-sec-title">📁 コース選定・GPX</div>
-                    <div class="gpx-section-frameless">
-                        <div class="preset-row">
-                            <select id="preset-select" class="preset-select">
-                                <option value="gpx/hiyoshi_12.5km_D738.gpx" selected>🇯🇵 Hiyoshi (12.5km D+738m)</option>
-                                <option value="gpx/shimanami_77.2km_D1903.gpx">🇯🇵 Shimanami (77.2km D+1903m)</option>
-                                <option value="gpx/kashida_27.9km_D1095.gpx">🇯🇵 Kashida (27.9km D+1095m)</option>
-                            </select>
-                        </div>
-                        <div class="gpx-actions-row">
-                            <input type="file" id="gpx-file-input" accept=".gpx" style="display: none;">
-                            <button type="button" id="btn-browse" class="action-item action-btn">FILE</button>
-                            <a href="https://gpx-edit-pro.ovh/editeur-gpx/?lang=ja" target="_blank" rel="noopener noreferrer" class="action-item action-link">WEB Editor</a>
-                        </div>
-                        <div class="gsi-row">
-                            <button type="button" id="btn-gsi-dem" class="gsi-btn" title="国土地理院 10mメッシュ(DEM10B)データ＋OSM橋・トンネル情報で標高と斜度を精密再計算">
-                                <span class="gsi-indicator"></span>
-                                <span id="gsi-btn-text">10mメッシュ標高で補正</span>
-                            </button>
-                        </div>
-                        <div id="structure-summary-row" class="structure-summary-row" title="クリックで検出された BRIDGE / TUNNEL の詳細を表示" style="margin-top: 6px; padding: 6px 10px; border-radius: 6px; background: rgba(15, 23, 42, 0.75); border: 1px solid rgba(148, 163, 184, 0.25); font-size: 11px; color: #e2e8f0; cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
-                            <span id="structure-summary-text">OSM 照合待機中...</span>
-                            <span style="color: #38bdf8; font-weight: 600;">詳細 ▸</span>
-                        </div>
-                    </div>
+            <div class="gpx-section-frameless">
+                <div class="preset-row">
+                    <select id="preset-select" class="preset-select">
+                        <option value="gpx/hiyoshi_12.5km_D738.gpx" selected>🇯🇵 Hiyoshi (12.5km D+738m)</option>
+                        <option value="gpx/shimanami_77.2km_D1903.gpx">🇯🇵 Shimanami (77.2km D+1903m)</option>
+                        <option value="gpx/kashida_27.9km_D1095.gpx">🇯🇵 Kashida (27.9km D+1095m)</option>
+                    </select>
                 </div>
-
-                <!-- セクション 2: スマートトレーナー接続 -->
-                <div class="settings-section">
-                    <div class="settings-sec-title">⚡ スマートトレーナー (FTMS)</div>
-                    <section class="control-group ble-section">
-                        <div class="ble-bar">
-                            <button type="button" id="btn-ble-connect" class="ble-btn">
-                                <span class="ble-dot"></span>
-                                <span id="ble-status-text">⚡ トレーナー接続</span>
-                            </button>
-                            <button type="button" id="btn-ble-disconnect" class="ble-disconnect-btn" style="display: none;" title="切断">✕</button>
-                        </div>
-                    </section>
+                <div class="gpx-actions-row">
+                    <input type="file" id="gpx-file-input" accept=".gpx" style="display: none;">
+                    <button type="button" id="btn-browse" class="action-item action-btn">FILE</button>
+                    <a href="https://gpx-edit-pro.ovh/editeur-gpx/?lang=ja" target="_blank" rel="noopener noreferrer" class="action-item action-link">WEB Editor</a>
                 </div>
-
-                <!-- セクション 3: 負荷設定 -->
-                <div class="settings-section">
-                    <div class="settings-sec-title">🛠️ 負荷設定</div>
-                    <div class="test-controls-box">
-                        <!-- Manual Slope Slider (0%〜7%) -->
-                        <div class="label-row">
-                            <div class="label-with-btn">
-                                <label for="test-slope-slider">負荷</label>
-                                <button type="button" id="btn-settings-manual" class="hud-manual-btn" title="マニュアル優先 (手動固定負荷モード切替)">Manual</button>
-                            </div>
-                            <span id="test-slope-val" class="sub-val">0.0 %</span>
-                        </div>
-                        <input type="range" id="test-slope-slider" min="0" max="7" step="0.2" value="0">
-
-                        <!-- Auto Sweep (AUTOSWEEP + 周期: 30秒, 60秒[デフォルト], 120秒) -->
-                        <div class="compact-scan-row">
-                            <button type="button" id="btn-lfo-toggle" class="btn secondary mini-scan-btn">AUTOSWEEP</button>
-                            <div class="lfo-period-wrap">
-                                <select id="lfo-period-select" class="mini-select" title="スキャン周期">
-                                    <option value="30">30s</option>
-                                    <option value="60" selected>60s</option>
-                                    <option value="120">120s</option>
-                                </select>
-                            </div>
-                        </div>
-                    </div>
+                <div class="gsi-row">
+                    <button type="button" id="btn-gsi-dem" class="gsi-btn" title="国土地理院 10mメッシュ(DEM10B)データ＋OSM橋・トンネル情報で標高と斜度を精密再計算">
+                        <span class="gsi-indicator"></span>
+                        <span id="gsi-btn-text">10mメッシュ標高で補正</span>
+                    </button>
+                </div>
+                <!-- 認識したブリッジ・トンネル数の表示 -->
+                <div id="structure-summary-row" class="structure-summary-box">
+                    <span id="structure-summary-text">🌉 Bridge: 0 / 🚇 Tunnel: 0</span>
                 </div>
             </div>
         </div>
+    </div>
 
-    <!-- 高度補正・構造物 (BRIDGE / TUNNEL) 検出結果ダイアログ -->
-    <div id="modal-structures" style="display: none; position: fixed; inset: 0; z-index: 9999; background: rgba(2, 6, 23, 0.72); backdrop-filter: blur(4px); align-items: center; justify-content: center; padding: 16px;">
-        <div style="width: 100%; max-width: 360px; background: rgba(15, 23, 42, 0.96); border: 1px solid rgba(56, 189, 248, 0.45); border-radius: 12px; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7); color: #f1f5f9; overflow: hidden; font-family: inherit;">
-            <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: rgba(30, 41, 59, 0.9); border-bottom: 1px solid rgba(148, 163, 184, 0.2);">
-                <span style="font-weight: 700; font-size: 13px; color: #38bdf8;">⛰️ BRIDGE / TUNNEL 検出結果</span>
-                <button type="button" id="btn-close-structures" style="background: transparent; border: none; color: #94a3b8; font-size: 15px; cursor: pointer; padding: 2px 6px;">✕</button>
+    <!-- スマートトレーナー連携フローティングダイアログ (⚙️ ボタンクリックで展開、他場所タップで消去) -->
+    <div id="modal-settings" class="floating-dialog" style="display: none;">
+        <div class="dialog-header">
+            <span class="dialog-title">SMART TRAINER</span>
+        </div>
+        <div class="modal-body">
+            <!-- スマートトレーナー接続 -->
+            <div class="settings-section">
+                <div class="settings-sec-title">⚡ FTMS 接続</div>
+                <section class="control-group ble-section">
+                    <div class="ble-bar">
+                        <button type="button" id="btn-ble-connect" class="ble-btn">
+                            <span class="ble-dot"></span>
+                            <span id="ble-status-text">⚡ トレーナー接続</span>
+                        </button>
+                        <button type="button" id="btn-ble-disconnect" class="ble-disconnect-btn" style="display: none;" title="切断">✕</button>
+                    </div>
+                </section>
             </div>
-            <div id="modal-structures-body" style="padding: 12px 14px; font-size: 12px; line-height: 1.5; max-height: 42vh; overflow-y: auto;">
-            </div>
-            <div style="padding: 8px 14px; background: rgba(30, 41, 59, 0.6); border-top: 1px solid rgba(148, 163, 184, 0.15); display: flex; justify-content: flex-end;">
-                <button type="button" id="btn-ok-structures" style="background: #0284c7; color: #ffffff; border: none; border-radius: 6px; padding: 5px 18px; font-size: 12px; font-weight: 600; cursor: pointer;">OK</button>
+
+            <!-- トレーナー負荷制御 -->
+            <div class="settings-section">
+                <div class="settings-sec-title">🛠️ トレーナー負荷制御</div>
+                <div class="test-controls-box">
+                    <div class="label-row">
+                        <div class="label-with-btn">
+                            <label for="test-slope-slider">負荷</label>
+                            <button type="button" id="btn-settings-manual" class="hud-manual-btn" title="マニュアル優先 (手動固定負荷モード切替)">Manual</button>
+                        </div>
+                        <span id="test-slope-val" class="sub-val">0.0 %</span>
+                    </div>
+                    <input type="range" id="test-slope-slider" min="0" max="7" step="0.2" value="0">
+
+                    <div class="compact-scan-row">
+                        <button type="button" id="btn-lfo-toggle" class="btn secondary mini-scan-btn">AUTOSWEEP</button>
+                        <div class="lfo-period-wrap">
+                            <select id="lfo-period-select" class="mini-select" title="スキャン周期">
+                                <option value="30">30s</option>
+                                <option value="60" selected>60s</option>
+                                <option value="120">120s</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>

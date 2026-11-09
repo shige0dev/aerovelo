@@ -45,7 +45,7 @@ function getRiderTexture(colorHex = '#06b6d4') {
 }
 
 export class CourseRibbonLayer {
-    constructor(id = 'course-ribbon-3d', widthMeters = 3.5) {
+    constructor(id = 'course-ribbon-3d', widthMeters = 0.7) {
         this.id = id;
         this.type = 'custom';
         this.renderingMode = '3d';
