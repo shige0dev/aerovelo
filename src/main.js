@@ -1,10 +1,10 @@
-import { GeoCourseManager, DEFAULT_LAKE_ROUTE } from './course.js?v=2.4.28';
-import { clamp } from './utils.js?v=2.4.28';
-import { GPXParser } from './gpx-parser.js?v=2.4.28';
-import { BleTrainerManager } from './ble.js?v=2.4.28';
-import { ElevationChart } from './elevation-chart.js?v=2.4.28';
-import { MapViewController } from './map-view.js?v=2.4.28';
-import { UIController } from './ui-controller.js?v=2.4.28';
+import { GeoCourseManager, DEFAULT_LAKE_ROUTE } from './course.js?v=2.4.29';
+import { clamp } from './utils.js?v=2.4.29';
+import { GPXParser } from './gpx-parser.js?v=2.4.29';
+import { BleTrainerManager } from './ble.js?v=2.4.29';
+import { ElevationChart } from './elevation-chart.js?v=2.4.29';
+import { MapViewController } from './map-view.js?v=2.4.29';
+import { UIController } from './ui-controller.js?v=2.4.29';
 
 class App {
     constructor() {
@@ -111,14 +111,9 @@ class App {
         this.hasBleDistance = false;
         if (this.bleManager.isConnected) this.bleManager.resetDistance();
 
-        if (this.mapView.cameraMode === 'free') {
-            this.ui.updateCameraModeUI(false);
-            this.mapView.setCameraMode('track', null);
-        }
-
         this.ui.updateCourseMeta(this.course, 0.0);
         this.chart.setCourse(this.course);
-        this.mapView.setCourse(this.course, null);
+        this.mapView.setCourse(this.course, this.currentState());
         this.updateState(0.0);
 
         // 橋・トンネル認識と標高DEM同期を実行（端部直線高度維持を含む）
@@ -132,7 +127,7 @@ class App {
             if (this.course !== activeCourse) return;
             this.ui.updateCourseMeta(this.course, this.currentProgress);
             this.chart.setCourse(this.course);
-            this.mapView.setCourse(this.course, null);
+            this.mapView.setCourse(this.course, this.currentState());
             this.updateState(this.currentProgress);
         });
     }
@@ -166,7 +161,7 @@ class App {
             await this.course.recalculateWithGSI10m((pct) => this.ui.setGsiLoading(true, pct));
             this.ui.updateCourseMeta(this.course, this.currentProgress);
             this.chart.setCourse(this.course);
-            this.mapView.setCourse(this.course, null);
+            this.mapView.setCourse(this.course, this.currentState());
             this.updateState(this.currentProgress);
         } catch (err) {
             console.error('GSI DEM error:', err);

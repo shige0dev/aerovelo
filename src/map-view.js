@@ -211,7 +211,8 @@ export class MapViewController {
         // 3D コースリボンの更新
         this.ribbonLayer?.updateCourse(course);
 
-        if (initialState) this.updateRiderAndCamera(initialState, 0, false);
+        // 新規コース読み込み時は FREE カメラモード中であっても視点を新コースへ強制更新する
+        if (initialState) this.updateRiderAndCamera(initialState, 0, false, true);
     }
 
     syncTargetMarkers(state = this.lastState) {
@@ -236,15 +237,15 @@ export class MapViewController {
         this.syncTargetMarkers();
     }
 
-    updateRiderAndCamera(state, duration = 0, isMoving = false) {
+    updateRiderAndCamera(state, duration = 0, isMoving = false, forceCamera = false) {
         this.lastState = state;
         this.syncTargetMarkers(state);
 
         // ルートメッシュ上を走る 3D 走行点を更新
         this.ribbonLayer?.updateRider(state);
 
-        if (!this.cam.isTransitioning && this.cam.mode !== 'free') {
-            this.applyCameraTarget(state, duration, isMoving);
+        if (forceCamera || (!this.cam.isTransitioning && this.cam.mode !== 'free')) {
+            this.applyCameraTarget(state, duration, isMoving, forceCamera);
         }
     }
 
@@ -384,8 +385,8 @@ export class MapViewController {
         if (this.cam.mode !== 'free' && currentState) this.applyCameraTarget(currentState, 0);
     }
 
-    applyCameraTarget(state, duration = 0, isMoving = false) {
-        if (!this.map || this.cam.mode === 'free' || !state) return;
+    applyCameraTarget(state, duration = 0, isMoving = false, forceCamera = false) {
+        if (!this.map || (!forceCamera && this.cam.mode === 'free') || !state) return;
 
         const targetPitch = this.cam.pitch;
         const targetBearing = (state.bearing - this.cam.orbit + 360) % 360;
