@@ -3,9 +3,9 @@
  * Handles satellite/terrain rendering, DEM contour isolines, route layers, and camera tracking.
  */
 
-import { clamp } from './utils.js?v=2.4.28';
-import { HYBRID_DEM_URL, registerGsiDemProtocol } from './dem-service.js?v=2.4.28';
-import { CourseRibbonLayer } from './ribbon-layer.js?v=2.4.28';
+import { clamp } from './utils.js';
+import { HYBRID_DEM_URL, registerGsiDemProtocol } from './dem-service.js';
+import { CourseRibbonLayer } from './ribbon-layer.js';
 
 export class MapViewController {
     constructor(containerId = 'map', initialState = { lon: 138.583, lat: 35.474, bearing: 0 }, onCameraChange = null) {
@@ -304,9 +304,6 @@ export class MapViewController {
         container.addEventListener('pointerdown', (e) => {
             if (this.cam.mode !== 'track') return;
             if (e.target.closest('#top-bar, #hud-metrics, #bottom-bar, .floating-dialog, .compass-widget')) return;
-            const anyDialogOpen = Array.from(document.querySelectorAll('.floating-dialog'))
-                .some((dlg) => dlg.style.display && dlg.style.display !== 'none');
-            if (anyDialogOpen) return;
 
             isDragging = true;
             startX = e.clientX;

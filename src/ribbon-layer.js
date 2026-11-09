@@ -4,7 +4,7 @@
  * along with corresponding 3D definition point markers on the mesh surface.
  */
 
-import { GeoCourseManager } from './course.js?v=2.4.28';
+import { GeoCourseManager } from './course.js';
 
 const riderTextures = {};
 function getRiderTexture(colorHex = '#06b6d4') {

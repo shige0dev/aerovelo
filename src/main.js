@@ -1,10 +1,10 @@
-import { GeoCourseManager, DEFAULT_LAKE_ROUTE } from './course.js?v=2.4.29';
-import { clamp } from './utils.js?v=2.4.29';
-import { GPXParser } from './gpx-parser.js?v=2.4.29';
-import { BleTrainerManager } from './ble.js?v=2.4.29';
-import { ElevationChart } from './elevation-chart.js?v=2.4.29';
-import { MapViewController } from './map-view.js?v=2.4.29';
-import { UIController } from './ui-controller.js?v=2.4.29';
+import { GeoCourseManager, DEFAULT_LAKE_ROUTE } from './course.js';
+import { clamp } from './utils.js';
+import { GPXParser } from './gpx-parser.js';
+import { BleTrainerManager } from './ble.js';
+import { ElevationChart } from './elevation-chart.js';
+import { MapViewController } from './map-view.js';
+import { UIController } from './ui-controller.js';
 
 class App {
     constructor() {
@@ -107,9 +107,6 @@ class App {
         this.course = activeCourse;
         this.setPlayState(false);
         this.currentProgress = 0.0;
-        this.baseProgressAtBleStart = 0.0;
-        this.hasBleDistance = false;
-        if (this.bleManager.isConnected) this.bleManager.resetDistance();
 
         this.ui.updateCourseMeta(this.course, 0.0);
         this.chart.setCourse(this.course);
@@ -127,7 +124,7 @@ class App {
             if (this.course !== activeCourse) return;
             this.ui.updateCourseMeta(this.course, this.currentProgress);
             this.chart.setCourse(this.course);
-            this.mapView.setCourse(this.course, this.currentState());
+            this.mapView.setCourse(this.course, null);
             this.updateState(this.currentProgress);
         });
     }
@@ -161,7 +158,7 @@ class App {
             await this.course.recalculateWithGSI10m((pct) => this.ui.setGsiLoading(true, pct));
             this.ui.updateCourseMeta(this.course, this.currentProgress);
             this.chart.setCourse(this.course);
-            this.mapView.setCourse(this.course, this.currentState());
+            this.mapView.setCourse(this.course, null);
             this.updateState(this.currentProgress);
         } catch (err) {
             console.error('GSI DEM error:', err);

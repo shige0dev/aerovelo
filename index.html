@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AeroVelo - 3D Terrain Virtual Cycling</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚴</text></svg>">
-    <link rel="stylesheet" href="style.css?v=2.4.29">
+    <link rel="stylesheet" href="style.css">
     
     <!-- MapLibre GL JS (3D Terrain, Satellite & Real-time Full-screen Contours) -->
     <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
@@ -22,7 +22,7 @@
     <div id="top-bar">
         <div class="top-title-group">
             <h1 class="top-app-title">AeroVelo</h1>
-            <span class="version-badge" id="app-version">v2.4.29</span>
+            <span class="version-badge" id="app-version">v2.4.30</span>
         </div>
         <div class="top-course-group">
             <span id="course-name-display" class="top-course-title" title="クリックでコース選定・標高補正">読み込み中...</span>
@@ -193,7 +193,6 @@
             <div class="gpx-section-frameless">
                 <div class="preset-row">
                     <select id="preset-select" class="preset-select">
-                        <option value="" disabled hidden>📂 ローカルGPX読込中</option>
                         <option value="gpx/hiyoshi_12.5km_D738.gpx" selected>🇯🇵 Hiyoshi (12.5km D+738m)</option>
                         <option value="gpx/shimanami_77.2km_D1903.gpx">🇯🇵 Shimanami (77.2km D+1903m)</option>
                         <option value="gpx/kashida_27.9km_D1095.gpx">🇯🇵 Kashida (27.9km D+1095m)</option>
@@ -286,6 +285,6 @@
         </div>
     </div>
 
-    <script type="module" src="src/main.js?v=2.4.29"></script>
+    <script type="module" src="src/main.js"></script>
 </body>
 </html>
