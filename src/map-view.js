@@ -22,8 +22,8 @@ export class MapViewController {
         };
         this.lastState = initialState;
         this.markers = { fwd: null, bwd: null };
-        // 前後注視点マーカー・等高線・3D建物は起動時非表示 (SHOWボタン押下で表示)
-        this.markerVisible = { fwd: false, bwd: false, contour: false, building: false };
+        // 3D建物はデフォルト表示 (SHOW点灯)、等高線・前後注視点マーカーは起動時非表示
+        this.markerVisible = { fwd: false, bwd: false, contour: false, building: true };
         this.buildingOpacity = 0.85;
         this.isMapLoaded = false;
         this.demSource = null;
@@ -174,6 +174,10 @@ export class MapViewController {
             // 3D コースリボンレイヤー（空中・立体道路オブジェクト）を追加
             if (!this.map.getLayer(this.ribbonLayer.id)) {
                 this.map.addLayer(this.ribbonLayer);
+            }
+
+            if (this.markerVisible.building) {
+                this.setBuildingVisible(true);
             }
 
             if (this.pendingCourse) {
