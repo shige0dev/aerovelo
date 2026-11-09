@@ -180,7 +180,7 @@ export class UIController {
 
         // 1. 下部Canvas AutoRun横の再生速度スクラバー (AUTORUN時のみ有効)
         this.bindScrubber(el.autorunSpeedBox, {
-            min: 1, max: 80, step: 1, pxPerStep: 4,
+            min: 1, max: 200, step: 1, pxPerStep: 4,
             isEnabled: () => !!cb.isPlaying?.(),
             getValue: () => cb.getSpeed?.() ?? 25,
             onInput: (v) => cb.onSpeedChange?.(v)
