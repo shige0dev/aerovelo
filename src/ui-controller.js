@@ -387,23 +387,14 @@ export class UIController {
         if (speed != null) this.setSpeedDisplay(speed);
     }
 
-    getBleDefaultLabel(mode = this.bleDeviceType) {
-        if (mode === 'speed') return '🛞 スピード接続';
-        if (mode === 'cadence') return '🔄 ケイデンス接続';
-        return '⚡ トレーナー接続';
-    }
-
     updateBleModeUI(mode) {
         this.bleDeviceType = mode;
-        const { bleModeTabs, panelTrainerLoad, panelSpeedCirc, btnBleConnect, bleStatusText } = this.el;
+        const { bleModeTabs, panelTrainerLoad, panelSpeedCirc } = this.el;
         bleModeTabs?.querySelectorAll('.ble-mode-tab').forEach((tab) => {
             tab.classList.toggle('active', tab.dataset.mode === mode);
         });
         if (panelTrainerLoad) panelTrainerLoad.style.display = mode === 'trainer' ? 'flex' : 'none';
         if (panelSpeedCirc) panelSpeedCirc.style.display = mode === 'speed' ? 'flex' : 'none';
-        if (btnBleConnect && !btnBleConnect.classList.contains('connected') && bleStatusText) {
-            bleStatusText.textContent = this.getBleDefaultLabel(mode);
-        }
     }
 
     updateBleConnectionState(state, deviceName = '') {
@@ -418,7 +409,7 @@ export class UIController {
         } else if (isConnected) {
             bleStatusText.textContent = `🟢 ${deviceName}`;
         } else {
-            bleStatusText.textContent = this.getBleDefaultLabel();
+            bleStatusText.textContent = '接続';
             this.setHud({ power: '--.--', cadence: '--.--' });
         }
     }
