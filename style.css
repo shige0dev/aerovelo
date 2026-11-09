@@ -333,17 +333,18 @@ input[type="range"]::-webkit-slider-thumb {
 }
 .ble-mode-tab {
     display: flex; align-items: center; justify-content: center;
-    padding: 4px 2px; font-size: 0.58rem; font-weight: 700;
-    color: var(--muted); background: transparent;
-    border: 1px solid transparent; border-radius: 4px;
+    padding: 4px 2px; font-size: 0.60rem; font-weight: 600;
+    color: rgba(255, 255, 255, 0.32); background: rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 4px;
     cursor: pointer; white-space: nowrap; transition: all 0.15s ease;
 }
 .ble-mode-tab:hover {
-    color: #fff; background: rgba(255, 255, 255, 0.06);
+    color: rgba(255, 255, 255, 0.65); background: rgba(255, 255, 255, 0.05);
 }
 .ble-mode-tab.active {
-    background: rgba(0, 240, 255, 0.22); border-color: var(--accent);
-    color: #ffffff; box-shadow: 0 0 6px var(--accent-glow);
+    background: rgba(0, 240, 255, 0.25); border-color: var(--accent);
+    color: #ffffff; font-weight: 700;
+    box-shadow: 0 0 8px var(--accent-glow);
 }
 
 .ble-btn {
