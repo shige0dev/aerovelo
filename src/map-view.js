@@ -256,7 +256,9 @@ export class MapViewController {
             if (!this.map.getSource(sourceId)) {
                 this.map.addSource(sourceId, {
                     type: 'vector',
-                    url: 'https://tiles.openfreemap.org/planet'
+                    url: 'https://tiles.openfreemap.org/planet',
+                    minzoom: 13,
+                    maxzoom: 14
                 });
             }
             const beforeId = this.map.getLayer(this.ribbonLayer.id) ? this.ribbonLayer.id : undefined;
@@ -265,23 +267,24 @@ export class MapViewController {
                 type: 'fill-extrusion',
                 source: sourceId,
                 'source-layer': 'building',
-                minzoom: 14,
-                filter: ['!=', ['get', 'hide_3d'], true],
+                minzoom: 13,
                 layout: {
                     visibility: 'visible'
                 },
                 paint: {
+                    // すべてグレー系に統一 (高さに応じた明度変化: 低層ダークグレー 〜 高層ライトスレート)
                     'fill-extrusion-color': [
                         'interpolate', ['linear'],
                         ['coalesce', ['get', 'render_height'], 6],
-                        0, '#cbd5e1',
-                        15, '#94a3b8',
-                        40, '#64748b',
-                        100, '#38bdf8'
+                        0, '#334155',    // 低層 (〜10m): ダークスレートグレー
+                        20, '#475569',   // 中層 (〜20m): スレートグレー
+                        50, '#64748b',   // 高層 (〜50m): ミディアムグレー
+                        120, '#94a3b8'   // 超高層 (100m+): ライトグレー
                     ],
                     'fill-extrusion-height': ['coalesce', ['get', 'render_height'], 6],
                     'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], 0],
-                    'fill-extrusion-opacity': this.buildingOpacity
+                    'fill-extrusion-opacity': this.buildingOpacity,
+                    'fill-extrusion-vertical-gradient': true
                 }
             }, beforeId);
             return;
