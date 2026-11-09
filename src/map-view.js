@@ -272,14 +272,15 @@ export class MapViewController {
                     visibility: 'visible'
                 },
                 paint: {
-                    // すべてグレー系に統一 (高さに応じた明度変化: 低層ダークグレー 〜 高層ライトスレート)
+                    // 低層は白系、高層になるにつれて落ち着いたグレーへ変化
                     'fill-extrusion-color': [
                         'interpolate', ['linear'],
                         ['coalesce', ['get', 'render_height'], 6],
-                        0, '#334155',    // 低層 (〜10m): ダークスレートグレー
-                        20, '#475569',   // 中層 (〜20m): スレートグレー
-                        50, '#64748b',   // 高層 (〜50m): ミディアムグレー
-                        120, '#94a3b8'   // 超高層 (100m+): ライトグレー
+                        0, '#f8fafc',    // 低層 (〜10m): 明るい白 (スノーホワイト)
+                        15, '#e2e8f0',   // 中低層 (〜15m): オフホワイト
+                        40, '#cbd5e1',   // 中層 (〜40m): ライトグレー
+                        80, '#94a3b8',   // 高層 (〜80m): ミディアムグレー
+                        140, '#64748b'   // 超高層 (140m+): ダークスレートグレー
                     ],
                     'fill-extrusion-height': ['coalesce', ['get', 'render_height'], 6],
                     'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], 0],
