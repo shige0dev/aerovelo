@@ -250,10 +250,12 @@ export class MapViewController {
 
     /**
      * OSM 3D立体建物 (OpenFreeMap fill-extrusion) の表示切替
+     * 底面 (フットプリント) は完全不透明 (1.0) で地面をカバーし、立体部分はユーザー指定の透明度で描画
      */
     setBuildingVisible(visible) {
         if (!this.map || !this.isMapLoaded) return;
         const sourceId = 'openfreemap-buildings';
+        const footprintLayerId = 'osm-building-footprints';
         const layerId = 'osm-3d-buildings';
 
         if (visible && !this.map.getLayer(layerId)) {
@@ -266,6 +268,26 @@ export class MapViewController {
                 });
             }
             const beforeId = this.map.getLayer(this.ribbonLayer.id) ? this.ribbonLayer.id : undefined;
+
+            // 1. 底面 (フットプリント) レイヤー: 地面を完全不透明 (1.0) で目隠し・接地
+            if (!this.map.getLayer(footprintLayerId)) {
+                this.map.addLayer({
+                    id: footprintLayerId,
+                    type: 'fill',
+                    source: sourceId,
+                    'source-layer': 'building',
+                    minzoom: 13,
+                    layout: {
+                        visibility: 'visible'
+                    },
+                    paint: {
+                        'fill-color': '#e2e8f0',
+                        'fill-opacity': 1.0
+                    }
+                }, beforeId);
+            }
+
+            // 2. 3D立体建物レイヤー: 低層=白 〜 高層=ライトグレー、透明度はスライダーで調整
             this.map.addLayer({
                 id: layerId,
                 type: 'fill-extrusion',
@@ -276,15 +298,15 @@ export class MapViewController {
                     visibility: 'visible'
                 },
                 paint: {
-                    // 低層は白系、高層になるにつれて落ち着いたグレーへ変化
+                    // 低層は白系、高層はライトグレーへ変化 (暗くならず軽やかで清潔感のある配色)
                     'fill-extrusion-color': [
                         'interpolate', ['linear'],
                         ['coalesce', ['get', 'render_height'], 6],
-                        0, '#f8fafc',    // 低層 (〜10m): 明るい白 (スノーホワイト)
-                        15, '#e2e8f0',   // 中低層 (〜15m): オフホワイト
-                        40, '#cbd5e1',   // 中層 (〜40m): ライトグレー
-                        80, '#94a3b8',   // 高層 (〜80m): ミディアムグレー
-                        140, '#64748b'   // 超高層 (140m+): ダークスレートグレー
+                        0, '#ffffff',    // 低層 (〜10m): 純白
+                        15, '#f8fafc',   // 中低層 (〜15m): スノーホワイト
+                        40, '#f1f5f9',   // 中層 (〜40m): 薄いクールグレー
+                        80, '#e2e8f0',   // 高層 (〜80m): ソフトライトグレー
+                        140, '#cbd5e1'   // 超高層 (140m+): ライトグレー
                     ],
                     'fill-extrusion-height': ['coalesce', ['get', 'render_height'], 6],
                     'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], 0],
@@ -295,6 +317,9 @@ export class MapViewController {
             return;
         }
 
+        if (this.map.getLayer(footprintLayerId)) {
+            this.map.setLayoutProperty(footprintLayerId, 'visibility', visible ? 'visible' : 'none');
+        }
         if (this.map.getLayer(layerId)) {
             this.map.setLayoutProperty(layerId, 'visibility', visible ? 'visible' : 'none');
         }
