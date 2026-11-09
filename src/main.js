@@ -48,6 +48,7 @@ class App {
                 this.updateState(this.currentProgress, true);
             },
             onToggleMarker: (type, isVisible) => this.mapView.setMarkerVisibility({ [type]: isVisible }),
+            onBuildingOpacityChange: (opacity) => this.mapView.setBuildingOpacity(opacity),
             onResetNorth: () => {
                 this.mapView.setCameraParams({ orbit: 0 }, this.currentState());
                 this.ui.syncCameraParams({ orbit: 0 });

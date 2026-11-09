@@ -24,6 +24,7 @@ export class MapViewController {
         this.markers = { fwd: null, bwd: null };
         // 前後注視点マーカー・等高線・3D建物は起動時非表示 (SHOWボタン押下で表示)
         this.markerVisible = { fwd: false, bwd: false, contour: false, building: false };
+        this.buildingOpacity = 0.85;
         this.isMapLoaded = false;
         this.demSource = null;
         this.ribbonLayer = new CourseRibbonLayer('course-ribbon-3d', 3.0);
@@ -280,7 +281,7 @@ export class MapViewController {
                     ],
                     'fill-extrusion-height': ['coalesce', ['get', 'render_height'], 6],
                     'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], 0],
-                    'fill-extrusion-opacity': 0.78
+                    'fill-extrusion-opacity': this.buildingOpacity
                 }
             }, beforeId);
             return;
@@ -288,6 +289,16 @@ export class MapViewController {
 
         if (this.map.getLayer(layerId)) {
             this.map.setLayoutProperty(layerId, 'visibility', visible ? 'visible' : 'none');
+        }
+    }
+
+    /**
+     * 3D立体建物の不透明度 (透明度) をリアルタイム設定 (0.05〜1.0)
+     */
+    setBuildingOpacity(opacity) {
+        this.buildingOpacity = clamp(opacity, 0.05, 1.0);
+        if (this.map && this.map.getLayer('osm-3d-buildings')) {
+            this.map.setPaintProperty('osm-3d-buildings', 'fill-extrusion-opacity', this.buildingOpacity);
         }
     }
 

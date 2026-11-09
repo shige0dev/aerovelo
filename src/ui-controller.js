@@ -227,8 +227,23 @@ export class UIController {
                 visible = !visible;
                 btn.classList.toggle('active', visible);
                 cb.onToggleMarker?.(key, visible);
+                if (key === 'building') {
+                    const slider = $('bldg-opacity-slider');
+                    if (slider) slider.style.opacity = visible ? '1' : '0.4';
+                }
             });
         });
+
+        // 3D立体建物の不透明度 (透明度) スライダー
+        const bldgSlider = $('bldg-opacity-slider');
+        const bldgVal = $('bldg-opacity-val');
+        if (bldgSlider) {
+            on(bldgSlider, 'input', (e) => {
+                const val = parseFloat(e.target.value);
+                if (bldgVal) bldgVal.textContent = `${Math.round(val * 100)}%`;
+                cb.onBuildingOpacityChange?.(val);
+            });
+        }
 
         // カメラ調整スライダー一括バインド (camControls と CAM_SLIDER_FORMATTERS を共有)
         for (const [key, ctrl] of Object.entries(this.camControls)) {
