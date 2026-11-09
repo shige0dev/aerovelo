@@ -4,6 +4,7 @@
  * along with corresponding 3D definition point markers on the mesh surface.
  */
 
+import * as THREE from 'three';
 import { GeoCourseManager } from './course.js';
 
 const riderTextures = {};

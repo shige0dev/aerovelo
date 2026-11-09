@@ -28,7 +28,10 @@ export class MapViewController {
         this.isMapLoaded = false;
         this.demSource = null;
         this.ribbonLayer = new CourseRibbonLayer('course-ribbon-3d', 3.0);
-        this.google3dLayer = new Google3DTilesLayer('google-3d-tiles');
+        this.google3dLayer = new Google3DTilesLayer('google-3d-tiles', (statusText) => {
+            const el = document.getElementById('bldg-b-status');
+            if (el) el.textContent = statusText;
+        });
 
         registerGsiDemProtocol();
         this.initMap(initialState);
@@ -191,6 +194,11 @@ export class MapViewController {
 
             this.map.on('rotate', () => {
                 this.onCameraChange?.({ bearing: this.map.getBearing() });
+            });
+            this.map.on('moveend', () => {
+                if (this.markerVisible.bldgB) {
+                    this.google3dLayer.updateTilesForCurrentView(false);
+                }
             });
         });
     }
