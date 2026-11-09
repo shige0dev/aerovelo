@@ -3,9 +3,9 @@
  * Handles satellite/terrain rendering, DEM contour isolines, route layers, and camera tracking.
  */
 
-import { clamp } from './utils.js';
-import { HYBRID_DEM_URL, registerGsiDemProtocol } from './dem-service.js';
-import { CourseRibbonLayer } from './ribbon-layer.js';
+import { clamp } from './utils.js?v=2.4.28';
+import { HYBRID_DEM_URL, registerGsiDemProtocol } from './dem-service.js?v=2.4.28';
+import { CourseRibbonLayer } from './ribbon-layer.js?v=2.4.28';
 
 export class MapViewController {
     constructor(containerId = 'map', initialState = { lon: 138.583, lat: 35.474, bearing: 0 }, onCameraChange = null) {
@@ -26,7 +26,7 @@ export class MapViewController {
         this.markerVisible = { fwd: false, bwd: false, contour: false };
         this.isMapLoaded = false;
         this.demSource = null;
-        this.ribbonLayer = new CourseRibbonLayer('course-ribbon-3d', 0.7);
+        this.ribbonLayer = new CourseRibbonLayer('course-ribbon-3d', 3.0);
 
         registerGsiDemProtocol();
         this.initMap(initialState);
@@ -199,6 +199,7 @@ export class MapViewController {
 
     setCourse(course, initialState) {
         this.cam.bearing = null;
+        this.cam.isTransitioning = false;
         if (!this.map) return;
 
         if (!this.isMapLoaded) {
@@ -210,7 +211,7 @@ export class MapViewController {
         // 3D コースリボンの更新
         this.ribbonLayer?.updateCourse(course);
 
-        if (initialState) this.updateRiderAndCamera(initialState, 1500);
+        if (initialState) this.updateRiderAndCamera(initialState, 0, false);
     }
 
     syncTargetMarkers(state = this.lastState) {
@@ -302,6 +303,9 @@ export class MapViewController {
         container.addEventListener('pointerdown', (e) => {
             if (this.cam.mode !== 'track') return;
             if (e.target.closest('#top-bar, #hud-metrics, #bottom-bar, .floating-dialog, .compass-widget')) return;
+            const anyDialogOpen = Array.from(document.querySelectorAll('.floating-dialog'))
+                .some((dlg) => dlg.style.display && dlg.style.display !== 'none');
+            if (anyDialogOpen) return;
 
             isDragging = true;
             startX = e.clientX;

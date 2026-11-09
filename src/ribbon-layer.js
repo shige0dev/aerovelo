@@ -4,7 +4,7 @@
  * along with corresponding 3D definition point markers on the mesh surface.
  */
 
-import { GeoCourseManager } from './course.js';
+import { GeoCourseManager } from './course.js?v=2.4.28';
 
 const riderTextures = {};
 function getRiderTexture(colorHex = '#06b6d4') {
@@ -45,7 +45,7 @@ function getRiderTexture(colorHex = '#06b6d4') {
 }
 
 export class CourseRibbonLayer {
-    constructor(id = 'course-ribbon-3d', widthMeters = 0.7) {
+    constructor(id = 'course-ribbon-3d', widthMeters = 3.0) {
         this.id = id;
         this.type = 'custom';
         this.renderingMode = '3d';
@@ -222,7 +222,7 @@ export class CourseRibbonLayer {
             depthTest: true,
             depthWrite: false, // 半透明メッシュが背後や走行点を遮蔽しないように深度壁の書き込みを無効化
             transparent: true,
-            opacity: 0.5 // 半透明（透明度50%）
+            opacity: 0.88 // 透明度を下げて（不透明度88%）勾配カラーをはっきり表示
         });
 
         this.mesh = new THREE.Mesh(geometry, material);
@@ -241,7 +241,7 @@ export class CourseRibbonLayer {
                 depthTest: false, // 山肌メッシュを手前に透視！
                 depthWrite: false,
                 transparent: true,
-                opacity: 0.5 // 半透明（透明度50%）
+                opacity: 0.75
             });
             this.tunnelXrayMesh = new THREE.Mesh(tunnelGeom, tunnelMat);
             this.tunnelXrayMesh.frustumCulled = false;

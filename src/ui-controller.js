@@ -3,7 +3,7 @@
  * Encapsulates all DOM queries, HUD/Bottom-bar updates, modals, sliders, and file controls.
  */
 
-import { clamp, $, on } from './utils.js';
+import { clamp, $, on } from './utils.js?v=2.4.28';
 
 const CAM_SLIDER_FORMATTERS = {
     smooth: (v) => v === 0 ? 'OFF' : (v === 5 ? '5 (標準)' : `${v}`),
@@ -58,6 +58,7 @@ export class UIController {
             camAdjustBox: $('camera-adjust-box'),
             compassBtn: $('compass-btn'),
             compassDial: $('compass-dial'),
+            presetSelect: $('preset-select'),
             btnGsiDem: $('btn-gsi-dem'),
             gsiBtnText: $('gsi-btn-text'),
             structureSummaryText: $('structure-summary-text'),
@@ -149,6 +150,7 @@ export class UIController {
                 btn.classList.remove('active');
             }
         };
+        this.closeDialogs = closeAll;
 
         for (const { btn, dlg } of items) {
             on(btn, 'click', (e) => {
@@ -160,8 +162,17 @@ export class UIController {
             });
         }
 
-        // ダイアログ以外の場所を触ると消える
+        // ダイアログ以外の場所を触ると消える（<select> プルダウン操作中は選択キャンセルを防ぐためスキップ）
         on(document, 'pointerdown', (e) => {
+            const activeEl = document.activeElement;
+            if (activeEl?.tagName === 'SELECT' && items.some(({ dlg }) => dlg.contains(activeEl))) {
+                return;
+            }
+            const insideAny = items.some(({ btn, dlg }) => dlg.contains(e.target) || btn.contains(e.target));
+            if (!insideAny) closeAll();
+        });
+
+        on(document, 'click', (e) => {
             const insideAny = items.some(({ btn, dlg }) => dlg.contains(e.target) || btn.contains(e.target));
             if (!insideAny) closeAll();
         });
@@ -277,12 +288,30 @@ export class UIController {
 
         on(el.btnBleConnect, 'click', () => cb.onBleConnect?.(this.bleDeviceType));
         on(el.btnBleDisconnect, 'click', (e) => { e.stopPropagation(); cb.onBleDisconnect?.(); });
-        on('preset-select', 'change', (e) => cb.onSelectPreset?.(e.target.value));
+        on(el.presetSelect, 'change', (e) => {
+            const val = e.target.value;
+            if (!val) return;
+            this.closeDialogs?.();
+            cb.onSelectPreset?.(val);
+        });
         on(el.btnGsiDem, 'click', () => cb.onRequestGsiDem?.());
 
         const fileInput = $('gpx-file-input');
-        on('btn-browse', 'click', (e) => { e.stopPropagation(); fileInput?.click(); });
-        on(fileInput, 'change', (e) => { if (e.target.files[0]) cb.onLoadGpxFile?.(e.target.files[0]); });
+        on('btn-browse', 'click', (e) => {
+            e.stopPropagation();
+            if (fileInput) {
+                fileInput.value = '';
+                fileInput.click();
+            }
+        });
+        on(fileInput, 'change', (e) => {
+            const file = e.target.files?.[0];
+            if (file) {
+                if (el.presetSelect) el.presetSelect.value = '';
+                this.closeDialogs?.();
+                cb.onLoadGpxFile?.(file);
+            }
+        });
     }
 
     // --- UI Rendering / State Update Methods ---

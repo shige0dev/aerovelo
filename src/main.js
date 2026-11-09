@@ -1,10 +1,10 @@
-import { GeoCourseManager, DEFAULT_LAKE_ROUTE } from './course.js';
-import { clamp } from './utils.js';
-import { GPXParser } from './gpx-parser.js';
-import { BleTrainerManager } from './ble.js';
-import { ElevationChart } from './elevation-chart.js';
-import { MapViewController } from './map-view.js';
-import { UIController } from './ui-controller.js';
+import { GeoCourseManager, DEFAULT_LAKE_ROUTE } from './course.js?v=2.4.28';
+import { clamp } from './utils.js?v=2.4.28';
+import { GPXParser } from './gpx-parser.js?v=2.4.28';
+import { BleTrainerManager } from './ble.js?v=2.4.28';
+import { ElevationChart } from './elevation-chart.js?v=2.4.28';
+import { MapViewController } from './map-view.js?v=2.4.28';
+import { UIController } from './ui-controller.js?v=2.4.28';
 
 class App {
     constructor() {
@@ -107,10 +107,18 @@ class App {
         this.course = activeCourse;
         this.setPlayState(false);
         this.currentProgress = 0.0;
+        this.baseProgressAtBleStart = 0.0;
+        this.hasBleDistance = false;
+        if (this.bleManager.isConnected) this.bleManager.resetDistance();
+
+        if (this.mapView.cameraMode === 'free') {
+            this.ui.updateCameraModeUI(false);
+            this.mapView.setCameraMode('track', null);
+        }
 
         this.ui.updateCourseMeta(this.course, 0.0);
         this.chart.setCourse(this.course);
-        this.mapView.setCourse(this.course, this.currentState());
+        this.mapView.setCourse(this.course, null);
         this.updateState(0.0);
 
         // 橋・トンネル認識と標高DEM同期を実行（端部直線高度維持を含む）
