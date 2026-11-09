@@ -18,6 +18,8 @@ export class UIController {
     constructor(callbacks = {}) {
         this.cb = callbacks;
         this.currentZoom = 16.5;
+        this.bleDeviceType = 'trainer';
+        this.wheelCircMm = 2105;
 
         // HUD数値表示ノードマップ (hud-<metric>-val に統一)
         this.hud = {
@@ -59,6 +61,12 @@ export class UIController {
             btnGsiDem: $('btn-gsi-dem'),
             gsiBtnText: $('gsi-btn-text'),
             structureSummaryText: $('structure-summary-text'),
+            bleDeviceTypeSelect: $('ble-device-type-select'),
+            panelTrainerLoad: $('panel-trainer-load'),
+            panelSpeedCirc: $('panel-speed-circumference'),
+            wheelCircRow: $('wheel-circ-row'),
+            wheelCircSlider: $('wheel-circ-slider'),
+            wheelCircVal: $('wheel-circ-val'),
             btnBleConnect: $('btn-ble-connect'),
             btnBleDisconnect: $('btn-ble-disconnect'),
             bleStatusText: $('ble-status-text'),
@@ -247,7 +255,27 @@ export class UIController {
         }
 
         // 6. BLE & GPX / DEM
-        on(el.btnBleConnect, 'click', () => cb.onBleConnect?.());
+        on(el.bleDeviceTypeSelect, 'change', (e) => {
+            const mode = e.target.value;
+            this.updateBleModeUI(mode);
+            cb.onBleModeChange?.(mode);
+        });
+
+        const applyWheelCirc = (val) => {
+            const mm = Math.round(clamp(val, 1900, 2300));
+            this.wheelCircMm = mm;
+            if (el.wheelCircSlider) el.wheelCircSlider.value = mm;
+            if (el.wheelCircVal) el.wheelCircVal.textContent = `${mm} mm`;
+            cb.onWheelCircChange?.(mm);
+        };
+        on(el.wheelCircSlider, 'input', (e) => applyWheelCirc(parseFloat(e.target.value)));
+        this.bindScrubber(el.wheelCircRow, {
+            min: 1900, max: 2300, step: 1, pxPerStep: 3,
+            getValue: () => this.wheelCircMm,
+            onInput: (v) => applyWheelCirc(v)
+        });
+
+        on(el.btnBleConnect, 'click', () => cb.onBleConnect?.(this.bleDeviceType));
         on(el.btnBleDisconnect, 'click', (e) => { e.stopPropagation(); cb.onBleDisconnect?.(); });
         on('preset-select', 'change', (e) => cb.onSelectPreset?.(e.target.value));
         on(el.btnGsiDem, 'click', () => cb.onRequestGsiDem?.());
@@ -354,6 +382,22 @@ export class UIController {
         if (speed != null) this.setSpeedDisplay(speed);
     }
 
+    getBleDefaultLabel(mode = this.bleDeviceType) {
+        if (mode === 'speed') return '🛞 スピード接続';
+        if (mode === 'cadence') return '🔄 ケイデンス接続';
+        return '⚡ トレーナー接続';
+    }
+
+    updateBleModeUI(mode) {
+        this.bleDeviceType = mode;
+        const { panelTrainerLoad, panelSpeedCirc, btnBleConnect, bleStatusText } = this.el;
+        if (panelTrainerLoad) panelTrainerLoad.style.display = mode === 'trainer' ? 'flex' : 'none';
+        if (panelSpeedCirc) panelSpeedCirc.style.display = mode === 'speed' ? 'flex' : 'none';
+        if (btnBleConnect && !btnBleConnect.classList.contains('connected') && bleStatusText) {
+            bleStatusText.textContent = this.getBleDefaultLabel(mode);
+        }
+    }
+
     updateBleConnectionState(state, deviceName = '') {
         const { btnBleConnect, bleStatusText, btnBleDisconnect } = this.el;
         if (!btnBleConnect || !bleStatusText) return;
@@ -366,7 +410,7 @@ export class UIController {
         } else if (isConnected) {
             bleStatusText.textContent = `🟢 ${deviceName}`;
         } else {
-            bleStatusText.textContent = '⚡ トレーナー接続';
+            bleStatusText.textContent = this.getBleDefaultLabel();
             this.setHud({ power: '--.--', cadence: '--.--' });
         }
     }

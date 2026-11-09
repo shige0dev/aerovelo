@@ -54,7 +54,14 @@ class App {
             },
             onCameraParamChange: (params) => this.mapView.setCameraParams(params, this.currentState()),
             onFullscreenChange: () => setTimeout(() => this.handleResize(), 100),
-            onBleConnect: () => this.connectBle(),
+            onBleModeChange: (mode) => {
+                if (this.bleManager.isConnected && this.bleManager.mode !== mode) {
+                    this.bleManager.disconnect();
+                }
+                this.bleManager.setMode(mode);
+            },
+            onWheelCircChange: (mm) => this.bleManager.setWheelCircumference(mm),
+            onBleConnect: (mode) => this.connectBle(mode),
             onBleDisconnect: () => this.bleManager.disconnect(),
             onSelectPreset: (url) => this.loadDefaultGPX(url),
             onLoadGpxFile: (file) => this.loadGPXFile(file),
@@ -196,13 +203,13 @@ class App {
         if (this.bleManager.isConnected) this.bleManager.sendSlope(clampedSlope);
     }
 
-    // --- BLE Smart Trainer Integration ---
+    // --- BLE Smart Trainer & Sensor Integration ---
 
-    async connectBle() {
+    async connectBle(mode = 'trainer') {
         if (this.bleManager.isConnected) return;
         try {
             this.ui.updateBleConnectionState('connecting');
-            const res = await this.bleManager.connect();
+            const res = await this.bleManager.connect(mode);
             this.ui.updateBleConnectionState('connected', res.deviceName);
         } catch (err) {
             console.warn('BLE connect cancelled or failed:', err);
@@ -250,7 +257,8 @@ class App {
         this.sendSlopeToTrainer(this.loadMode === 'auto' ? state.slope : this.manualSlope);
         this.chart.setProgress(this.currentProgress);
 
-        const isMoving = !forceInstant && (this.isPlaying || (this.bleManager.isConnected && this.speedKmh > 0));
+        const isBleMoving = this.bleManager.isConnected && this.bleManager.mode !== 'cadence' && this.speedKmh > 0;
+        const isMoving = !forceInstant && (this.isPlaying || isBleMoving);
         this.mapView.updateRiderAndCamera(state, forceInstant ? 300 : 0, isMoving);
     }
 
@@ -265,7 +273,7 @@ class App {
             this.setManualSlope(Math.round(tri * 70) / 10, false);
         }
 
-        const isBleRiding = this.bleManager.isConnected && this.speedKmh > 0;
+        const isBleRiding = this.bleManager.isConnected && this.bleManager.mode !== 'cadence' && this.speedKmh > 0;
         if (this.isPlaying || isBleRiding) {
             if (!this.lastFrameTime) this.lastFrameTime = timestamp;
             const dt = Math.min((timestamp - this.lastFrameTime) / 1000, 0.1);

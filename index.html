@@ -22,7 +22,7 @@
     <div id="top-bar">
         <div class="top-title-group">
             <h1 class="top-app-title">AeroVelo</h1>
-            <span class="version-badge" id="app-version">v2.4.26</span>
+            <span class="version-badge" id="app-version">v2.4.27</span>
         </div>
         <div class="top-course-group">
             <span id="course-name-display" class="top-course-title" title="クリックでコース選定・標高補正">読み込み中...</span>
@@ -217,28 +217,31 @@
         </div>
     </div>
 
-    <!-- スマートトレーナー連携フローティングダイアログ (⚙️ ボタンクリックで展開、他場所タップで消去) -->
+    <!-- デバイス・センサー連携フローティングダイアログ (⚙️ ボタンクリックで展開、他場所タップで消去) -->
     <div id="modal-settings" class="floating-dialog" style="display: none;">
         <div class="dialog-header">
-            <span class="dialog-title">SMART TRAINER</span>
+            <span class="dialog-title">DEVICE / SENSOR</span>
         </div>
         <div class="modal-body">
-            <!-- スマートトレーナー接続 -->
+            <!-- 接続デバイス種別セレクタ & 接続ボタン -->
             <div class="settings-section">
-                <div class="settings-sec-title">⚡ FTMS 接続</div>
-                <section class="control-group ble-section">
-                    <div class="ble-bar">
-                        <button type="button" id="btn-ble-connect" class="ble-btn">
-                            <span class="ble-dot"></span>
-                            <span id="ble-status-text">⚡ トレーナー接続</span>
-                        </button>
-                        <button type="button" id="btn-ble-disconnect" class="ble-disconnect-btn" style="display: none;" title="切断">✕</button>
-                    </div>
-                </section>
+                <div class="settings-sec-title">📡 接続デバイス選択</div>
+                <select id="ble-device-type-select" class="preset-select" title="接続するデバイスの種類を選択">
+                    <option value="trainer" selected>⚡ スマートトレーナー</option>
+                    <option value="speed">🛞 スピードセンサー</option>
+                    <option value="cadence">🔄 ケイデンスセンサー</option>
+                </select>
+                <div class="ble-bar" style="margin-top: 3px;">
+                    <button type="button" id="btn-ble-connect" class="ble-btn">
+                        <span class="ble-dot"></span>
+                        <span id="ble-status-text">⚡ トレーナー接続</span>
+                    </button>
+                    <button type="button" id="btn-ble-disconnect" class="ble-disconnect-btn" style="display: none;" title="切断">✕</button>
+                </div>
             </div>
 
-            <!-- トレーナー負荷制御 -->
-            <div class="settings-section">
+            <!-- トレーナー選択時のみ表示: 負荷制御 -->
+            <div id="panel-trainer-load" class="settings-section">
                 <div class="settings-sec-title">🛠️ トレーナー負荷制御</div>
                 <div class="test-controls-box">
                     <div class="label-row">
@@ -259,6 +262,23 @@
                                 <option value="120">120s</option>
                             </select>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- スピードセンサー選択時のみ表示: 700C 標準周長設定 (微調整可能) -->
+            <div id="panel-speed-circumference" class="settings-section" style="display: none;">
+                <div class="settings-sec-title">🛞 タイヤ周長 (700C標準)</div>
+                <div class="test-controls-box">
+                    <div class="label-row hud-scrubber" id="wheel-circ-row" title="上下ドラッグまたはホイールでも微調整可能">
+                        <label for="wheel-circ-slider">周長</label>
+                        <span id="wheel-circ-val" class="sub-val">2105 mm</span>
+                    </div>
+                    <input type="range" id="wheel-circ-slider" min="1900" max="2300" step="1" value="2105">
+                    <div style="display: flex; justify-content: space-between; font-size: 0.50rem; color: var(--muted); margin-top: 1px;">
+                        <span>23C:2096</span>
+                        <span>25C:2105</span>
+                        <span>28C:2136</span>
                     </div>
                 </div>
             </div>

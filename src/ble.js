@@ -1,15 +1,17 @@
 /**
  * Web Bluetooth API Manager for Smart Trainers & Cycling Sensors
- * Supports FTMS (0x1826: Indoor Bike Data 0x2AD2, Control Point 0x2AD9) and Cycling Power (0x1818).
+ * Supports FTMS (0x1826), Cycling Power (0x1818), and CSC Speed/Cadence Sensors (0x1816).
  */
 
 export class BleTrainerManager {
     static UUIDS = {
         FTMS_SERVICE: 0x1826,
         CYCLING_POWER_SERVICE: 0x1818,
+        CSC_SERVICE: 0x1816,
         INDOOR_BIKE_DATA: 0x2AD2,
         FITNESS_MACHINE_CONTROL_POINT: 0x2AD9,
-        CYCLING_POWER_MEASUREMENT: 0x2A63
+        CYCLING_POWER_MEASUREMENT: 0x2A63,
+        CSC_MEASUREMENT: 0x2A5B
     };
 
     constructor() {
@@ -18,11 +20,38 @@ export class BleTrainerManager {
         this.controlPointChar = null;
         this.isConnected = false;
         this.hasControl = false;
+        this.mode = 'trainer'; // 'trainer' | 'speed' | 'cadence'
+        this.wheelCircumferenceMm = 2105; // 700x25C 標準周長 (mm)
         this.listeners = { data: [], connected: [], disconnected: [] };
         this.lastSentSlope = null;
         this.lastSendTime = 0;
+        this.resetCscAndDistanceState();
+    }
+
+    resetCscAndDistanceState() {
         this.initialDistanceMeters = null;
         this.lastTotalDistanceMeters = null;
+        this.initialWheelRevs = null;
+        this.lastTotalWheelRevs = null;
+        this.prevWheelRevs = null;
+        this.prevWheelTime = null;
+        this.lastWheelMoveTime = 0;
+        this.lastCscSpeed = 0;
+        this.prevCrankRevs = null;
+        this.prevCrankTime = null;
+        this.lastCrankMoveTime = 0;
+        this.lastCscCadence = 0;
+    }
+
+    setMode(mode) {
+        this.mode = mode;
+    }
+
+    setWheelCircumference(mm) {
+        const val = Number(mm);
+        if (!isNaN(val) && val >= 1000 && val <= 3000) {
+            this.wheelCircumferenceMm = Math.round(val);
+        }
     }
 
     on(event, callback) {
@@ -39,24 +68,33 @@ export class BleTrainerManager {
         return !!(navigator.bluetooth?.requestDevice);
     }
 
-    async connect() {
+    async connect(mode = this.mode) {
         if (!BleTrainerManager.isSupported()) {
             throw new Error('お使いのブラウザは Web Bluetooth API に対応していません。Chrome / Edge をご利用ください。');
         }
 
+        this.mode = mode;
+
         try {
-            const { FTMS_SERVICE, CYCLING_POWER_SERVICE } = BleTrainerManager.UUIDS;
-            this.device = await navigator.bluetooth.requestDevice({
-                filters: [{ services: [FTMS_SERVICE] }, { services: [CYCLING_POWER_SERVICE] }],
-                optionalServices: [FTMS_SERVICE, CYCLING_POWER_SERVICE]
-            });
+            const { FTMS_SERVICE, CYCLING_POWER_SERVICE, CSC_SERVICE } = BleTrainerManager.UUIDS;
+            const isCscMode = mode === 'speed' || mode === 'cadence';
+            const filters = isCscMode
+                ? [{ services: [CSC_SERVICE] }]
+                : [{ services: [FTMS_SERVICE] }, { services: [CYCLING_POWER_SERVICE] }];
+            const optionalServices = isCscMode
+                ? [CSC_SERVICE]
+                : [FTMS_SERVICE, CYCLING_POWER_SERVICE, CSC_SERVICE];
+
+            this.device = await navigator.bluetooth.requestDevice({ filters, optionalServices });
 
             this.device.addEventListener('gattserverdisconnected', () => this.handleDisconnection());
             this.server = await this.device.gatt.connect();
             this.isConnected = true;
+            this.resetCscAndDistanceState();
 
-            await this.setupServices();
-            const info = { deviceName: this.device.name || 'スマートトレーナー', hasControl: this.hasControl };
+            await this.setupServices(isCscMode);
+            const fallbackLabel = mode === 'speed' ? 'スピードセンサー' : mode === 'cadence' ? 'ケイデンスセンサー' : 'スマートトレーナー';
+            const info = { deviceName: this.device.name || fallbackLabel, hasControl: this.hasControl, mode: this.mode };
             this.emit('connected', info);
             return info;
         } catch (err) {
@@ -65,8 +103,22 @@ export class BleTrainerManager {
         }
     }
 
-    async setupServices() {
-        const { FTMS_SERVICE, INDOOR_BIKE_DATA, FITNESS_MACHINE_CONTROL_POINT, CYCLING_POWER_SERVICE, CYCLING_POWER_MEASUREMENT } = BleTrainerManager.UUIDS;
+    async setupServices(isCscMode = false) {
+        const {
+            FTMS_SERVICE, INDOOR_BIKE_DATA, FITNESS_MACHINE_CONTROL_POINT,
+            CYCLING_POWER_SERVICE, CYCLING_POWER_MEASUREMENT,
+            CSC_SERVICE, CSC_MEASUREMENT
+        } = BleTrainerManager.UUIDS;
+
+        // CSC (Speed / Cadence Sensor) モード時
+        if (isCscMode) {
+            const csc = await this.server.getPrimaryService(CSC_SERVICE);
+            const cscChar = await csc.getCharacteristic(CSC_MEASUREMENT);
+            await cscChar.startNotifications();
+            cscChar.addEventListener('characteristicvaluechanged', (e) => this.handleCscData(e));
+            this.hasControl = false;
+            return;
+        }
 
         // 1. FTMS (Fitness Machine Service)
         try {
@@ -179,7 +231,96 @@ export class BleTrainerManager {
     handleCyclingPowerData(event) {
         const value = event.target.value;
         if (!value || value.byteLength < 4) return;
-        this.emit('data', { power: Math.max(0, value.getInt16(2, true)), cadence: null, speed: null });
+        this.emit('data', { power: Math.max(0, value.getInt16(2, true)), cadence: null, speed: null, sessionDistanceMeters: null });
+    }
+
+    /**
+     * CSC (0x1816 / 0x2A5B) スピードセンサー・ケイデンスセンサー計測値のデコード
+     */
+    handleCscData(event) {
+        const value = event.target.value;
+        if (!value || value.byteLength < 1) return;
+
+        const now = performance.now();
+        const flags = value.getUint8(0);
+        let offset = 1;
+
+        let speedKmh = null;
+        let cadenceRpm = null;
+        let sessionDistanceMeters = null;
+
+        // Bit 0: Wheel Revolution Data Present (スピードセンサー)
+        if ((flags & 0x01) && value.byteLength >= offset + 6) {
+            const cumWheelRevs = value.getUint32(offset, true);
+            const lastWheelTime = value.getUint16(offset + 4, true); // 1/1024秒単位
+            offset += 6;
+
+            if (this.initialWheelRevs === null) {
+                this.initialWheelRevs = cumWheelRevs;
+                this.prevWheelRevs = cumWheelRevs;
+                this.prevWheelTime = lastWheelTime;
+                this.lastWheelMoveTime = now;
+            } else {
+                const dRevs = cumWheelRevs - this.prevWheelRevs;
+                const dTime = (lastWheelTime - this.prevWheelTime + 65536) % 65536;
+                if (dTime > 0 && dRevs >= 0 && dRevs < 100) {
+                    const circM = this.wheelCircumferenceMm / 1000;
+                    const dtSec = dTime / 1024;
+                    speedKmh = ((dRevs * circM) / dtSec) * 3.6;
+                    this.lastCscSpeed = speedKmh;
+                    this.lastWheelMoveTime = now;
+                    this.prevWheelRevs = cumWheelRevs;
+                    this.prevWheelTime = lastWheelTime;
+                } else if (dTime === 0) {
+                    speedKmh = (now - this.lastWheelMoveTime > 2500) ? 0 : this.lastCscSpeed;
+                }
+            }
+
+            this.lastTotalWheelRevs = cumWheelRevs;
+            if (this.mode === 'speed') {
+                const totalRevs = Math.max(0, cumWheelRevs - this.initialWheelRevs);
+                sessionDistanceMeters = totalRevs * (this.wheelCircumferenceMm / 1000);
+            }
+        }
+
+        // Bit 1: Crank Revolution Data Present (ケイデンスセンサー)
+        if ((flags & 0x02) && value.byteLength >= offset + 4) {
+            const cumCrankRevs = value.getUint16(offset, true);
+            const lastCrankTime = value.getUint16(offset + 2, true); // 1/1024秒単位
+
+            if (this.prevCrankRevs === null) {
+                this.prevCrankRevs = cumCrankRevs;
+                this.prevCrankTime = lastCrankTime;
+                this.lastCrankMoveTime = now;
+            } else {
+                const dCrank = (cumCrankRevs - this.prevCrankRevs + 65536) % 65536;
+                const dTime = (lastCrankTime - this.prevCrankTime + 65536) % 65536;
+                if (dTime > 0 && dCrank >= 0 && dCrank < 50) {
+                    const dtSec = dTime / 1024;
+                    cadenceRpm = (dCrank / dtSec) * 60;
+                    this.lastCscCadence = cadenceRpm;
+                    this.lastCrankMoveTime = now;
+                    this.prevCrankRevs = cumCrankRevs;
+                    this.prevCrankTime = lastCrankTime;
+                } else if (dTime === 0) {
+                    cadenceRpm = (now - this.lastCrankMoveTime > 2500) ? 0 : this.lastCscCadence;
+                }
+            }
+        }
+
+        // ケイデンスセンサー単体モードのときはケイデンス表示のみを更新（速度・距離は動かさない）
+        if (this.mode === 'cadence') {
+            speedKmh = null;
+            sessionDistanceMeters = null;
+        }
+
+        this.emit('data', {
+            power: null,
+            cadence: cadenceRpm !== null ? Math.round(cadenceRpm) : null,
+            speed: speedKmh !== null ? Math.round(speedKmh * 10) / 10 : null,
+            totalDistanceMeters: sessionDistanceMeters,
+            sessionDistanceMeters
+        });
     }
 
     async disconnect() {
@@ -192,12 +333,12 @@ export class BleTrainerManager {
         this.hasControl = false;
         this.controlPointChar = null;
         this.lastSentSlope = null;
-        this.initialDistanceMeters = null;
-        this.lastTotalDistanceMeters = null;
+        this.resetCscAndDistanceState();
         this.emit('disconnected');
     }
 
     resetDistance() {
         this.initialDistanceMeters = this.lastTotalDistanceMeters ?? null;
+        this.initialWheelRevs = this.lastTotalWheelRevs ?? null;
     }
 }
