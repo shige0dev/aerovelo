@@ -6,29 +6,6 @@
 
 import { GeoCourseManager } from './course.js';
 
-let sharedCircleMaskTexture = null;
-function getCircleMaskTexture() {
-    if (sharedCircleMaskTexture) return sharedCircleMaskTexture;
-    const size = 64;
-    const canvas = document.createElement('canvas');
-    canvas.width = size;
-    canvas.height = size;
-    const ctx = canvas.getContext('2d');
-
-    // 綺麗なアンチエイリアス白円マスク（中心から半径 28px、エッジ 2px 滑らかにフェード）
-    const r = 28;
-    const grad = ctx.createRadialGradient(size / 2, size / 2, r - 2, size / 2, size / 2, r);
-    grad.addColorStop(0, 'rgba(255, 255, 255, 1.0)');
-    grad.addColorStop(1, 'rgba(255, 255, 255, 0.0)');
-    ctx.fillStyle = grad;
-    ctx.beginPath();
-    ctx.arc(size / 2, size / 2, r, 0, Math.PI * 2);
-    ctx.fill();
-
-    sharedCircleMaskTexture = new THREE.CanvasTexture(canvas);
-    return sharedCircleMaskTexture;
-}
-
 const riderTextures = {};
 function getRiderTexture(colorHex = '#06b6d4') {
     if (riderTextures[colorHex]) return riderTextures[colorHex];
@@ -81,8 +58,6 @@ export class CourseRibbonLayer {
         this.map = null;
         this.mesh = null;
         this.tunnelXrayMesh = null; // トンネル区間の地中 X-Ray 透視メッシュ
-        this.pointsMesh = null;     // メッシュ側定義点（参照点）
-        this.showDefinitionPoints = false; // ルート参照点はデフォルト非表示（いつでも出せるように保持）
         this.riderMesh = null;      // ルートメッシュ上を走る 3D 走行点
         this.origin = { x: 0, y: 0, z: 0 };
     }
@@ -106,7 +81,7 @@ export class CourseRibbonLayer {
     }
 
     /**
-     * コースデータから 3D リボンメッシュ（幅 3.5m・地面 + 1.0m）を生成
+     * コースデータから 3D リボンメッシュを生成
      */
     updateCourse(course) {
         if (!this.scene) {
@@ -126,13 +101,6 @@ export class CourseRibbonLayer {
             this.tunnelXrayMesh.geometry.dispose();
             this.tunnelXrayMesh.material.dispose();
             this.tunnelXrayMesh = null;
-        }
-
-        if (this.pointsMesh) {
-            this.scene.remove(this.pointsMesh);
-            this.pointsMesh.geometry.dispose();
-            this.pointsMesh.material.dispose();
-            this.pointsMesh = null;
         }
 
         if (this.riderMesh) {
@@ -281,75 +249,12 @@ export class CourseRibbonLayer {
             this.scene.add(this.tunnelXrayMesh);
         }
 
-        // 3. メッシュ側にも定義点に対応した点（極小サイズ・面だけで表示）
-        if (course.rawWaypoints && course.rawWaypoints.length > 0) {
-            const numWp = course.rawWaypoints.length;
-            const ptVerts = new Float32Array(numWp * 3);
-            const ptColors = new Float32Array(numWp * 3);
-            const startAlt = course.interpolatedPoints[0]?.alt || course.rawWaypoints[0]?.alt || 0;
-
-            for (let i = 0; i < numWp; i++) {
-                const dist = course.cumDistances[i] ?? 0;
-                const samplePt = course.sampleAtDist(dist);
-                const wpAlt = (typeof samplePt.alt === 'number' && !isNaN(samplePt.alt)) ? samplePt.alt : startAlt;
-
-                // メッシュ上面（+3.0m）の直上（+0.06m）に配置してリボンとZファイトしないようにする
-                const wpCoord = maplibregl.MercatorCoordinate.fromLngLat(
-                    [samplePt.lon, samplePt.lat],
-                    wpAlt + this.altitudeOffset + 0.06
-                );
-
-                const pIdx = i * 3;
-                ptVerts[pIdx] = wpCoord.x - this.origin.x;
-                ptVerts[pIdx + 1] = wpCoord.y - this.origin.y;
-                ptVerts[pIdx + 2] = wpCoord.z - this.origin.z;
-
-                // 20cm ごとに 1/256 ずつ明るくなるモノクロ明度カラー
-                const [pr, pg, pb] = GeoCourseManager.altToStepRgb(wpAlt, startAlt);
-                ptColors[pIdx] = pr;
-                ptColors[pIdx + 1] = pg;
-                ptColors[pIdx + 2] = pb;
-            }
-
-            const maskTex = getCircleMaskTexture();
-
-            // 極小サイズの純粋な面ドット（枠線なし、サイズ 5px）
-            const innerGeom = new THREE.BufferGeometry();
-            innerGeom.setAttribute('position', new THREE.BufferAttribute(ptVerts, 3));
-            innerGeom.setAttribute('color', new THREE.BufferAttribute(ptColors, 3));
-            const innerMat = new THREE.PointsMaterial({
-                size: 5, // 極小サイズ（面だけで上品に表示）
-                map: maskTex,
-                vertexColors: true,
-                transparent: true,
-                alphaTest: 0.05,
-                sizeAttenuation: false,
-                depthTest: true
-            });
-            this.pointsMesh = new THREE.Points(innerGeom, innerMat);
-            this.pointsMesh.frustumCulled = false;
-            this.pointsMesh.renderOrder = 3;
-            this.pointsMesh.visible = this.showDefinitionPoints; // デフォルト非表示（いつでも出せるように保持）
-            this.scene.add(this.pointsMesh);
-        }
-
         if (this.pendingRider) {
             this.updateRider(this.pendingRider.state);
             this.pendingRider = null;
         }
 
         this.map?.triggerRepaint();
-    }
-
-    /**
-     * ルート参照点（定義点ドット）の表示/非表示を切り替え
-     */
-    setDefinitionPointsVisible(visible) {
-        this.showDefinitionPoints = !!visible;
-        if (this.pointsMesh) {
-            this.pointsMesh.visible = this.showDefinitionPoints;
-            this.map?.triggerRepaint();
-        }
     }
 
     /**
@@ -403,7 +308,7 @@ export class CourseRibbonLayer {
     }
 
     render(gl, matrix) {
-        if ((!this.mesh && !this.pointsMesh && !this.tunnelXrayMesh && !this.riderMesh) || !this.renderer || !this.scene || !this.camera) return;
+        if ((!this.mesh && !this.tunnelXrayMesh && !this.riderMesh) || !this.renderer || !this.scene || !this.camera) return;
 
         // 3D 地形モード時のカメラ基準標高（画面中央の地形標高）のオフセットを補正して上空浮遊を防止
         const terrainElevation = this.map?.transform?.elevation || 0;

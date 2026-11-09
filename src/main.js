@@ -95,9 +95,9 @@ class App {
     // --- Course & GPX Management ---
 
     parseAndApplyGPX(gpxText, fallbackName, showDialog = false) {
-        const { courseName, waypoints, isWebEditor } = GPXParser.parse(gpxText);
+        const { courseName, waypoints } = GPXParser.parse(gpxText);
         const finalName = courseName !== 'カスタムコース' ? courseName : fallbackName.replace(/\.gpx$/i, '');
-        const activeCourse = new GeoCourseManager(waypoints, finalName, isWebEditor);
+        const activeCourse = new GeoCourseManager(waypoints, finalName);
         this.course = activeCourse;
         this.setPlayState(false);
         this.currentProgress = 0.0;

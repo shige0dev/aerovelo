@@ -7,8 +7,6 @@ import { clamp, lerp, haversineDistance, calcBearing } from './utils.js';
 import { fetchGsiDem10mElevations, fetchTerrainDemElevations } from './dem-service.js';
 import { fetchOsmStructures } from './osm-structures.js';
 
-export { clamp, lerp };
-
 export const DEFAULT_LAKE_ROUTE = [
     { lon: 138.5830, lat: 35.4740, alt: 902 },
     { lon: 138.5885, lat: 35.4785, alt: 905 },
@@ -25,10 +23,9 @@ export const DEFAULT_LAKE_ROUTE = [
 ];
 
 export class GeoCourseManager {
-    constructor(waypoints = DEFAULT_LAKE_ROUTE, name = 'コース', isWebEditor = false) {
+    constructor(waypoints = DEFAULT_LAKE_ROUTE, name = 'コース') {
         this.name = name;
         this.rawWaypoints = waypoints;
-        this.isWebEditor = isWebEditor;
         this.structureRanges = [];
         this.osmStructuresChecked = false;
         this.osmStatus = 'pending';
@@ -38,35 +35,12 @@ export class GeoCourseManager {
         this.totalDistance = 0;
         this.cumDistances = [];
         this.isGsiCorrected = false;
-        this.isTerrainSynced = false;
         this.initInterpolation();
     }
 
     isWithinJapan() {
         const p0 = this.rawWaypoints?.[0];
         return !!p0 && p0.lat >= 20 && p0.lat <= 46 && p0.lon >= 122 && p0.lon <= 154;
-    }
-
-    /**
-     * コース全体の経度・緯度バウンディングボックス [[minLon, minLat], [maxLon, maxLat]] を取得
-     */
-    getBounds() {
-        if (!this.rawWaypoints || this.rawWaypoints.length === 0) return null;
-        let minLon = Infinity, minLat = Infinity, maxLon = -Infinity, maxLat = -Infinity;
-        for (const p of this.rawWaypoints) {
-            if (p.lon < minLon) minLon = p.lon;
-            if (p.lon > maxLon) maxLon = p.lon;
-            if (p.lat < minLat) minLat = p.lat;
-            if (p.lat > maxLat) maxLat = p.lat;
-        }
-        return [[minLon, minLat], [maxLon, maxLat]];
-    }
-
-    /**
-     * GPXファイル自体に有効な標高データ (<ele>) が含まれているかを判定
-     */
-    hasElevationData() {
-        return Array.isArray(this.rawWaypoints) && this.rawWaypoints.some((p) => Math.abs(p.alt) > 0.01);
     }
 
     /**
@@ -104,14 +78,9 @@ export class GeoCourseManager {
 
         // 3. 橋・トンネル範囲の端部直線化を含む高度補正を実行
         this.rawSamples = this.rawSamples.map((s, i) => ({ ...s, alt: elevations[i] }));
-        this.isTerrainSynced = true;
         this.applyRoadGradeSmoothing(this.rawSamples);
         this.isGsiCorrected = isGsi;
         return true;
-    }
-
-    syncWithTerrainDem() {
-        return this.syncElevations();
     }
 
     recalculateWithGSI10m(onProgress = null) {
@@ -261,8 +230,6 @@ export class GeoCourseManager {
         }
 
         const alts = Float64Array.from(samples, (s) => s.alt);
-        // 構造物補正前の地表面（山肌）生DEM標高を保存
-        this.rawGroundElevations = Float64Array.from(alts);
 
         // 1. 高度データ自体の平滑化（全幅300m、ガウシアン加重移動平均）
         this.smoothElevations(samples, alts, 150);
@@ -375,23 +342,6 @@ export class GeoCourseManager {
     }
 
     /**
-     * トンネル等の真上にある純粋な地表面（山肌）のDEM標高を取得
-     */
-    sampleGroundAltAtDist(targetDist) {
-        const clampedDist = clamp(targetDist, 0, this.totalDistance);
-        if (!this.rawGroundElevations || this.rawGroundElevations.length < 2) {
-            return this.sampleAtDist(clampedDist).alt;
-        }
-        const sampleCount = this.rawGroundElevations.length - 1;
-        const exactIdx = (clampedDist / (this.totalDistance || 1)) * sampleCount;
-        const idx = clamp(Math.floor(exactIdx), 0, sampleCount - 1);
-        const r = exactIdx - idx;
-        const gA = this.rawGroundElevations[idx];
-        const gB = this.rawGroundElevations[idx + 1];
-        return lerp(gA, gB, r);
-    }
-
-    /**
      * 指定距離地点における勾配（%）を算出
      * 平均範囲300m（前後150m、30m刻み、計11点）の高度から均等重み線形回帰トレンド勾配を計算
      * 大局的な標高トレンドを捉え、局所的な起伏や走行ラインのブレを完全に吸収
@@ -457,7 +407,6 @@ export class GeoCourseManager {
             lon: cur.lon,
             lat: cur.lat,
             alt: cur.alt,
-            groundAlt: this.sampleGroundAltAtDist(dist),
             bearing: calcBearing(b0.lon, b0.lat, b1.lon, b1.lat),
             slope,
             structure: this.getStructureAtDist(dist),
@@ -465,11 +414,6 @@ export class GeoCourseManager {
             bwdPoint: { lon: p0.lon, lat: p0.lat }
         };
     }
-
-    static STRUCTURE_COLORS = {
-        bridge: '#f59e0b', // 橋: アンバーオレンジ
-        tunnel: '#a855f7'  // トンネル: バイオレットパープル
-    };
 
     getStructureAtDist(dist) {
         const ranges = this.structureRanges;
@@ -480,103 +424,6 @@ export class GeoCourseManager {
             if (dist >= d0 && dist <= d1) return r;
         }
         return null;
-    }
-
-    /**
-     * 標高（alt）から 20cm 単位のモノクロ明度カラーを返す
-     * 20cm ごとに 1/256 ずつ明るくなり、51.2m (256 * 0.2m) で黒〜白へ推移
-     */
-    static altToStepColor(alt, startAlt = 0) {
-        const STEP_M = 0.2; // 20cm 刻み（20cm ごとに 1 UP）
-        const STEPS = 256;  // 256階調（51.2m で 1 周期）
-        const dh = Math.round(((alt || 0) - startAlt) * 100) / 100;
-        const step = Math.floor(dh / STEP_M);
-        const idx = ((step % STEPS) + STEPS) % STEPS;
-        // 20cm ごとに 1/256 ずつ明るくなる (0% 〜 100%)
-        const lightness = ((idx / (STEPS - 1)) * 100).toFixed(2);
-        return `hsl(0, 0%, ${lightness}%)`;
-    }
-
-    /**
-     * 標高（alt）から 20cm 単位（256階調・51.2m周期）の [r, g, b] (0.0〜1.0) を返す
-     */
-    static altToStepRgb(alt, startAlt = 0) {
-        const STEP_M = 0.2; // 20cm 刻み
-        const STEPS = 256;  // 256階調
-        const dh = Math.round(((alt || 0) - startAlt) * 100) / 100;
-        const step = Math.floor(dh / STEP_M);
-        const idx = ((step % STEPS) + STEPS) % STEPS;
-        const val = idx / (STEPS - 1);
-        return [val, val, val];
-    }
-
-    /**
-     * MapLibre line-gradient 用のカラーストップ配列を生成
-     * コースライン自体は「基本は白色」、橋・トンネル区間のみ固有色で識別
-     */
-    getRouteColorStops() {
-        const total = this.totalDistance || 1;
-        const stops = [];
-        const eps = Math.max(0.0001, 0.5 / total);
-
-        stops.push([0, '#ffffff']);
-
-        // 橋・トンネル区間のみ固有色でシャープに色分け、それ以外は白色
-        for (const r of (this.structureRanges || [])) {
-            const p0 = clamp(r.d0 / total, 0, 1);
-            const p1 = clamp(r.d1 / total, 0, 1);
-            const structColor = GeoCourseManager.STRUCTURE_COLORS[r.type] || '#f59e0b';
-            if (p0 > eps) stops.push([p0 - eps, '#ffffff']);
-            stops.push([p0, structColor]);
-            stops.push([p1, structColor]);
-            if (p1 + eps < 1) stops.push([p1 + eps, '#ffffff']);
-        }
-
-        stops.push([1.0, '#ffffff']);
-        stops.sort((a, b) => a[0] - b[0]);
-
-        const uniqueStops = [];
-        let lastP = -1;
-        for (const [p, col] of stops) {
-            if (p - lastP < 0.00005) continue;
-            uniqueStops.push([p, col]);
-            lastP = p;
-        }
-        return uniqueStops;
-    }
-
-    /**
-     * コースの定義点（GPXウェイポイント各点）を 50cmステップ高度色付き GeoJSON FeatureCollection として出力
-     */
-    toDefinitionPointsGeoJSON() {
-        const startAlt = this.interpolatedPoints[0]?.alt || this.rawWaypoints[0]?.alt || 0;
-        const features = [];
-
-        for (let i = 0; i < this.rawWaypoints.length; i++) {
-            const wp = this.rawWaypoints[i];
-            const dist = this.cumDistances[i] ?? 0;
-            const pt = this.sampleAtDist(dist);
-            const alt = (typeof pt.alt === 'number' && !isNaN(pt.alt)) ? pt.alt : (wp.alt || startAlt);
-            const color = GeoCourseManager.altToStepColor(alt, startAlt);
-
-            features.push({
-                type: 'Feature',
-                properties: {
-                    index: i,
-                    alt: Math.round(alt * 10) / 10,
-                    color
-                },
-                geometry: {
-                    type: 'Point',
-                    coordinates: [pt.lon, pt.lat, alt]
-                }
-            });
-        }
-
-        return {
-            type: 'FeatureCollection',
-            features
-        };
     }
 
     /**
@@ -611,17 +458,5 @@ export class GeoCourseManager {
             r = x; g = 0; b = c;
         }
         return [r + m, g + m, b + m];
-    }
-
-    static slopeToColor(slope) {
-        const t = clamp(Math.abs(slope) / 10, 0, 1);
-        const hue = slope >= 0 ? 0 : 210;
-        const sat = Math.round(t * 100);
-        const light = Math.round(100 - t * 50);
-        return `hsl(${hue}, ${sat}%, ${light}%)`;
-    }
-
-    toGeoJSONCoordinates() {
-        return this.interpolatedPoints.map((p) => [p.lon, p.lat, p.alt]);
     }
 }

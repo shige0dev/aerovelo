@@ -21,7 +21,7 @@ export class MapViewController {
             zoom: 16.5
         };
         this.lastState = initialState;
-        this.markers = { rider: null, fwd: null, bwd: null };
+        this.markers = { fwd: null, bwd: null };
         // 前後注視点マーカー・等高線は起動時非表示 (SHOWボタン押下で表示)
         this.markerVisible = { fwd: false, bwd: false, contour: false };
         this.isMapLoaded = false;
@@ -166,15 +166,11 @@ export class MapViewController {
                     .addTo(this.map);
             };
 
-            this.markers.rider = makeMarker('rider-marker', '<div class="rider-beacon"></div><div class="rider-dot"></div>');
-            if (this.markers.rider) {
-                this.markers.rider.getElement().style.display = 'none'; // ルートメッシュ上の 3D 走行点に一本化
-            }
             this.markers.fwd = makeMarker('target-marker fwd-marker', '<div class="target-dot" title="前方注視点"></div>');
             this.markers.bwd = makeMarker('target-marker bwd-marker', '<div class="target-dot" title="後方注視点"></div>');
             this.syncTargetMarkers(startState);
 
-            // 3D コースリボンレイヤー（地面 + 1.0m の空中・立体道路オブジェクト）を追加
+            // 3D コースリボンレイヤー（空中・立体道路オブジェクト）を追加
             if (!this.map.getLayer(this.ribbonLayer.id)) {
                 this.map.addLayer(this.ribbonLayer);
             }
@@ -211,69 +207,8 @@ export class MapViewController {
             return;
         }
 
-        // 3D コースリボン（地面 + 1.0m）の更新
+        // 3D コースリボンの更新
         this.ribbonLayer?.updateCourse(course);
-
-        const geojsonData = {
-            type: 'Feature',
-            properties: {},
-            geometry: { type: 'LineString', coordinates: course.toGeoJSONCoordinates() }
-        };
-
-        const pointsGeoJson = course.toDefinitionPointsGeoJSON?.() || { type: 'FeatureCollection', features: [] };
-
-        // コースライン色（基本は白、橋はオレンジ、トンネルはパープル）
-        const gradientExpr = ['interpolate', ['linear'], ['line-progress']];
-        let lastP = -1;
-        for (const [p, color] of course.getRouteColorStops()) {
-            if (p <= lastP) continue;
-            gradientExpr.push(p, color);
-            lastP = p;
-        }
-
-        if (this.map.getSource('route')) {
-            this.map.getSource('route').setData(geojsonData);
-            this.map.setLayoutProperty('route-glow', 'visibility', 'none');
-            this.map.setLayoutProperty('route-line', 'visibility', 'none');
-        } else {
-            this.map.addSource('route', { type: 'geojson', data: geojsonData, lineMetrics: true });
-            const layout = { 'line-join': 'round', 'line-cap': 'round', 'visibility': 'none' };
-            this.map.addLayer({
-                id: 'route-glow',
-                type: 'line',
-                source: 'route',
-                layout,
-                paint: { 'line-color': '#000000', 'line-width': 8, 'line-opacity': 0.5, 'line-blur': 1.5 }
-            });
-            this.map.addLayer({
-                id: 'route-line',
-                type: 'line',
-                source: 'route',
-                layout,
-                paint: { 'line-width': 4.5, 'line-gradient': gradientExpr }
-            });
-        }
-
-        // 定義点（GPXポイント）の高度ステップ着色ドットレイヤー（地盤メッシュ上は非表示）
-        if (this.map.getSource('route-points')) {
-            this.map.getSource('route-points').setData(pointsGeoJson);
-            this.map.setLayoutProperty('route-points-circle', 'visibility', 'none');
-        } else {
-            this.map.addSource('route-points', { type: 'geojson', data: pointsGeoJson });
-            this.map.addLayer({
-                id: 'route-points-circle',
-                type: 'circle',
-                source: 'route-points',
-                layout: { 'visibility': 'none' },
-                paint: {
-                    'circle-radius': ['interpolate', ['linear'], ['zoom'], 12, 2.5, 16, 4.5, 18, 6],
-                    'circle-color': ['get', 'color'],
-                    'circle-stroke-color': '#475569',
-                    'circle-stroke-width': 0.8,
-                    'circle-opacity': 0.95
-                }
-            });
-        }
 
         if (initialState) this.updateRiderAndCamera(initialState, 1500);
     }
@@ -297,17 +232,11 @@ export class MapViewController {
             }
             this.map.setPaintProperty('contour-lines', 'line-opacity', visibility.contour ? 0.55 : 0);
         }
-        if (typeof visibility.points === 'boolean') {
-            this.ribbonLayer?.setDefinitionPointsVisible(visibility.points);
-        }
         this.syncTargetMarkers();
     }
 
     updateRiderAndCamera(state, duration = 0, isMoving = false) {
         this.lastState = state;
-        if (this.markers.rider) {
-            this.markers.rider.getElement().style.display = 'none';
-        }
         this.syncTargetMarkers(state);
 
         // ルートメッシュ上を走る 3D 走行点を更新

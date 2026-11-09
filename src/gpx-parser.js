@@ -29,10 +29,6 @@ export class GPXParser {
         const nameNode = xmlDoc.querySelector('trk > name') || xmlDoc.querySelector('gpx > metadata > name');
         const courseName = nameNode ? nameNode.textContent.trim() : 'カスタムコース';
 
-        const creator = xmlDoc.querySelector('gpx')?.getAttribute('creator') || '';
-        const author = xmlDoc.querySelector('author > name')?.textContent || '';
-        const isWebEditor = /gpx edit pro/i.test(creator) || /gpx edit pro/i.test(author);
-
-        return { courseName, waypoints, isWebEditor };
+        return { courseName, waypoints };
     }
 }
