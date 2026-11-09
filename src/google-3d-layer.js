@@ -12,6 +12,9 @@ const WGS84_A = 6378137.0;
 const WGS84_E2 = 0.00669437999014;
 // 日本付近の標準ジオイド高（Google 3D Tilesの楕円体高から標高への補正値）
 const DEFAULT_GEOID_OFFSET_M = 36.7;
+const MAX_VIEW_DIST_M = 850;
+const EVICT_DIST_M = 1400;
+const MAX_CONCURRENT_GLB = 10;
 
 /**
  * ECEF (X, Y, Z) 座標から WGS84 (lon, lat, ellipsoidHeight) へ変換
@@ -104,8 +107,10 @@ export class Google3DTilesLayer {
         this.rootNode = null;
         this.isLoadingRoot = false;
         this.isTraversing = false;
-        this.loadedMeshes = new Map();   // uri -> THREE.Object3D
+        this.loadedMeshes = new Map();   // uri -> { group: THREE.Group, box: number[], ecefCenter: number[] }
         this.loadingUris = new Set();    // uri currently fetching
+        this.pendingQueue = [];          // distance-sorted GLB queue
+        this.activeGlbLoads = 0;
         this.jsonCache = new Map();      // uri -> parsed tileset JSON
         this.lastUpdatePos = null;
         this.lastUpdateTime = 0;
@@ -163,11 +168,12 @@ export class Google3DTilesLayer {
     }
 
     clearTiles() {
-        for (const obj of this.loadedMeshes.values()) {
-            this.scene?.remove(obj);
+        for (const entry of this.loadedMeshes.values()) {
+            this.scene?.remove(entry.group);
         }
         this.loadedMeshes.clear();
         this.loadingUris.clear();
+        this.pendingQueue = [];
         this.jsonCache.clear();
     }
 
@@ -229,7 +235,7 @@ export class Google3DTilesLayer {
     }
 
     /**
-     * 現在視点周辺の 3D タイルを探索してロード
+     * 現在視点周辺の 3D タイルを全方向均等に探索し、近い順にロードキューへ登録
      */
     async updateTilesForCurrentView(force = false) {
         if (!this.visible || !this.apiKey || !this.map) return;
@@ -240,7 +246,7 @@ export class Google3DTilesLayer {
         if (this.isTraversing) return;
 
         const now = performance.now();
-        if (!force && now - this.lastUpdateTime < 700) return;
+        if (!force && now - this.lastUpdateTime < 500) return;
 
         const center = this.map.getCenter();
         const lon = center.lng;
@@ -250,7 +256,7 @@ export class Google3DTilesLayer {
         if (!force && this.lastUpdatePos) {
             const dLon = (lon - this.lastUpdatePos.lon) * 91000;
             const dLat = (lat - this.lastUpdatePos.lat) * 111000;
-            if (Math.hypot(dLon, dLat) < 40) return;
+            if (Math.hypot(dLon, dLat) < 35 && this.pendingQueue.length === 0) return;
         }
 
         this.lastUpdateTime = now;
@@ -264,14 +270,13 @@ export class Google3DTilesLayer {
 
         this.isTraversing = true;
         const targetEcef = lngLatAltToEcef(lon, lat, terrainEle + DEFAULT_GEOID_OFFSET_M);
-        const desiredGlbUris = new Set();
+        const candidates = [];
         let fetchedNewJson = false;
 
         try {
             const traverse = async (node, baseUrl = 'https://tile.googleapis.com/v1/3dtiles/root.json', depth = 0) => {
-                if (!node || depth > 28) return;
+                if (!node || depth > 30) return;
 
-                // OBB または Region との最短距離判定（ボックス内部なら 0m）
                 let distToTile = 0;
                 const box = node.boundingVolume?.box;
                 const region = node.boundingVolume?.region;
@@ -281,8 +286,7 @@ export class Google3DTilesLayer {
                     distToTile = distanceToRegion(lon, lat, region);
                 }
 
-                // 現在地から 700m 以内のタイルのみ展開
-                if (distToTile > 700) return;
+                if (distToTile > MAX_VIEW_DIST_M) return;
 
                 const geomErr = node.geometricError ?? 9999;
                 const uri = node.content?.uri || node.content?.url || '';
@@ -313,15 +317,19 @@ export class Google3DTilesLayer {
                 }
 
                 const hasChildren = Array.isArray(node.children) && node.children.length > 0;
-                const targetError = distToTile < 250 ? 8 : distToTile < 500 ? 16 : 28;
+                // 近距離は高精細(14m)、中距離は24m、遠距離は38mでバランス良く面を埋める
+                const targetError = distToTile < 320 ? 14 : distToTile < 600 ? 24 : 38;
                 const isEnoughDetail = geomErr <= targetError || !hasChildren;
 
                 if (isEnoughDetail && cleanPath.endsWith('.glb')) {
                     const fullUrl = this.resolveTileUrl(uri, baseUrl);
-                    desiredGlbUris.add(fullUrl);
-                    if (!this.loadedMeshes.has(fullUrl) && !this.loadingUris.has(fullUrl) && desiredGlbUris.size <= 50) {
-                        this.loadGlbTile(fullUrl, box, node.transform);
-                    }
+                    candidates.push({
+                        fullUrl,
+                        box,
+                        transform: node.transform,
+                        distToTile,
+                        geomErr
+                    });
                     return;
                 }
 
@@ -329,16 +337,41 @@ export class Google3DTilesLayer {
                     for (const child of node.children) {
                         await traverse(child, baseUrl, depth + 1);
                     }
+                } else if (cleanPath.endsWith('.glb')) {
+                    const fullUrl = this.resolveTileUrl(uri, baseUrl);
+                    candidates.push({
+                        fullUrl,
+                        box,
+                        transform: node.transform,
+                        distToTile,
+                        geomErr
+                    });
                 }
             };
 
             await traverse(this.rootNode, 'https://tile.googleapis.com/v1/3dtiles/root.json', 0);
 
-            // 範囲外の古いタイルを整理
-            if (this.loadedMeshes.size > 65) {
-                for (const [uri, obj] of this.loadedMeshes.entries()) {
-                    if (!desiredGlbUris.has(uri)) {
-                        this.scene?.remove(obj);
+            // カメラに近い順（360度全方位）にソートしてキューを更新
+            candidates.sort((a, b) => a.distToTile - b.distToTile);
+            const desiredUrls = new Set();
+            const newQueue = [];
+            for (const c of candidates) {
+                if (desiredUrls.has(c.fullUrl)) continue;
+                desiredUrls.add(c.fullUrl);
+                if (!this.loadedMeshes.has(c.fullUrl) && !this.loadingUris.has(c.fullUrl)) {
+                    newQueue.push(c);
+                }
+            }
+            this.pendingQueue = newQueue;
+            this.pumpGlbQueue();
+
+            // 遠く離れたタイル（EVICT_DIST_M 超）のみ破棄し、表示中のタイルが消えるのを防ぐ
+            if (this.loadedMeshes.size > 90) {
+                for (const [uri, entry] of this.loadedMeshes.entries()) {
+                    if (desiredUrls.has(uri)) continue;
+                    const d = entry.box ? distanceToObb(targetEcef, entry.box) : 0;
+                    if (d > EVICT_DIST_M) {
+                        this.scene?.remove(entry.group);
                         this.loadedMeshes.delete(uri);
                     }
                 }
@@ -346,51 +379,63 @@ export class Google3DTilesLayer {
 
             if (this.loadedMeshes.size > 0) {
                 this.setStatus(`${this.loadedMeshes.size} tiles`);
-            } else if (this.loadingUris.size > 0 || fetchedNewJson) {
+            } else if (this.loadingUris.size > 0 || this.pendingQueue.length > 0 || fetchedNewJson) {
                 this.setStatus('読込中...');
             }
         } finally {
             this.isTraversing = false;
-            if (fetchedNewJson && this.loadedMeshes.size === 0) {
-                setTimeout(() => this.updateTilesForCurrentView(true), 100);
+            if (fetchedNewJson) {
+                setTimeout(() => this.updateTilesForCurrentView(true), 80);
             }
+        }
+    }
+
+    pumpGlbQueue() {
+        while (this.activeGlbLoads < MAX_CONCURRENT_GLB && this.pendingQueue.length > 0) {
+            const item = this.pendingQueue.shift();
+            if (!item || this.loadedMeshes.has(item.fullUrl) || this.loadingUris.has(item.fullUrl)) continue;
+            this.loadGlbTile(item.fullUrl, item.box, item.transform);
         }
     }
 
     loadGlbTile(url, box, tileTransform) {
         if (!this.gltfLoader || !this.scene) return;
         this.loadingUris.add(url);
+        this.activeGlbLoads++;
         this.setStatus(this.loadedMeshes.size > 0 ? `${this.loadedMeshes.size} tiles` : '読込中...');
 
         this.gltfLoader.load(
             url,
             (gltf) => {
                 this.loadingUris.delete(url);
+                this.activeGlbLoads = Math.max(0, this.activeGlbLoads - 1);
                 try {
                     const rtcCenter = gltf.parser?.json?.extensions?.CESIUM_RTC?.center ||
                                       gltf.userData?.gltfExtensions?.CESIUM_RTC?.center || null;
                     const group = this.buildMercatorMeshGroup(gltf.scene, box, rtcCenter, tileTransform);
                     if (group) {
                         this.scene.add(group);
-                        this.loadedMeshes.set(url, group);
+                        this.loadedMeshes.set(url, { group, box });
                         this.setStatus(`${this.loadedMeshes.size} tiles`);
                         this.map?.triggerRepaint();
                     }
                 } catch (err) {
                     console.warn('GLB tile placement error:', err);
                 }
+                this.pumpGlbQueue();
             },
             undefined,
             (err) => {
                 this.loadingUris.delete(url);
+                this.activeGlbLoads = Math.max(0, this.activeGlbLoads - 1);
                 console.warn('GLB load failed:', err);
+                this.pumpGlbQueue();
             }
         );
     }
 
     /**
      * Google 3D Tiles (.glb) 内の全メッシュ頂点を 64bit 精度で ECEF -> MapLibre Mercator へ変換
-     * GPU Float32 桁落ち・裏面カリング・法線反転を完全に回避する
      */
     buildMercatorMeshGroup(gltfScene, box, rtcCenter, tileTransform) {
         gltfScene.updateMatrixWorld(true);
@@ -408,7 +453,6 @@ export class Google3DTilesLayer {
 
         if (meshes.length === 0) return null;
 
-        // サンプル頂点から glTF ワールド座標系と ECEF (box[0..2]) の対応関係を自動判定
         const v0 = rawVerts[0];
         let offsetX = 0, offsetY = 0, offsetZ = 0;
         if (rtcCenter && rtcCenter.length >= 3) {
@@ -421,7 +465,6 @@ export class Google3DTilesLayer {
             offsetZ = tileTransform[14];
         }
 
-        // Y-up (glTF標準: EcefX = x, EcefY = -z, EcefZ = y) か Z-up かを box 中心との距離で判定
         const candYUp = [v0.x + offsetX, -v0.z + offsetY, v0.y + offsetZ];
         const candZUp = [v0.x + offsetX,  v0.y + offsetY, v0.z + offsetZ];
 
@@ -430,7 +473,6 @@ export class Google3DTilesLayer {
             const dYUp = Math.hypot(candYUp[0] - box[0], candYUp[1] - box[1], candYUp[2] - box[2]);
             const dZUp = Math.hypot(candZUp[0] - box[0], candZUp[1] - box[1], candZUp[2] - box[2]);
             isYUp = dYUp <= dZUp;
-            // もし頂点がローカル原点付近（|v0| < 100,000）でオフセット未指定なら box 中心を基準にする
             if (Math.hypot(candYUp[0], candYUp[1], candYUp[2]) < 1000000) {
                 offsetX = box[0];
                 offsetY = box[1];
@@ -443,7 +485,6 @@ export class Google3DTilesLayer {
             return [vx + offsetX, vy + offsetY, vz + offsetZ];
         };
 
-        // タイル基準点 (先頭頂点) の Mercator 座標と ENU 基底を算出
         const [refEx, refEy, refEz] = toEcef(v0.x, v0.y, v0.z);
         const { lon: refLon, lat: refLat, ellipsoidAlt: refEllipAlt } = ecefToLngLatAlt(refEx, refEy, refEz);
         const refOrthoAlt = refEllipAlt - DEFAULT_GEOID_OFFSET_M;
@@ -455,7 +496,6 @@ export class Google3DTilesLayer {
         const sinLat = Math.sin(latRad), cosLat = Math.cos(latRad);
         const sinLon = Math.sin(lonRad), cosLon = Math.cos(lonRad);
 
-        // ECEF における East, North, Up 単位ベクトル
         const eastX = -sinLon, eastY = cosLon, eastZ = 0;
         const northX = -sinLat * cosLon, northY = -sinLat * sinLon, northZ = cosLat;
         const upX = cosLat * cosLon, upY = cosLat * sinLon, upZ = sinLat;
@@ -481,7 +521,6 @@ export class Google3DTilesLayer {
                 const dy = ey - refEy;
                 const dz = ez - refEz;
 
-                // ENU メートル変位 -> MapLibre Mercator (East=+X, South=+Y, Up=+Z)
                 const eastM = dx * eastX + dy * eastY + dz * eastZ;
                 const northM = dx * northX + dy * northY + dz * northZ;
                 const upM = dx * upX + dy * upY + dz * upZ;
@@ -500,8 +539,7 @@ export class Google3DTilesLayer {
                 map: srcMat?.map || null,
                 color: srcMat?.color || 0xffffff,
                 side: THREE.DoubleSide,
-                transparent: true,
-                opacity: 0.92,
+                transparent: false,
                 depthTest: true,
                 depthWrite: true
             });
@@ -520,16 +558,16 @@ export class Google3DTilesLayer {
         this.updateTilesForCurrentView(false);
         if (this.loadedMeshes.size === 0 || !this.origin) return;
 
-        const terrainElevation = this.map?.transform?.elevation || 0;
-        const zCorrection = terrainElevation * (this.originScale || 1e-7);
-
         const m = new THREE.Matrix4().fromArray(matrix);
         const l = new THREE.Matrix4().makeTranslation(
             this.origin.x,
             this.origin.y,
-            this.origin.z - zCorrection
+            this.origin.z
         );
         this.camera.projectionMatrix = m.multiply(l);
+
+        // 背面の2D衛星写真地形メッシュが3D建物を遮蔽（Zファイティング・埋没）しないよう深度バッファをクリアして描画
+        gl.clear(gl.DEPTH_BUFFER_BIT);
 
         this.renderer.resetState();
         this.renderer.render(this.scene, this.camera);

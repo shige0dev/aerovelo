@@ -222,7 +222,14 @@ export class MapViewController {
         this.ribbonLayer?.updateCourse(course);
 
         // 新規コース読み込み時は FREE カメラモード中であっても視点を新コースへ強制更新する
-        if (initialState) this.updateRiderAndCamera(initialState, 0, false, true);
+        if (initialState) {
+            this.updateRiderAndCamera(initialState, 0, false, true);
+            if (this.markerVisible.bldgB) {
+                this.google3dLayer.clearTiles();
+                this.google3dLayer.origin = null;
+                this.google3dLayer.updateTilesForCurrentView(true);
+            }
+        }
     }
 
     syncTargetMarkers(state = this.lastState) {
