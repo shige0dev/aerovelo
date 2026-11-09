@@ -22,7 +22,7 @@
     <div id="top-bar">
         <div class="top-title-group">
             <h1 class="top-app-title">AeroVelo</h1>
-            <span class="version-badge" id="app-version">v2.4.30</span>
+            <span class="version-badge" id="app-version">v2.4.31</span>
         </div>
         <div class="top-course-group">
             <span id="course-name-display" class="top-course-title" title="クリックでコース選定・標高補正">読み込み中...</span>
@@ -218,19 +218,18 @@
     </div>
 
     <!-- デバイス・センサー連携フローティングダイアログ (⚙️ ボタンクリックで展開、他場所タップで消去) -->
-    <div id="modal-settings" class="floating-dialog" style="display: none;">
+    <div id="modal-settings" class="floating-dialog device-dialog" style="display: none;">
         <div class="dialog-header">
             <span class="dialog-title">DEVICE / SENSOR</span>
         </div>
         <div class="modal-body">
-            <!-- 接続デバイス種別セレクタ & 接続ボタン -->
+            <!-- 3連ボタン種別セレクタ & 接続ボタン -->
             <div class="settings-section">
-                <div class="settings-sec-title">📡 接続デバイス選択</div>
-                <select id="ble-device-type-select" class="preset-select" title="接続するデバイスの種類を選択">
-                    <option value="trainer" selected>⚡ スマートトレーナー</option>
-                    <option value="speed">🛞 スピードセンサー</option>
-                    <option value="cadence">🔄 ケイデンスセンサー</option>
-                </select>
+                <div class="ble-mode-tabs" id="ble-mode-tabs">
+                    <button type="button" class="ble-mode-tab active" data-mode="trainer">⚡ トレーナー</button>
+                    <button type="button" class="ble-mode-tab" data-mode="speed">🛞 スピード</button>
+                    <button type="button" class="ble-mode-tab" data-mode="cadence">🔄 ケイデンス</button>
+                </div>
                 <div class="ble-bar" style="margin-top: 3px;">
                     <button type="button" id="btn-ble-connect" class="ble-btn">
                         <span class="ble-dot"></span>

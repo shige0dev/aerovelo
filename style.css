@@ -283,6 +283,9 @@ input[type="range"]::-webkit-slider-thumb {
     left: 50%; right: auto; width: 190px; transform: translateX(-50%);
     animation: dialog-pop-center 0.15s ease-out;
 }
+.floating-dialog.device-dialog {
+    width: 230px;
+}
 @keyframes dialog-pop { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes dialog-pop-center { from { opacity: 0; transform: translate(-50%, 4px); } to { opacity: 1; transform: translate(-50%, 0); } }
 
@@ -321,6 +324,26 @@ input[type="range"]::-webkit-slider-thumb {
     margin-top: 2px; padding: 4px 6px; border-radius: 4px;
     background: rgba(15, 23, 42, 0.75); border: 1px solid rgba(148, 163, 184, 0.2);
     font-size: 0.60rem; color: #e2e8f0; text-align: center; font-weight: 600;
+}
+
+.ble-mode-tabs {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px;
+    background: rgba(0, 0, 0, 0.35); padding: 2px; border-radius: 5px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.ble-mode-tab {
+    display: flex; align-items: center; justify-content: center;
+    padding: 4px 2px; font-size: 0.58rem; font-weight: 700;
+    color: var(--muted); background: transparent;
+    border: 1px solid transparent; border-radius: 4px;
+    cursor: pointer; white-space: nowrap; transition: all 0.15s ease;
+}
+.ble-mode-tab:hover {
+    color: #fff; background: rgba(255, 255, 255, 0.06);
+}
+.ble-mode-tab.active {
+    background: rgba(0, 240, 255, 0.22); border-color: var(--accent);
+    color: #ffffff; box-shadow: 0 0 6px var(--accent-glow);
 }
 
 .ble-btn {

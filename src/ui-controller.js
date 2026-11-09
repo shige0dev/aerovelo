@@ -61,7 +61,7 @@ export class UIController {
             btnGsiDem: $('btn-gsi-dem'),
             gsiBtnText: $('gsi-btn-text'),
             structureSummaryText: $('structure-summary-text'),
-            bleDeviceTypeSelect: $('ble-device-type-select'),
+            bleModeTabs: $('ble-mode-tabs'),
             panelTrainerLoad: $('panel-trainer-load'),
             panelSpeedCirc: $('panel-speed-circumference'),
             wheelCircRow: $('wheel-circ-row'),
@@ -255,11 +255,16 @@ export class UIController {
         }
 
         // 6. BLE & GPX / DEM
-        on(el.bleDeviceTypeSelect, 'change', (e) => {
-            const mode = e.target.value;
-            this.updateBleModeUI(mode);
-            cb.onBleModeChange?.(mode);
-        });
+        if (el.bleModeTabs) {
+            el.bleModeTabs.querySelectorAll('.ble-mode-tab').forEach((tab) => {
+                on(tab, 'click', () => {
+                    const mode = tab.dataset.mode;
+                    if (!mode) return;
+                    this.updateBleModeUI(mode);
+                    cb.onBleModeChange?.(mode);
+                });
+            });
+        }
 
         const applyWheelCirc = (val) => {
             const mm = Math.round(clamp(val, 1900, 2300));
@@ -390,7 +395,10 @@ export class UIController {
 
     updateBleModeUI(mode) {
         this.bleDeviceType = mode;
-        const { panelTrainerLoad, panelSpeedCirc, btnBleConnect, bleStatusText } = this.el;
+        const { bleModeTabs, panelTrainerLoad, panelSpeedCirc, btnBleConnect, bleStatusText } = this.el;
+        bleModeTabs?.querySelectorAll('.ble-mode-tab').forEach((tab) => {
+            tab.classList.toggle('active', tab.dataset.mode === mode);
+        });
         if (panelTrainerLoad) panelTrainerLoad.style.display = mode === 'trainer' ? 'flex' : 'none';
         if (panelSpeedCirc) panelSpeedCirc.style.display = mode === 'speed' ? 'flex' : 'none';
         if (btnBleConnect && !btnBleConnect.classList.contains('connected') && bleStatusText) {
